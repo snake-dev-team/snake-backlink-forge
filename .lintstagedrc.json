@@ -4,8 +4,5 @@
   ],
   "packages/**/*.{ts,tsx,json}": [
     "biome check --write --no-errors-on-unmatched"
-  ],
-  "services/api/**/*.go": [
-    "gofmt -w"
   ]
 }
