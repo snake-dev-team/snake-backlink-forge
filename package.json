@@ -1,0 +1,28 @@
+{
+  "name": "snake-backlink-forge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Snake Backlink Forge — professional SEO backlink automation platform.",
+  "license": "UNLICENSED",
+  "author": "Snake Premium Hub",
+  "packageManager": "pnpm@9.15.9",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "dev": "turbo run dev",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.0",
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "turbo": "2.9.6",
+    "typescript": "6.0.3"
+  }
+}
