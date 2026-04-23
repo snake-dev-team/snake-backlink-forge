@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Skip hooks in CI (GitHub Actions sets CI=true)
+if [ "$CI" = "true" ]; then exit 0; fi
+
+# Gitleaks: fast scan staged changes only
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --config .gitleaks.toml --redact || {
+    echo "[pre-commit] gitleaks detected potential secret in staged changes. Abort."
+    exit 1
+  }
+else
+  echo "[pre-commit] gitleaks not installed — skipping secret scan (install: https://github.com/gitleaks/gitleaks)"
+fi
+
+# lint-staged: format + lint staged files
+pnpm exec lint-staged --allow-empty || exit 1

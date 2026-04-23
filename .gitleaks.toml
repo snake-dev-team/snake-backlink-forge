@@ -1,0 +1,17 @@
+[allowlist]
+description = "Template & example files"
+paths = [
+    '''(?i)\.env\..*\.example$''',
+    '''(?i)\.env\.example$''',
+    '''docs/MASTER_PROMPT\.md$''',
+    '''plans/.*''',
+    '''services/api/\.env\.example$''',
+    '''\.claude/.*''',
+    '''\.claude-archived/.*''',
+    '''\.agents/.*''',
+    '''scripts/.*''',
+    '''pnpm-lock\.yaml$''',
+    '''.*\.lock$''',
+]
+
+# Use gitleaks default rules for detection (no custom rules needed Phase 1)

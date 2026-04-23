@@ -1,0 +1,11 @@
+{
+  "apps/**/*.{ts,tsx,json,jsx}": [
+    "biome check --write --no-errors-on-unmatched"
+  ],
+  "packages/**/*.{ts,tsx,json}": [
+    "biome check --write --no-errors-on-unmatched"
+  ],
+  "services/api/**/*.go": [
+    "gofmt -w"
+  ]
+}
