@@ -1,0 +1,12 @@
+# Compiled binary output
+bin/
+
+# Test coverage artifacts
+coverage.out
+coverage.html
+
+# Local environment overrides — NEVER commit real secrets
+/.env
+
+# Temporary files (air live-reload, etc.)
+tmp/
