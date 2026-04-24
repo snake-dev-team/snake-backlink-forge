@@ -62,18 +62,27 @@ func main() {
 		log.Info("redis connected")
 	}
 
-	// --- UserService (Phase 02) ---
-	// NoopKeyIssuer used until Phase 03 wires real KeyService.
+	// --- KeyService (Phase 03) ---
+	// Wired before UserService so it can be passed as the KeyIssuer dependency.
+	// If dbPool is nil (lenient boot), both services remain nil — bot falls back to dev mode.
+	var keySvc *service.KeyService
+	if dbPool != nil {
+		keySvc = service.NewKeyService(dbPool, log.Named("key_svc"))
+		log.Info("key service initialized")
+	}
+
+	// --- UserService (Phase 02+03) ---
+	// Phase 03: real KeyService replaces NoopKeyIssuer.
 	// If dbPool is nil (lenient boot), UserService is nil — bot handlers fall back to dev mode.
 	var userSvc *service.UserService
 	if dbPool != nil {
-		userSvc = service.New(dbPool, rdb, service.NoopKeyIssuer, log.Named("user_svc"))
+		userSvc = service.New(dbPool, rdb, keySvc, log.Named("user_svc"))
 		log.Info("user service initialized")
 	} else {
 		log.Warn("user service disabled — no DB pool")
 	}
 
-	// --- Bot (Phase 02, optional) ---
+	// --- Bot (Phase 03) ---
 	// Bot manages its own internal contexts (loopCtx + handlerCtx).
 	// Shutdown is coordinated via bot.Stop(), which drains in-flight handlers
 	// before cancelling handlerCtx — so we do NOT pass a cancellable ctx here.
@@ -87,7 +96,7 @@ func main() {
 			Log:         log.Named("bot"),
 			Cfg:         cfg,
 			UserService: userSvc,
-			// KeyService: nil — Phase 03 will set this; UserService uses NoopKeyIssuer internally.
+			KeyService:  keySvc, // Phase 03: real KeyService wired
 		})
 		if botErr != nil {
 			if errors.Is(botErr, appbot.ErrBotDisabled) {

@@ -7,19 +7,97 @@ package sqlcdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
-const placeholderKeysSelect = `-- name: PlaceholderKeysSelect :one
+const getActiveKeyByUser = `-- name: GetActiveKeyByUser :one
 
-SELECT 1 AS dummy
+SELECT id, user_id, key_hash, key_prefix, name, is_active, created_at, last_used_at, revoked_at FROM api_keys WHERE user_id = $1 AND is_active = TRUE LIMIT 1
 `
 
 // Queries for the api_keys table.
-// Phase 2+ will add real queries here (key generation, revocation, lookup by hash).
-// Placeholder kept so sqlc can parse this file without errors.
-func (q *Queries) PlaceholderKeysSelect(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, placeholderKeysSelect)
-	var dummy int32
-	err := row.Scan(&dummy)
-	return dummy, err
+// Phase 03: real queries replacing placeholder stub.
+// key_hash is BYTEA (SHA-256 of plaintext). Plaintext is NEVER stored.
+func (q *Queries) GetActiveKeyByUser(ctx context.Context, userID uuid.UUID) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, getActiveKeyByUser, userID)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.KeyHash,
+		&i.KeyPrefix,
+		&i.Name,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const getKeyByHash = `-- name: GetKeyByHash :one
+SELECT id, user_id, key_hash, key_prefix, name, is_active, created_at, last_used_at, revoked_at FROM api_keys WHERE key_hash = $1 AND is_active = TRUE LIMIT 1
+`
+
+func (q *Queries) GetKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, getKeyByHash, keyHash)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.KeyHash,
+		&i.KeyPrefix,
+		&i.Name,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const insertKey = `-- name: InsertKey :one
+INSERT INTO api_keys (user_id, key_hash, key_prefix, name, is_active)
+VALUES ($1, $2, $3, $4, TRUE)
+RETURNING id, user_id, key_hash, key_prefix, name, is_active, created_at, last_used_at, revoked_at
+`
+
+type InsertKeyParams struct {
+	UserID    uuid.UUID `json:"user_id"`
+	KeyHash   []byte    `json:"key_hash"`
+	KeyPrefix string    `json:"key_prefix"`
+	Name      *string   `json:"name"`
+}
+
+func (q *Queries) InsertKey(ctx context.Context, arg InsertKeyParams) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, insertKey,
+		arg.UserID,
+		arg.KeyHash,
+		arg.KeyPrefix,
+		arg.Name,
+	)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.KeyHash,
+		&i.KeyPrefix,
+		&i.Name,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const revokeActiveKeysForUser = `-- name: RevokeActiveKeysForUser :exec
+UPDATE api_keys SET is_active = FALSE, revoked_at = NOW()
+WHERE user_id = $1 AND is_active = TRUE
+`
+
+func (q *Queries) RevokeActiveKeysForUser(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, revokeActiveKeysForUser, userID)
+	return err
 }

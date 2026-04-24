@@ -12,12 +12,18 @@ import (
 
 type Querier interface {
 	EnsureWallet(ctx context.Context, userID uuid.UUID) error
+	// Queries for the api_keys table.
+	// Phase 03: real queries replacing placeholder stub.
+	// key_hash is BYTEA (SHA-256 of plaintext). Plaintext is NEVER stored.
+	GetActiveKeyByUser(ctx context.Context, userID uuid.UUID) (ApiKey, error)
+	GetKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	// Queries for the users table.
 	// Phase 02: real queries replacing placeholder stub.
 	// NOTE: F4 trial-gate flow (SELECT FOR UPDATE + conditional UPDATE + grant_credits)
 	//       is inlined as raw pgx.Tx in user_service.go — sqlc cannot model that compound
 	//       transaction cleanly.
 	GetUserByTelegramID(ctx context.Context, telegramID int64) (User, error)
+	InsertKey(ctx context.Context, arg InsertKeyParams) (ApiKey, error)
 	// Queries for the audit_log and safeguard_hits tables.
 	// Phase 2+ will add real queries here (event insert, anomaly lookup).
 	// ip_hash stores sha256(ip) — raw IP is never persisted (see docs/threat-model.md Phase 7).
@@ -32,10 +38,6 @@ type Querier interface {
 	// Phase 2+ will add real queries here (enqueue, dispatch, complete, fail, stats).
 	// Placeholder kept so sqlc can parse this file without errors.
 	PlaceholderJobsSelect(ctx context.Context) (int32, error)
-	// Queries for the api_keys table.
-	// Phase 2+ will add real queries here (key generation, revocation, lookup by hash).
-	// Placeholder kept so sqlc can parse this file without errors.
-	PlaceholderKeysSelect(ctx context.Context) (int32, error)
 	// Queries for the ledger table.
 	// Phase 2+ will add real queries here (history pagination, balance reconciliation).
 	// consume_credits / grant_credits are stored procs called via pool.Exec, not sqlc.
@@ -50,6 +52,7 @@ type Querier interface {
 	// Phase 2+ will add real queries here (balance fetch, credit top-up via grant_credits proc).
 	// Placeholder kept so sqlc can parse this file without errors.
 	PlaceholderWalletsSelect(ctx context.Context) (int32, error)
+	RevokeActiveKeysForUser(ctx context.Context, userID uuid.UUID) error
 	SetLanguage(ctx context.Context, arg SetLanguageParams) error
 	SetPhoneAndVerify(ctx context.Context, arg SetPhoneAndVerifyParams) (User, error)
 	UpsertUserStub(ctx context.Context, arg UpsertUserStubParams) (User, error)

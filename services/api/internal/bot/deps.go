@@ -2,9 +2,8 @@
 // All bot sub-packages depend on this Deps container; no reverse imports allowed.
 //
 // Import safety:
-//   bot → service (for UserService + KeyIssuer interface declared in service package)
+//   bot → service (for UserService + KeyService declared in service package)
 //   service does NOT import bot — no circular dependency.
-//   Phase 03 will set KeyService on Deps; until then KeyService field is unused.
 package bot
 
 import (
@@ -27,8 +26,9 @@ type Deps struct {
 	// Wired in main.go Phase 02 startup. Nil until DB is available.
 	UserService *service.UserService
 
-	// KeyService satisfies service.KeyIssuer for post-trial key issuance.
-	// Wired in Phase 03. Until then service.NoopKeyIssuer is used inside UserService.
-	// Kept on Deps so Phase 03 can inject without changing UserService constructor.
-	KeyService service.KeyIssuer
+	// KeyService handles API key issuance, revocation, and masked display.
+	// Typed as *service.KeyService (not interface) because bot handlers call
+	// GetActiveMasked in addition to Issue (which is on the KeyIssuer interface).
+	// Phase 03: wired in main.go alongside UserService.
+	KeyService *service.KeyService
 }
