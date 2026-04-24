@@ -296,6 +296,7 @@ Success criteria: **100/100 iterations pass across the -cpu=1,2,4,8 matrix** for
 - **Pre-deploy checklist additions:**
   - [ ] Verify SePay dashboard accepts `https://snake-backlink-api.fly.dev/webhooks/sepay` as webhook URL
   - [ ] If SePay rejects `.fly.dev` → configure Cloudflare Tunnel: `cloudflared tunnel create sbf-webhook` → get `*.trycloudflare.com` subdomain → point at Fly app IPv4 → update SePay dashboard
+  - [ ] If SePay rejects both `.fly.dev` AND `trycloudflare.com` → purchase `snakebacklink.com` (~$10 Namecheap), configure DNS A record to Fly app IPv4, wait 10-30min propagate, re-verify SePay dashboard. Sets `api.snakebacklink.com/webhooks/sepay` as production webhook URL.
   - [ ] `SEPAY_BANK_ACCOUNT` + `SEPAY_BANK_CODE` + `SEPAY_WEBHOOK_TOKEN` + `ADMIN_TELEGRAM_IDS` set via `fly secrets set`
   - [ ] Run migration `20260424003` + `20260424004` via `fly ssh console -C 'make migrate-up'` during low-traffic window (migration 004 NO TRANSACTION gap)
 - **Local dev (PART 1):** `ngrok http 8080` → public `*.ngrok.io` URL → configure SePay sandbox webhook with tunnel URL for round-trip testing.
