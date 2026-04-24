@@ -64,3 +64,26 @@ docker start sbf_postgres && sleep 10 && curl localhost:8080/ready  # 200 again
 make migrate-down             # reverts clean
 make dev-down                 # teardown
 ```
+
+---
+
+## 2026-04-24 evening checkpoint
+
+### Done today
+- Phase 1 Foundation 7/7 sub-phases (commits `be839e8` -> `dcfb334`)
+- Brand v1.0 design hoàn tất, assets trong `assets/brand/`
+- `gh auth refresh` + push `main` + `dev` branch lên origin
+- Repo: https://github.com/danhng876/snake-backlink-forge (PRIVATE)
+
+### Pending before Phase 2
+- [ ] Install Docker Desktop
+- [ ] Verify Phase 1 stack runtime (6 blocks A-F — see "Verify Phase 1 stack" section above)
+- [ ] Telegram bot `@SnakeBacklinkBot` + avatar
+- [ ] SePay merchant + webhook bearer token
+- [ ] 9Router verify (`CLAUDE_BASE_URL` + `cc/claude-sonnet-4-6` model)
+- [ ] `services/api/.env.local` populated with real secrets
+
+### Tomorrow plan
+- Resume Phase 2 prep via Claude Code session reload
+- Cook Phase 2 Telegram Bot + Wallet + SePay (run `/ck:plan --hard` review first)
+
