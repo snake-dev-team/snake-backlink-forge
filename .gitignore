@@ -97,6 +97,7 @@ worktrees/
 
 # Go
 vendor/
+!.claude/hooks/scout-block/vendor/
 *.exe
 *.test
 *.out

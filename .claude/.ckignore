@@ -25,3 +25,9 @@ coverage
 # Allow reading these files
 !.env
 !.env.*
+
+# Allow ClaudeKit hook internals (vendor shim + npm deps for scout-block)
+!.claude/hooks/node_modules
+!.claude/hooks/node_modules/**
+!.claude/hooks/scout-block/vendor
+!.claude/hooks/scout-block/vendor/**
