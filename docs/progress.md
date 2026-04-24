@@ -87,3 +87,57 @@ make dev-down                 # teardown
 - Resume Phase 2 prep via Claude Code session reload
 - Cook Phase 2 Telegram Bot + Wallet + SePay (run `/ck:plan --hard` review first)
 
+---
+
+## 2026-04-24 — Machine Handoff
+
+### Current repo state
+- Branch: `dev`
+- Last commit: `5299d13 docs(progress): 2026-04-24 evening checkpoint`
+- Remote sync status: `dev` == `origin/dev` (pushed, in sync); `main` == `origin/main` (pushed, in sync). `main` is 2 commits behind `dev` — Phase 07 docs (`dcfb334`) + evening checkpoint (`5299d13`) live on `dev` only.
+- Working tree: dirty — untracked only. `.claude/session-state/latest.md.*.tmp` (8 session-state temp files, safe to ignore) + empty `plans/260424-0247-phase-1-foundation/reports/` dir. No tracked files modified.
+
+### Phase status
+- Phase 1 Foundation: **DONE** (7/7 sub-phases committed + pushed)
+- Brand v1.0: Orbit S finalized, assets in `assets/brand/`
+- Phase 2: **NOT STARTED**
+
+### Next machine setup checklist (do in order)
+1. Clone repo: `git clone https://github.com/danhng876/snake-backlink-forge`
+2. Install tools:
+   - Node.js v20+
+   - pnpm 9.15.9 via `npm install -g pnpm@9.15.9`
+   - Go 1.26.2 from https://go.dev/dl/
+   - Docker Desktop (WSL2 backend)
+   - Git + Git Bash + GitHub CLI (`gh`)
+   - ClaudeKit from https://claudekit.cc
+3. Configure Claude Code:
+   - Set `ANTHROPIC_BASE_URL` to 9Router endpoint (`https://r7yyfje.9router.com`)
+   - Model alias: `cc/claude-opus-4-7` for `/ck:plan`, `cc/claude-sonnet-4-6` for `/ck:cook`
+   - Working dir: repo root on new machine (`<local-path>/snake-backlink-forge`)
+4. Restore secrets:
+   - Copy `sbf-secrets.txt` from USB/cloud
+   - Create `services/api/.env.local` from template + secrets
+5. `pnpm install` (first time on new machine)
+6. Verify: `docker compose up -d --wait` → `make migrate-up` → `make run` → `curl localhost:8080/health`
+
+### Phase 2 pre-requirements (pending, user action)
+- [ ] Install Docker Desktop on new machine
+- [ ] Verify Phase 1 stack (6 blocks A-F in `docs/progress.md` → "Verify Phase 1 stack" section)
+- [ ] Create Telegram bot `@<username>` via BotFather
+- [ ] Apply SBF avatar to bot (`sbf-telegram-avatar-512.png`)
+- [ ] Register SePay merchant + get webhook bearer token
+- [ ] Get admin Telegram ID from `@userinfobot`
+- [ ] Populate `services/api/.env.local` with all secrets
+- [ ] Verify 9Router `cc/claude-sonnet-4-6` still active
+
+### When all pre-reqs done
+Run: `/ck:plan --hard "Phase 2 Telegram Bot + Wallet + SePay"`
+Review plan files before `/ck:cook`.
+
+### Key decisions locked (see `docs/MASTER_PROMPT.md`)
+- Stack: Go 1.26.2 + Fiber + PostgreSQL + Redis + Next.js 15 + Svelte 5 + Rust WASM
+- Deploy: Fly.io (api) + Vercel (landing) + Cloudflare R2 (CDN)
+- Business model: credit pools Premium/Standard, keys via Telegram bot, HWID-free
+- Brand: Orbit S v1.0 finalized (archived cyber serpent direction)
+
