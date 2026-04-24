@@ -144,7 +144,7 @@ func classifyWebhookError(c *fiber.Ctx, deps *Deps, err error, orderCode string,
         return ack200(c, true, "queued_for_retry")
 
     // Hard infra — pool exhausted, Redis down, etc. Let SePay retry (short-lived).
-    case errors.Is(err, pgx.ErrAcquireTimeout), isPoolExhausted(err):
+    case errors.Is(err, pgx.ErrAcquireTimeout):
         audit(c, "sepay_infra_error", map[string]any{"err": err.Error()})
         return c.Status(503).JSON(fiber.Map{"success": false, "reason": "service_unavailable"})
 
@@ -178,7 +178,7 @@ type ProcessResult struct {
     Overpaid          bool
     BonusCredits      int
     WasCancelled      bool   // true when recovered_by_late_payment
-    UserID            uuid.uid
+    UserID            uuid.UUID
     PackageCode       string
     Premium, Standard int    // base credits granted
 }
@@ -243,8 +243,9 @@ func (s *WebhookService) ProcessPaidTransaction(ctx context.Context, orderCode s
 
     wasCancelled := txRow.PreStatus == "cancelled"
 
-    // [F1] 3-way amount branch
+    // [F1] 3-way amount branch — hoist `bonus` to outer scope so return block can use it
     diff := p.TransferAmount - txRow.AmountVND
+    bonus := 0
     switch {
     case diff < 0:
         // underpaid
@@ -262,7 +263,6 @@ func (s *WebhookService) ProcessPaidTransaction(ctx context.Context, orderCode s
     case diff > 0:
         // overpaid: base grants + bonus grant using package per-credit rate
         pool, rate := perCreditRate(txRow.Premium, txRow.Standard, txRow.AmountVND)
-        bonus := 0
         if rate > 0 {
             bonus = int(diff / rate) // floor
         }
@@ -309,7 +309,7 @@ func (s *WebhookService) ProcessPaidTransaction(ctx context.Context, orderCode s
         UserID: txRow.UserID, PackageCode: txRow.PkgCode,
         Premium: txRow.Premium, Standard: txRow.Standard,
         WasCancelled: wasCancelled,
-        Overpaid: diff > 0, BonusCredits: max0(int(diff / maxRate(txRow))),
+        Overpaid: diff > 0, BonusCredits: bonus,
     }, nil
 }
 ```
@@ -333,6 +333,84 @@ type Payload struct {
 
 // [F2] 12 hex chars, case-insensitive capture; callers MUST ToUpper(match[1]) before DB query
 var orderCodeRe = regexp.MustCompile(`(?i)SBF\s+TOPUP\s+([A-F0-9]{12})`)
+```
+
+### [round-3] Retry queue + consumer (`sepay_retry_queue`)
+- **Producer** (from `classifyWebhookError` lock-contention branch): `LPUSH sepay_retry_queue <payload_envelope_json>` then `LTRIM sepay_retry_queue 0 499` → keep newest 500 entries (bounded). Payload envelope: `{"payload": <raw>, "attempts": 0, "original_ts": <unix>}`.
+- **Consumer goroutine** (spawned in `cmd/api/main.go`): `BRPOP sepay_retry_queue 0` (blocking, no timeout) → decode envelope → backoff sleep `min(60s, 2^attempts * 1s)` if `attempts > 0` → replay `ProcessPaidTransaction` logic using the stored raw payload.
+- **Max retries per message:** 3. On 4th attempt failure → `LPUSH sepay_dead_letter <envelope>` (uncapped list for now) + log + `sendAdminAlertNonBlocking(AdminAlert{Kind:"retry_dead_letter"})`.
+- **Backlog alert:** every tick of consumer loop, check `LLEN sepay_retry_queue > 400` (80% full) → `sendAdminAlertNonBlocking(AdminAlert{Kind:"retry_queue_backlog"})`. One alert per backlog event (deduped via in-memory flag until LLEN drops below 200).
+- **Re-enqueue on transient failure:** increment envelope.attempts → `LPUSH sepay_retry_queue <envelope>` → respect the 500 cap via `LTRIM 0 499` after each LPUSH.
+
+```go
+// services/api/internal/service/retry_consumer.go (new)
+type RetryEnvelope struct {
+    Payload    sepay.Payload `json:"payload"`
+    Attempts   int           `json:"attempts"`
+    OriginalTS int64         `json:"original_ts"`
+}
+
+func retryQueueConsumer(ctx context.Context, rdb *redis.Client, svc *WebhookService,
+    alertCh chan<- AdminAlert, log *zap.Logger) {
+    backlogAlertedHigh := false // dedup flag: true after >400 alert, reset when <200
+    for {
+        // BRPOP blocks until item available or ctx cancelled
+        res, err := rdb.BRPop(ctx, 0, "sepay_retry_queue").Result()
+        if err != nil {
+            if errors.Is(err, context.Canceled) { return }
+            log.Warn("BRPOP failed", zap.Error(err)); continue
+        }
+        var env RetryEnvelope
+        if err := json.Unmarshal([]byte(res[1]), &env); err != nil {
+            log.Warn("retry envelope decode failed", zap.Error(err)); continue
+        }
+        if env.Attempts > 0 {
+            backoff := time.Duration(min64(60, 1<<env.Attempts)) * time.Second
+            select { case <-time.After(backoff): case <-ctx.Done(): return }
+        }
+        // Extract orderCode from payload.Content and replay
+        match := orderCodeRe.FindStringSubmatch(env.Payload.Content)
+        if match == nil { continue } // unrecoverable; drop
+        orderCode := strings.ToUpper(match[1])
+        _, procErr := svc.ProcessPaidTransaction(ctx, orderCode, env.Payload)
+        if procErr == nil { continue } // success
+
+        env.Attempts++
+        if env.Attempts >= 3 {
+            data, _ := json.Marshal(env)
+            _ = rdb.LPush(ctx, "sepay_dead_letter", data).Err()
+            sendAdminAlertNonBlocking(alertCh, AdminAlert{
+                Kind: "retry_dead_letter", OrderCode: orderCode, Err: procErr.Error(),
+            })
+            log.Error("retry exhausted → dead-letter",
+                zap.String("order_code", orderCode), zap.Error(procErr))
+            continue
+        }
+        // Re-enqueue with incremented attempts
+        data, _ := json.Marshal(env)
+        _ = rdb.LPush(ctx, "sepay_retry_queue", data).Err()
+        _ = rdb.LTrim(ctx, "sepay_retry_queue", 0, 499).Err()
+
+        // Backlog alert check
+        llen, _ := rdb.LLen(ctx, "sepay_retry_queue").Result()
+        if llen > 400 && !backlogAlertedHigh {
+            sendAdminAlertNonBlocking(alertCh, AdminAlert{
+                Kind: "retry_queue_backlog", Err: fmt.Sprintf("queue len=%d (>80%% of 500 cap)", llen),
+            })
+            backlogAlertedHigh = true
+        } else if llen < 200 && backlogAlertedHigh {
+            backlogAlertedHigh = false
+        }
+    }
+}
+```
+
+Producer (inside `classifyWebhookError` lock-contention branch):
+```go
+env := RetryEnvelope{Payload: p, Attempts: 0, OriginalTS: time.Now().Unix()}
+data, _ := json.Marshal(env)
+_ = deps.Rdb.LPush(context.Background(), "sepay_retry_queue", data).Err()
+_ = deps.Rdb.LTrim(context.Background(), "sepay_retry_queue", 0, 499).Err()
 ```
 
 ### [Q5] Admin alert channel wiring (`cmd/api/main.go` — phase-01 patched)
@@ -383,10 +461,11 @@ type AdminAlert struct {
 - `services/api/internal/service/webhook_service.go`
 - `services/api/internal/service/webhook_service_test.go`
 - `services/api/internal/bot/admin_alerts.go` — **[Q5]** `AdminAlert` struct + `consumeAdminAlerts` consumer goroutine + `sendAdminAlertNonBlocking` helper
+- `services/api/internal/service/retry_consumer.go` — **[round-3]** `retryQueueConsumer` goroutine + `RetryEnvelope` struct; BRPOP-based; max 3 retries + dead-letter + backlog alert
 
 ### Modify
 - `services/api/internal/api/router.go` — add `/webhooks/sepay` route + `BodyLimit(64*1024)` + `rateLimitWebhook(20/sec/IP)` middleware
-- `services/api/cmd/api/main.go` — **[Q5]** create `adminAlertCh := make(chan AdminAlert, 100)`; spawn consumer goroutine; wire into Deps; close on shutdown
+- `services/api/cmd/api/main.go` — **[Q5]** create `adminAlertCh := make(chan AdminAlert, 100)`; spawn consumer goroutine; wire into Deps; close on shutdown. **[round-3]** also spawn `go retryQueueConsumer(rootCtx, rdb, webhookSvc, adminAlertCh, log)`
 - `services/api/internal/config/config.go` — rename `SepayBankAcc` → `SepayBankAccount` (env `SEPAY_BANK_ACCOUNT`) — consistent w/ phase-05
 
 ## Implementation Steps
@@ -397,6 +476,9 @@ type AdminAlert struct {
 5. Write `service/webhook_service.go` — **[F1]** 3-way branch (underpaid / exact / overpaid w/ bonus + threshold flags), **[Q2]** CAS widened to `('pending','cancelled')` with pre-state captured.
 6. Write `api/handlers/webhook.go` — thin controller with **[Q3]** account + gateway match, **[F2]** `ToUpper` order code normalize, **[F3]** error classifier, **[H6]** notify goroutine with `WithTimeout(deps.RootCtx, 10s)`.
 7. Register route: `app.Post("/webhooks/sepay", rateLimitWebhook(rdb, 20), bodyLimit(64*1024), handlers.SePayWebhook(deps))`.
+7a. **[round-3]** Write `service/retry_consumer.go` — `retryQueueConsumer(ctx, rdb, webhookSvc, alertCh, log)` goroutine: BRPOP blocking; backoff `min(60s, 2^attempts * 1s)`; 3-retry dead-letter; 80%-backlog alert with LLEN<200 reset.
+7b. **[round-3]** In `cmd/api/main.go`: spawn `go retryQueueConsumer(rootCtx, rdb, webhookSvc, adminAlertCh, log)` alongside `consumeAdminAlerts`.
+7c. **[round-3]** Producer in `classifyWebhookError`: wrap payload in `RetryEnvelope{Payload, Attempts: 0, OriginalTS}` → `LPUSH sepay_retry_queue` → `LTRIM 0 499`.
 8. Write unit test `verify_test.go` — known apikey matches; wrong returns false; empty returns false; `Bearer foo` prefix returns false.
 9. Write integration test `webhook_service_test.go`:
    - Setup: user, pending transaction with provider_ref='ABCDEF012345' (12-hex), amount=329000, standard=200.
@@ -430,7 +512,9 @@ type AdminAlert struct {
 - [ ] Implement `WebhookService.ProcessPaidTransaction` with **[F1]** 3-way branch + **[Q2]** CAS widened
 - [ ] **[Q3]** Implement account + gateway match in handler
 - [ ] **[F2]** Implement `ToUpper(match[1])` normalization
-- [ ] **[F3]** Implement `classifyWebhookError` (lock → 200 queued + Redis list; infra → 503; panic → 500 + alert)
+- [ ] **[F3]** Implement `classifyWebhookError` (lock → 200 queued + Redis list + LTRIM 0 499; infra → 503; panic → 500 + alert)
+- [ ] **[round-3]** Implement `RetryEnvelope` + `retryQueueConsumer` goroutine (BRPOP, backoff, 3-retry dead-letter, 80% backlog alert)
+- [ ] **[round-3]** Spawn retry consumer in `cmd/api/main.go`
 - [ ] **[H6]** Implement notify goroutine with `WithTimeout(RootCtx, 10s)` + defer cancel
 - [ ] Register route in `api/router.go` with rate-limit + body-limit
 - [ ] Unit test verify
@@ -462,7 +546,7 @@ type AdminAlert struct {
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | Attacker replays captured payload with valid signature | High (we can't prevent) | High | CAS-gate on status IN ('pending','cancelled') → replay on paid/recovered row is no-op. Audit log shows replay attempts |
-| SePay rotates API key → all webhooks 200 success=false silently | Med | Critical | **[Q5]** Alert on 10+ consecutive `sepay_auth_fail` in 5min window via `adminAlertCh` → goroutine DMs admin (Phase 08) |
+| SePay rotates API key → all webhooks 200 success=false silently | Med | Critical | **[Q5 + round-3]** `auditFailAlertWatcher` goroutine (phase-08) polls `audit_log` every 60s; if ≥20 `sepay_auth_fail` rows in last 15min → `adminAlertCh <- AdminAlert{Kind:"auth_fail_burst"}`. Window-bucket dedup (`now.Unix()/900`) prevents duplicate alerts per bucket |
 | Payload schema drift — new field breaks unmarshal | Low | High | Use `json.Decoder.DisallowUnknownFields = FALSE` (default); extra fields ignored. Raw JSON also stored in metadata |
 | `transferAmount` is int64 JSON but SePay sends string | Low | High | Payload test with real SePay doc example payload (**[M6]** `testutil/sepay_payload_real.json` in phase-10). Current `int64` tag works per docs; if real payload reveals string-typed number, add custom `UnmarshalJSON` |
 | Network partition between grant and notify goroutine loses the Telegram message | Med | Low | Notify is best-effort; **[H6]** ctx scoped to `RootCtx` + 10s timeout; user can self-serve `/balance` or `/history`; audit log records the success |
@@ -472,6 +556,9 @@ type AdminAlert struct {
 | [Q5] Admin alert channel full (100 alerts backlog) | Low | Low | Non-blocking send with drop + warn; prevents cascading block |
 | Forbid `+goose` SQL in webhook handlers — keep logic in Go | Low | Low | Sanity: all SQL in sqlc queries or inline in service; no migrations triggered by webhook |
 | Underpaid + duplicate retry → 1st call manual_review, 2nd call AlreadyProcessed | Low | Low | ManualReview status ∉ ('pending','cancelled') → 2nd call CAS fails → AlreadyProcessed path taken → no double-handle |
+| **[round-3]** Retry consumer poisoning — permanently-failing payload loops | Low | Med | Max 3 retries per envelope; 4th attempt → `sepay_dead_letter` Redis list + `retry_dead_letter` admin alert. Log + manual inspection queue |
+| **[round-3]** Retry queue backlog during lock storm | Low | Med | `LTRIM 0 499` caps at 500. Backlog > 400 → `retry_queue_backlog` admin alert (dedup until LLEN < 200). Old entries evicted LIFO via LTRIM |
+| **[round-3]** Retry consumer goroutine crash → queue stalls | Low | High | Consumer spawned in `cmd/api/main.go` bound to rootCtx; on panic, `recover()` + restart loop. BRPOP is blocking — no CPU burn when empty |
 
 ## Security Considerations
 - Body size limit 64KB.
@@ -482,6 +569,10 @@ type AdminAlert struct {
 - **[Q3]** `SEPAY_BANK_ACCOUNT` + `SEPAY_BANK_CODE` required; server refuses to boot if unset.
 - Audit log every branch: `sepay_auth_fail | sepay_account_mismatch | sepay_gateway_mismatch | sepay_unmatched_transfer | sepay_unknown_order | sepay_underpaid | sepay_overpaid | sepay_success | sepay_replay | sepay_internal_error`.
 - **[M4]** `ip_hash = sha256(c.IP())` — store full 32-char hex (not truncated to 16) — trivial storage cost, avoids birthday-collision merging distinct IPs into one rate-limit key.
+
+### [round-3] Deploy target
+- **Production:** `https://snake-backlink-api.fly.dev/webhooks/sepay` (Fly auto-assigned subdomain — no custom domain in Phase 2). Fallback: Cloudflare Tunnel (`*.trycloudflare.com`) if SePay rejects `.fly.dev`.
+- **Local dev:** expose `localhost:8080/webhooks/sepay` via `ngrok http 8080` or equivalent (e.g. `cloudflared tunnel`); configure SePay sandbox webhook URL with the public tunnel URL.
 
 ## Next Steps
 - Phase 07 `/history` shows top-up success rows.

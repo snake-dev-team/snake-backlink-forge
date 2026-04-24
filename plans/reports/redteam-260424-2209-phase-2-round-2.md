@@ -232,7 +232,7 @@ Cook is blocked until F5 is rewritten. After that, auth-fail alert wiring is rec
 **Verdict:** FIX_REQUIRED
 **Summary:** F1/F2/F3/F4/F6 closed (5/6 critical). **F5 REGRESSION**: audit_log.id BIGSERIAL vs grant_credits.p_ref_id UUID type collision blocks admin grant entirely. H5/M3/M5/M6/L3/Q1-Q6 closed (11/11). New findings: 1 critical (F5 redo), 1 high (auth-fail alert unwired — round 1 M7 incomplete), 3 low (pseudocode typos, retry queue cap, migration doc nit).
 **Report:** E:\tool_backlink\plans\reports\redteam-260424-2209-phase-2-round-2.md
-**Commit sha:** (pending — will update after push)
+**Commit sha:** 6826b58
 **Top blockers for cook:**
 1. F5 type-collision rewrite (phase-08 admin grant tx)
 2. auth-fail alert producer wiring (phase-08 impl steps)

@@ -135,11 +135,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_provider_ref_active
   WHERE status IN ('pending','paid','cancelled','recovered_by_late_payment');
 
 -- +goose Down
--- IRREVERSIBILITY NOTE: Postgres does not support removing enum values without recreating the type.
--- Dropping the enum values 'topup_excess' and 'recovered_by_late_payment' requires:
---   (a) CREATE new enum without them, (b) migrate columns to new type, (c) drop old type.
--- This is disruptive and unnecessary in practice (values remain but unused post-revert).
--- Down migration only reverts the provider_ref constraint change.
+-- FORWARD-ONLY NOTE: This migration is effectively forward-only in this deployment due to partial index rebuild + enum value adds.
+-- Rollback requires manual DDL (destructive — not automated here):
+--   1. DROP INDEX idx_tx_provider_ref_active → restore base UNIQUE constraint.
+--   2. Remove enum values (destructive): CREATE TYPE replacement → ALTER COLUMN USING cast → DROP old TYPE → rename replacement.
+-- Postgres CAN technically remove enum values via type recreate + data migration, but this is invasive and unnecessary in practice
+-- (added values remain unused post-revert without harm). Automated down here only reverts the provider_ref constraint.
 
 DROP INDEX IF EXISTS idx_tx_provider_ref_active;
 -- Restore unconditional UNIQUE (may fail if duplicate provider_ref rows exist; accept manual cleanup)

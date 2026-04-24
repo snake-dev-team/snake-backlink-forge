@@ -13,7 +13,9 @@
 - Admin role check is middleware-level: `isAdmin(tgID)` via `slices.Contains(cfg.AdminTelegramIDs, tgID)`. No DB role table needed — YAGNI.
 - Admin commands use `/admin <subcmd> <args>` pattern, single command router with subcmd switch.
 - Every admin write action (grant, ban, unban) MUST write to `audit_log` with `event` like `admin_grant | admin_ban | admin_unban`.
-- **[F5] Audit ordering for admin_grant:** INSERT audit_log BEFORE `grant_credits` call, within same pgx.Tx. On grant failure → ROLLBACK drops audit row atomically. No orphan audit rows claiming side effects that didn't happen.
+- **[F5 Option A — round-3 rework] Admin grant ordering:** avoids BIGSERIAL→UUID type collision from round-2. Ledger row uses `ref_type='user', ref_id=target_user_id (UUID)`; audit row captures `metadata.ledger_id (bigint)` via `currval('ledger_id_seq')` within same session. Both rows land in single `pgx.Tx` — grant fail → audit NOT inserted; audit fail → grant ROLLBACK.
+- **[F5] Chain-of-evidence:** `ledger.user_id + ledger.created_at` ↔ `audit_log.user_id + audit_log.created_at + metadata.ledger_id` — forensic JOIN path preserved.
+- **[round-3] Auth-fail burst alert:** `auditFailAlertWatcher` goroutine spawned in `main.go` polls `audit_log` for `sepay_auth_fail` every 60s; threshold ≥20-in-15min → admin alert via `adminAlertCh`. Window-bucket dedup prevents duplicate alerts within same 15-min bucket.
 - **[M3] Self-ban guard:** `/admin ban <tg>` rejects if target tg_id ∈ `cfg.AdminTelegramIDs`. Prevents admin lockout.
 - **[L3] `ADMIN_TELEGRAM_IDS` env parsing:** comma-separated int64 list — `strings.Split(",") + strconv.ParseInt`. Fail boot on non-int. Log warn on dupes.
 - `/admin lookup <tg_id|phone|key_prefix>` — 3-way search: numeric → by telegram_id; starts with `+` → by phone_e164; starts with `sbf_live_` → by key_prefix.
@@ -34,12 +36,15 @@ Reply as monospace table.
 ### `/admin grant <tg_id> <pool> <amount> [reason]`
 - Validate pool ∈ {premium, standard}, amount > 0, amount <= 10000 (sanity cap).
 - Resolve user by tg_id. If not found → error.
-- **[F5] Ordering within single pgx.Tx:**
-  1. `BEGIN`
-  2. `INSERT INTO audit_log (user_id, event, metadata) VALUES ($admin_user_id, 'admin_grant_credits', jsonb_build_object('target_user_id', $target, 'pool', $pool, 'amount', $amount, 'reason', $reason)) RETURNING id` → `audit_id`
-  3. `SELECT grant_credits($target_user_id, $pool, $amount, 'admin_adjust', 'audit_log', $audit_id)` → `new_balance`
-  4. `COMMIT`
-  - If step 3 fails (e.g., P0001 INSUFFICIENT_CREDITS for negative adjusts, schema error): `ROLLBACK` drops the audit row. No orphan audit.
+- **[F5 Option A — round-3] Ordering within single pgx.Tx (avoids BIGSERIAL↔UUID collision):**
+  1. `BEGIN` (pgx.Tx, default READ COMMITTED)
+  2. `SELECT grant_credits(p_user_id := $target, p_pool := $pool, p_amount := $amount, p_event_type := 'admin_adjust', p_ref_type := 'user', p_ref_id := $target_uuid)` → returns `new_balance` (int)
+     - `ref_type='user'`, `ref_id=target_user_id` (UUID — fits `ledger.ref_entity_id UUID`)
+  3. `SELECT currval('ledger_id_seq')` → `ledger_id` (bigint) — safe within same session per Postgres spec; captures id of the ledger row just inserted by grant_credits
+  4. `INSERT INTO audit_log (user_id, event, metadata) VALUES ($target_user_id, 'admin_grant', jsonb_build_object('ledger_id', $ledger_id::bigint, 'amount', $amount, 'pool', $pool, 'admin_tg_id', $admin_tg_id, 'reason', $reason)) RETURNING id` → `audit_id`
+  5. `COMMIT`
+  - **Atomicity guarantee:** grant fails → step 2 errors → ROLLBACK drops nothing (no writes yet). Audit INSERT fails → step 4 errors → ROLLBACK drops ledger + wallet delta from step 2. COMMIT success → both rows written.
+  - **Chain-of-evidence:** audit → ledger via `audit_log.metadata->>'ledger_id'` (bigint). Ledger → audit via `(ledger.user_id, ledger.created_at)` fuzzy match within ±1s to `(audit_log.user_id, audit_log.created_at)`.
 - Reply confirmation with new balance + optional reason in audit metadata.
 
 ### `/admin ban <tg_id> [reason]`
@@ -100,7 +105,7 @@ Called from:
 - phase 02 trial grant → event=`trial_granted`
 - phase 03 key issue / revoke → event=`key_issued | key_revoked`
 - phase 06 sepay webhook all branches → event=`sepay_success | sepay_auth_fail | sepay_unmatched_transfer | sepay_underpaid | sepay_replay`
-- phase 08 admin grant / ban / unban → event=`admin_grant | admin_ban | admin_unban`
+- phase 08 admin grant / ban / unban → event=`admin_grant | admin_ban | admin_unban` (note: `admin_grant` is canonical — round-2 used `admin_grant_credits`, renamed to match F5 Option A rework)
 
 ### Lookup parse
 ```go
@@ -111,6 +116,104 @@ func parseLookupIdent(s string) (kind, val string) {
     return "unknown", s
 }
 ```
+
+### [F5 Option A] AdminService.Grant pseudocode — round-3 rewrite
+```go
+func (s *AdminService) Grant(ctx context.Context, adminTGID int64, targetUserID uuid.UUID,
+    pool string, amount int, reason string) (newBalance int, err error) {
+
+    tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+    if err != nil { return 0, err }
+    defer tx.Rollback(ctx)
+
+    // Step 1: grant_credits with ref_type='user', ref_id=target_user_id (UUID fits UUID)
+    if err := tx.QueryRow(ctx,
+        `SELECT grant_credits($1, $2, $3, 'admin_adjust', 'user', $1)`,
+        targetUserID, pool, amount,
+    ).Scan(&newBalance); err != nil {
+        return 0, fmt.Errorf("grant_credits: %w", err)
+    }
+
+    // Step 2: capture ledger_id via currval (same session — safe per PG spec)
+    var ledgerID int64
+    if err := tx.QueryRow(ctx, `SELECT currval('ledger_id_seq')`).Scan(&ledgerID); err != nil {
+        return 0, fmt.Errorf("currval ledger_id: %w", err)
+    }
+
+    // Step 3: audit_log with ledger_id in metadata (bigint → jsonb)
+    _, err = tx.Exec(ctx,
+        `INSERT INTO audit_log (user_id, event, metadata)
+         VALUES ($1, 'admin_grant', jsonb_build_object(
+             'ledger_id', $2::bigint,
+             'amount', $3::int,
+             'pool', $4::text,
+             'admin_tg_id', $5::bigint,
+             'reason', $6::text))`,
+        targetUserID, ledgerID, amount, pool, adminTGID, reason,
+    )
+    if err != nil {
+        return 0, fmt.Errorf("audit_log insert: %w", err)
+    }
+
+    if err := tx.Commit(ctx); err != nil { return 0, err }
+    return newBalance, nil
+}
+```
+
+### [round-3] auditFailAlertWatcher goroutine (`bot/admin_alerts.go` — new)
+```go
+// auditFailAlertWatcher polls audit_log for sepay_auth_fail bursts.
+// Spawned in cmd/api/main.go: go auditFailAlertWatcher(rootCtx, pool, adminAlertCh, logger)
+// Threshold: 20-in-15min; 60s tick; window-bucket dedup prevents duplicate alerts per 15-min bucket.
+func auditFailAlertWatcher(ctx context.Context, db *pgxpool.Pool, alertCh chan<- AdminAlert, log *zap.Logger) {
+    ticker := time.NewTicker(60 * time.Second)
+    defer ticker.Stop()
+    alertedWindows := make(map[int64]struct{}) // bucket -> alerted
+
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case now := <-ticker.C:
+            bucket := now.Unix() / (15 * 60) // 15-min window bucket
+            if _, already := alertedWindows[bucket]; already {
+                continue
+            }
+            var count int
+            err := db.QueryRow(ctx,
+                `SELECT COUNT(*) FROM audit_log
+                 WHERE event='sepay_auth_fail'
+                 AND created_at > NOW() - INTERVAL '15 minutes'`,
+            ).Scan(&count)
+            if err != nil {
+                log.Warn("auth_fail poll failed", zap.Error(err))
+                continue
+            }
+            if count >= 20 {
+                select {
+                case alertCh <- AdminAlert{
+                    Kind: "auth_fail_burst",
+                    Err:  fmt.Sprintf("%d SePay webhook auth failures in 15min. Check SEPAY_WEBHOOK_TOKEN rotation or attack.", count),
+                    At:   now,
+                }:
+                    alertedWindows[bucket] = struct{}{}
+                    // GC old buckets (keep last 4 to guard against clock skew)
+                    for b := range alertedWindows {
+                        if b < bucket-4 {
+                            delete(alertedWindows, b)
+                        }
+                    }
+                default:
+                    log.Warn("adminAlertCh full, dropping auth_fail_burst alert",
+                        zap.Int("count", count), zap.Int64("bucket", bucket))
+                }
+            }
+        }
+    }
+}
+```
+
+**Naming note:** audit event name is canonical `sepay_auth_fail` (pre-existing in plan). User directive also referenced `webhook_auth_fail` as alias — normalized to `sepay_auth_fail` throughout this plan for consistency with phase-06 audit taxonomy.
 
 ## Related Code Files
 ### Create
@@ -124,6 +227,8 @@ func parseLookupIdent(s string) (kind, val string) {
 ### Modify
 - `services/api/internal/bot/middleware.go` — add `isAdmin` helper (reads cfg.AdminTelegramIDs)
 - `services/api/internal/bot/router.go` — route `/admin` command
+- `services/api/internal/bot/admin_alerts.go` — **[round-3]** add `auditFailAlertWatcher` alongside existing `consumeAdminAlerts` + `sendAdminAlertNonBlocking` (created in phase-06)
+- `services/api/cmd/api/main.go` — **[round-3]** spawn `go auditFailAlertWatcher(rootCtx, pool, adminAlertCh, log)` at server init (pool + logger already wired; adminAlertCh created in phase-06)
 - Services in phases 02/03/06 — inject `*AuditService` dep, call `Log` at audit points
 
 ## sqlc queries (new)
@@ -187,35 +292,41 @@ UPDATE users SET is_banned = FALSE, updated_at = NOW() WHERE telegram_id = $1;
 3. **[L3]** In `config/config.go`: implement `parseAdminTelegramIDs(raw string) ([]int64, error)` — `strings.Split(",") + strings.TrimSpace + strconv.ParseInt(base=10, bitSize=64)`. Error on any non-int. Use `map[int64]struct{}` to detect dupes → log warn, keep first occurrence.
 4. Write `service/admin_service.go` with:
    - `Stats(ctx)`
-   - **[F5]** `Grant(ctx, adminUserID, targetTGID, pool, amt, reason)` — audit_log INSERT then grant_credits, both in single pgx.Tx; return (newBalance, err).
+   - **[F5 Option A — round-3]** `Grant(ctx, adminTGID, targetUserID, pool, amt, reason)`: BEGIN pgx.Tx → `SELECT grant_credits(..., ref_type='user', ref_id=target_user_id::UUID)` → `SELECT currval('ledger_id_seq')` → `INSERT audit_log (event='admin_grant', metadata.ledger_id=$ledger_id::bigint, .amount, .pool, .admin_tg_id, .reason)` → COMMIT.
    - **[M3]** `Ban(ctx, adminUserID, targetTGID, reason)` — reject if target tg_id ∈ `cfg.AdminTelegramIDs`; else UPDATE + audit_log in same tx.
    - `Unban`, `Lookup`.
 5. Write `bot/commands/admin.go` dispatcher.
-6. Wire `AuditService` dep into phase 02/03/06 services. Propagate via Deps struct.
-7. Add `isAdmin(tgID)` to middleware — use in `/admin` router short-circuit.
-8. Write integration test:
-   - Non-admin sends `/admin stats` → bot ignores (no reply).
-   - Admin `/admin grant 123 standard 100 reason=test` → wallet +100, audit_log has row with event=`admin_grant_credits` and metadata.reason=test.
-   - **[F5]** Force grant_credits failure (mock `pgconn.PgError{Code:"P0001"}` via stored-proc monkey-patch OR deliberately invalid pool through a raw SQL path) → audit_log row ABSENT after rollback.
-   - Admin `/admin ban 123` → user.is_banned=TRUE, audit row, banned user's subsequent `/balance` → "account disabled".
-   - **[M3]** Admin `/admin ban <self_tg_id>` → reply `admin_self_ban_blocked`, user.is_banned UNCHANGED, no audit row.
-   - Admin `/admin lookup 123` → returns user summary.
-   - **[L3]** Config boot with `ADMIN_TELEGRAM_IDS="abc,123"` → fail startup with parse error.
+6. **[round-3]** Write `bot/admin_alerts.go` → `auditFailAlertWatcher(ctx, pool, adminAlertCh, log)` goroutine: 60s ticker, `COUNT(*) FROM audit_log WHERE event='sepay_auth_fail' AND created_at > NOW() - INTERVAL '15 minutes'` ≥ 20 → `AdminAlert{Kind:"auth_fail_burst"}`. In-memory bucket dedup on `now.Unix() / (15*60)`; GC buckets older than `bucket-4`.
+7. **[round-3]** In `cmd/api/main.go`: spawn `go auditFailAlertWatcher(rootCtx, pool, adminAlertCh, log)` alongside existing `consumeAdminAlerts` goroutine. Both bound to rootCtx; exit on shutdown.
+8. Wire `AuditService` dep into phase 02/03/06 services. Propagate via Deps struct.
+9. Add `isAdmin(tgID)` to middleware — use in `/admin` router short-circuit.
+10. Write integration test:
+    - Non-admin sends `/admin stats` → bot ignores (no reply).
+    - Admin `/admin grant 123 standard 100 reason=test` → wallet +100, audit_log has row with event=`admin_grant` and metadata.ledger_id populated + metadata.reason=test.
+    - **[F5]** `TestAdminGrantAtomicRollback` (3 cases — see phase-10 Suite F): (a) force grant_credits to fail (FK violation via non-existent target_user_id) → audit_log + ledger + wallet all unchanged; (b) force audit INSERT to fail (test-only trigger on audit_log) → ledger + wallet all unchanged; (c) happy path → `audit_log.metadata->>'ledger_id'` matches actual ledger.id.
+    - Admin `/admin ban 123` → user.is_banned=TRUE, audit row, banned user's subsequent `/balance` → "account disabled".
+    - **[M3]** Admin `/admin ban <self_tg_id>` → reply `admin_self_ban_blocked`, user.is_banned UNCHANGED, no audit row.
+    - Admin `/admin lookup 123` → returns user summary.
+    - **[L3]** Config boot with `ADMIN_TELEGRAM_IDS="abc,123"` → fail startup with parse error.
+    - **[round-3]** `TestAuthFailBurstAlert`: seed 20 `audit_log(event='sepay_auth_fail', created_at > NOW()-15min)` rows → start watcher with 1s ticker override → assert alert on channel within 2s; re-fire → assert NO duplicate for same 15-min bucket.
 
 ## Todo List
 - [ ] Write `audit.sql` + `admin_stats.sql` queries
 - [ ] Run `sqlc generate`
 - [ ] Implement `AuditService`
 - [ ] **[L3]** Implement `parseAdminTelegramIDs` in `config.go` with dupe warning + non-int fail
-- [ ] **[F5]** Implement `AdminService.Grant` with audit-then-grant ordering in single pgx.Tx
+- [ ] **[F5 Option A — round-3]** Implement `AdminService.Grant` — single pgx.Tx: grant_credits(ref_type='user', ref_id=target_uuid) → currval(ledger_id_seq) → INSERT audit_log with metadata.ledger_id → COMMIT
 - [ ] **[M3]** Implement `AdminService.Ban` self-ban guard
 - [ ] Implement `AdminService` stats/unban/lookup
 - [ ] Implement `bot/commands/admin.go` router
+- [ ] **[round-3]** Implement `auditFailAlertWatcher` goroutine in `bot/admin_alerts.go` (60s ticker, 15min window, threshold 20, in-memory bucket dedup)
+- [ ] **[round-3]** Spawn `auditFailAlertWatcher` in `cmd/api/main.go` alongside `consumeAdminAlerts`
 - [ ] Inject AuditService into phases 02/03/06 services
 - [ ] Call `Audit.Log` at all audit points
 - [ ] Unit test audit insert
 - [ ] Integration test admin grant flow
-- [ ] **[F5]** Integration test: grant_credits failure → audit row NOT present
+- [ ] **[F5 Option A — round-3]** Integration test `TestAdminGrantAtomicRollback` — 3 cases (grant fail, audit fail, happy path with ledger_id match)
+- [ ] **[round-3]** Integration test `TestAuthFailBurstAlert` — seed 20 sepay_auth_fail rows → alert fires once, dedup prevents duplicate
 - [ ] **[M3]** Integration test: /admin ban on admin's own tg_id rejected, users row unchanged
 - [ ] Integration test non-admin silent ignore
 - [ ] Manual smoke: real admin TG ID → `/admin stats` works
@@ -226,13 +337,18 @@ UPDATE users SET is_banned = FALSE, updated_at = NOW() WHERE telegram_id = $1;
 - Non-admin users see no acknowledgement of `/admin` (no info leak)
 - `/admin stats` responds < 1s on 10k user DB
 - Banned user cannot invoke write commands
+- **[F5 Option A — round-3]** `/admin grant` atomicity: BEGIN → grant_credits(ref_type='user', ref_id=target_user_id UUID) → currval(ledger_id_seq) → INSERT audit_log(metadata.ledger_id=$bigint) → COMMIT. Inject grant failure → both rows absent. Inject audit failure → both rows absent. Happy path → `audit_log.metadata->>'ledger_id'` = actual ledger.id.
+- **[round-3] `auditFailAlertWatcher`** fires alert exactly once per 15-min window on threshold breach (20 sepay_auth_fail in 15min); in-memory bucket map prevents duplicate alerts for same bucket.
 
 ## Risk Assessment
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | Admin accidentally grants to wrong tg_id | Med | Med | `/admin grant` replies with username + current balance; admin eyeballs before next action |
 | Admin list leak (env misconfig) | Low | Critical | `ADMIN_TELEGRAM_IDS` treated as secret, Fly secret not env file. Document in deploy checklist |
-| Audit log insert fails silently after side-effect commits | Low | Med | **[F5]** For `admin_grant_credits`: audit INSERT happens BEFORE grant_credits in SAME tx; on grant failure, rollback drops audit row atomically. Post-commit audit events (trial_granted, sepay_success) remain best-effort with warn-log on failure |
+| Audit log insert fails silently after side-effect commits | Low | Med | **[F5 Option A — round-3]** For `admin_grant`: single pgx.Tx → grant_credits(ref_type='user', ref_id=target_uuid) first, capture ledger_id via `currval('ledger_id_seq')`, then INSERT audit_log with ledger_id in metadata (bigint in jsonb — no type collision), COMMIT. Grant fail → tx rollback, no writes. Audit fail → tx rollback, ledger + wallet delta dropped. Post-commit audit events (trial_granted, sepay_success) remain best-effort with warn-log on failure |
+| SePay token rotation → silent payment loss (webhooks 200 success=false unnoticed) | Low | Critical | **[round-3]** `auditFailAlertWatcher` goroutine polls audit_log every 60s; if ≥20 `sepay_auth_fail` rows in last 15min → admin alert via `adminAlertCh`. Bucket-dedup via `now.Unix() / (15*60)` prevents alert spam |
+| `currval('ledger_id_seq')` returns wrong id if grant_credits triggers indirect inserts | Very Low | Med | Postgres `currval` is session-scoped to the sequence's last `nextval` call in the current session. `grant_credits` stored proc does `INSERT INTO ledger ...` which increments ledger_id_seq via DEFAULT — guaranteed to be the last `nextval` in this session before the `SELECT currval`. Safe per PG spec |
+| Watcher fires during clock skew / NTP sync | Very Low | Low | Window bucket = `now.Unix() / 900`; GC retains buckets within `[bucket-4, bucket]` — tolerates ±1hr clock jitter before accidental re-alert |
 | Admin bans own tg_id → locked out | Low | Critical | **[M3]** `AdminService.Ban` rejects if `target.telegram_id IN cfg.AdminTelegramIDs` → `ErrCannotBanAdmin` template reply |
 | Malformed `ADMIN_TELEGRAM_IDS` env crashes boot | Low | High | **[L3]** Explicit parse in `config.go` with validation; fail-fast on non-int; log warn + dedupe on dupes |
 | Lookup leaks phone PII to admin chat | Low | Low | Masked display: `phone: +84***54321`; raw phone only on explicit `lookup +84...` match |

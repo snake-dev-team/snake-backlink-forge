@@ -63,6 +63,10 @@
 - **[F2] mixed-case memo** — content="sbf topup abcdef012345" → `ToUpper` → matches DB-stored `ABCDEF012345`, normal paid flow
 - **[F3] deadlock_injection** — advisory-lock contention simulated via parallel tx holding lock on `wallets` row → webhook returns 200 queued_for_retry, Redis `sepay_retry_queue` has payload; consumer retry eventually commits once
 - **[M6] real_payload_fixture** — `testutil/sepay_payload_real.json` (copy from SePay docs example) → parse succeeds, `TransferAmount` populated as int64
+- **[round-3] `TestRetryQueueCapLTRIM`** — LPUSH 501 `RetryEnvelope` payloads manually → read `LLEN sepay_retry_queue` → assert stabilizes at 500 (cap enforced by `LTRIM 0 499`)
+- **[round-3] `TestRetryQueueConsumerSuccess`** — LPUSH 1 valid envelope (matches a pending transactions row) → start consumer goroutine → wait 3s → assert `LLEN sepay_retry_queue=0`, wallet credited, ledger row exists, transaction.status='paid'
+- **[round-3] `TestRetryQueueDeadLetter`** — LPUSH envelope with order_code that doesn't map to any transactions row (perma-fail: UnknownOrder loops indefinitely — OR construct failure via FK-violating synthetic payload) → assert after 3 attempts → `LLEN sepay_dead_letter=1`, original queue empty, `adminAlertCh` received `retry_dead_letter` alert
+- **[round-3] `TestRetryQueueBacklogAlert`** — LPUSH 401 envelopes → trigger consumer loop iteration → assert `adminAlertCh` received `retry_queue_backlog` alert; pop entries below 200 → re-fire LPUSH above 400 → assert alert fires again (dedup flag reset)
 
 #### Suite E — History + Support (`e2e_history_support_test.go`)
 - User with 12 tx + 20 ledger rows → /history pagination across 3 pages, no dup, total matches count
@@ -72,13 +76,18 @@
 #### Suite F — Admin (`e2e_admin_test.go`)
 - Non-admin `/admin stats` → no reply
 - Admin `/admin stats` → monospace table with correct counts
-- Admin `/admin grant 12345 standard 100 reason=support` → wallet +100, audit row with reason
+- Admin `/admin grant 12345 standard 100 reason=support` → wallet +100, ledger row (ref_type='user', ref_id=target_user_uuid), audit row (event='admin_grant', `metadata->>'ledger_id'` matches ledger.id, metadata.reason=support)
 - Admin `/admin ban 12345` → user.is_banned=TRUE, banned user's next `/balance` → "account disabled"
 - Admin `/admin lookup 12345` → user summary rendered
 - Admin `/admin grant 12345 invalid 100` → error "unknown pool"
 - Admin `/admin grant 12345 standard -5` → error "amount must be > 0"
 - Admin `/admin grant 12345 standard 10001` → error "amount exceeds cap 10000"
-- **[F5]** Admin `/admin grant` on user with bad data causing grant_credits failure → audit_log has NO row for this attempt (rollback dropped it); wallet unchanged
+- **[F5 Option A — round-3] `TestAdminGrantAtomicRollback`** — 3 cases:
+  1. **Grant failure mid-tx**: invoke `AdminService.Grant` with non-existent `targetUserID` (random UUID not in users) → FK violation on ledger INSERT fires; assert `audit_log WHERE event='admin_grant' AND metadata->>'admin_tg_id'=$test_admin` = 0 rows; `ledger WHERE user_id=$target` = 0 rows; wallet for target unchanged.
+  2. **Audit INSERT failure mid-tx**: install test-only trigger on audit_log `CREATE OR REPLACE FUNCTION test_audit_fail() RETURNS TRIGGER AS $$ BEGIN IF NEW.event='admin_grant' AND NEW.metadata->>'reason'='__test_fail_marker__' THEN RAISE EXCEPTION 'test induced failure'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql; CREATE TRIGGER t BEFORE INSERT ON audit_log ...`. Call Grant with reason `__test_fail_marker__` → audit INSERT raises; assert ledger rows for target + matching test marker = 0; wallet unchanged.
+  3. **Happy path baseline**: normal Grant call → both rows committed → `audit_log.metadata->>'ledger_id' IS NOT NULL` AND equals actual ledger.id; wallet balance increased by `amount`.
+  - Run: `go test -race -count=100 -run TestAdminGrantAtomicRollback ./internal/e2e/...`
+- **[round-3] `TestAuthFailBurstAlert`** — seed 20 rows of `audit_log(event='sepay_auth_fail', created_at=NOW()-INTERVAL '1 minute')` → start `auditFailAlertWatcher` with test-only 1s ticker override → assert `AdminAlert{Kind:"auth_fail_burst"}` received on channel within 2s. Re-fire (same 15-min bucket) → assert NO duplicate alert (bucket dedup).
 - **[M3]** Admin `/admin ban <self_tg_id>` → reply `admin_self_ban_blocked`, target (self) `is_banned` UNCHANGED, no audit row
 - **[L3]** Boot config with `ADMIN_TELEGRAM_IDS="abc,123"` → fail with parse error
 - **[L3]** Boot config with `ADMIN_TELEGRAM_IDS="123,123,456"` → boot succeeds, warn log "duplicate admin tg_id", final list `[123, 456]`
@@ -226,12 +235,16 @@ Success criteria: **100/100 iterations pass across the -cpu=1,2,4,8 matrix** for
 - [ ] **[F2]** Suite D: mixed-case memo
 - [ ] **[F3]** Suite D: deadlock_injection → 200 queued + retry queue
 - [ ] **[M6]** Suite D: real_payload_fixture parse
+- [ ] **[round-3]** Suite D: `TestRetryQueueCapLTRIM` — LPUSH 501 → LLEN stable at 500
+- [ ] **[round-3]** Suite D: `TestRetryQueueConsumerSuccess` — LPUSH 1 valid → drained + wallet credited
+- [ ] **[round-3]** Suite D: `TestRetryQueueDeadLetter` — perma-fail payload → 3 retries → dead-letter list + admin alert
+- [ ] **[round-3]** Suite D: `TestRetryQueueBacklogAlert` — LPUSH 401 → `retry_queue_backlog` alert fires (dedup reset below 200)
 - [ ] Write Suite B: user flow (trial + regen)
 - [ ] **[F4]** Suite B: concurrent phone race (2 tg_ids, same phone)
 - [ ] **[H5]** Suite B: /regenkey rate limit 4th call
 - [ ] Write Suite C: topup idempotency
 - [ ] Write Suite E: history + support (+ **[M5]** body cap + one-shot state)
-- [ ] Write Suite F: admin (+ **[F5]** audit rollback + **[M3]** self-ban + **[L3]** config parse)
+- [ ] Write Suite F: admin (+ **[F5 Option A — round-3]** `TestAdminGrantAtomicRollback` 3 cases + **[round-3]** `TestAuthFailBurstAlert` dedup + **[M3]** self-ban + **[L3]** config parse)
 - [ ] Write Suite G: security fuzz
 - [ ] Add `test-integration` Makefile target
 - [ ] **[F6]** Add `test-integration-stress` Makefile target (`-race -count=100 -cpu=1,2,4,8`)
@@ -268,5 +281,21 @@ Success criteria: **100/100 iterations pass across the -cpu=1,2,4,8 matrix** for
 ## Next Steps
 - On green: commit + push + create PR if applicable.
 - Load test (k6) and chaos test deferred to Phase 10 of master plan (ops).
-- Monitoring / alerting for `sepay_auth_fail` burst — wired via `adminAlertCh` in phase-06 (Q5).
+- Monitoring / alerting for `sepay_auth_fail` burst — wired via `adminAlertCh` in phase-06 (Q5) + `auditFailAlertWatcher` goroutine in phase-08 (round-3).
 - **Pre-deploy blocker (Q4):** research SePay source IPs at https://docs.sepay.vn. If docs publish static IPs → add IP allowlist at Fly firewall level. If not published → fall back to rate limit (20/s/IP) as sole gate. Document outcome before prod deploy.
+
+## [round-3] Deploy target
+
+- **Phase 2-9 production target:** `https://snake-backlink-api.fly.dev` (Fly.io auto-assigned subdomain — custom domain deferred per plan.md ADR).
+- **Integration tests run locally via Docker Compose** (`docker compose up`) — NOT against Fly.
+- **End-of-Phase-2 smoke test (manual):**
+  1. `cd services/api && fly deploy` — deploy to Fly staging
+  2. `curl https://snake-backlink-api.fly.dev/health` → 200 OK
+  3. `curl https://snake-backlink-api.fly.dev/ready` → 200 OK (DB + Redis reachable)
+  4. POST sample SePay payload (from `testutil/sepay_payload_real.json`) to `https://snake-backlink-api.fly.dev/webhooks/sepay` with test Apikey → 200 success OR 200 success=false expected branch
+- **Pre-deploy checklist additions:**
+  - [ ] Verify SePay dashboard accepts `https://snake-backlink-api.fly.dev/webhooks/sepay` as webhook URL
+  - [ ] If SePay rejects `.fly.dev` → configure Cloudflare Tunnel: `cloudflared tunnel create sbf-webhook` → get `*.trycloudflare.com` subdomain → point at Fly app IPv4 → update SePay dashboard
+  - [ ] `SEPAY_BANK_ACCOUNT` + `SEPAY_BANK_CODE` + `SEPAY_WEBHOOK_TOKEN` + `ADMIN_TELEGRAM_IDS` set via `fly secrets set`
+  - [ ] Run migration `20260424003` + `20260424004` via `fly ssh console -C 'make migrate-up'` during low-traffic window (migration 004 NO TRANSACTION gap)
+- **Local dev (PART 1):** `ngrok http 8080` → public `*.ngrok.io` URL → configure SePay sandbox webhook with tunnel URL for round-trip testing.

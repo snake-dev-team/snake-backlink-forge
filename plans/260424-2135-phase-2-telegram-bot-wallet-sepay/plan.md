@@ -84,7 +84,7 @@ Two new migrations (ordered after `20260424002_seed_dorks.sql`):
 - `ALTER TYPE transaction_status ADD VALUE 'recovered_by_late_payment';` (Q2)
 - `ALTER TABLE transactions DROP CONSTRAINT transactions_provider_ref_key;` (drop unconditional UNIQUE)
 - `CREATE UNIQUE INDEX idx_tx_provider_ref_active ON transactions(provider_ref) WHERE status IN ('pending','paid','cancelled','recovered_by_late_payment');` (partial UNIQUE, active states include `cancelled` so late payment matches)
-- **Down irreversibility:** Postgres cannot remove enum values without recreating the type. Down migration documents this (DROP INDEX + ADD UNIQUE constraint back; enum values persist — acceptable since new values unused post-revert).
+- **Forward-only note:** Effectively forward-only in this deployment. Enum value removal is technically possible via type recreate + data migration but invasive; automated down only reverts the provider_ref constraint. Values remain unused post-revert without harm.
 
 ## Success criteria (Phase 2 done means)
 
@@ -106,6 +106,18 @@ Two new migrations (ordered after `20260424002_seed_dorks.sql`):
 |---|---|---|---|
 | Multi-bank support needed post-Phase-2 | Med | Med | **Deferred to Phase 10+ (multi-bank support).** Current plan hard-binds single `SEPAY_BANK_ACCOUNT` + `SEPAY_BANK_CODE` |
 | SePay source IPs not published in docs | Med | Low | **Pre-deploy blocker (phase-10):** research SePay docs at https://docs.sepay.vn. If static IPs absent, fall back to rate limit only |
-| Down-migrate `20260424004` — enum values leak | Certain | Low | Postgres doesn't allow removing enum values; documented irreversibility. Values unused post-revert; acceptable |
+| Down-migrate `20260424004` — enum values leak | Certain | Low | Forward-only in practice; enum value removal requires destructive type recreate. Values unused post-revert; acceptable |
 | Provider_ref reuse by cancelled → new pending same code | Very Low | Low | Partial UNIQUE on active states only; collision across 48-bit space at 65K active ~negligible |
 | Admin alert channel full (flood) | Low | Low | Non-blocking send with warn log; drops ordered by recency; no cascading failure |
+| SePay dashboard rejects `.fly.dev` webhook URL | Low | High | Fallback to Cloudflare Tunnel (free) with `trycloudflare.com` subdomain → Fly app. Non-blocking for Phase 2 planning; verify pre-deploy |
+
+## ADR — Deployment domain deferral
+
+**Decision (2026-04-24):** Custom domain purchase deferred to post-Phase-9 launch. Phase 2-9 use Fly.io auto-assigned subdomain.
+
+- **Backend API:** `https://snake-backlink-api.fly.dev` (Phase 2 webhook target)
+- **Landing (Phase 9):** `https://snake-backlink.vercel.app`
+- **SePay webhook URL:** `https://snake-backlink-api.fly.dev/webhooks/sepay`
+- **Fallback:** Cloudflare Tunnel free subdomain if SePay rejects `.fly.dev` (verify in dashboard).
+- **Local dev:** `ngrok http 8080` or equivalent to tunnel `localhost:8080/webhooks/sepay` for SePay sandbox testing.
+- **Revisit:** Phase 10 marketing launch — evaluate custom domain ROI vs. free subdomain.
