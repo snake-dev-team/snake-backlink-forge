@@ -137,8 +137,10 @@ func classifyWebhookError(c *fiber.Ctx, deps *Deps, err error, orderCode string,
     // Lock contention / transient concurrency — queue for async retry, return 200 to prevent SePay retry storm
     case errors.As(err, &pgErr) && (pgErr.Code == pgerrcode.DeadlockDetected || pgErr.Code == pgerrcode.SerializationFailure),
          errors.Is(err, context.DeadlineExceeded):
-        payloadJSON, _ := json.Marshal(p)
-        _ = deps.Rdb.LPush(context.Background(), "sepay_retry_queue", payloadJSON).Err()
+        env := RetryEnvelope{Payload: p, Attempts: 0, OriginalTS: time.Now().Unix()}
+        data, _ := json.Marshal(env)
+        _ = deps.Rdb.LPush(context.Background(), "sepay_retry_queue", data).Err()
+        _ = deps.Rdb.LTrim(context.Background(), "sepay_retry_queue", 0, 499).Err()
         deps.Log.Warn("sepay webhook queued for retry (lock contention)",
             zap.String("order_code", orderCode), zap.Error(err))
         return ack200(c, true, "queued_for_retry")
@@ -338,7 +340,8 @@ var orderCodeRe = regexp.MustCompile(`(?i)SBF\s+TOPUP\s+([A-F0-9]{12})`)
 ### [round-3] Retry queue + consumer (`sepay_retry_queue`)
 - **Producer** (from `classifyWebhookError` lock-contention branch): `LPUSH sepay_retry_queue <payload_envelope_json>` then `LTRIM sepay_retry_queue 0 499` → keep newest 500 entries (bounded). Payload envelope: `{"payload": <raw>, "attempts": 0, "original_ts": <unix>}`.
 - **Consumer goroutine** (spawned in `cmd/api/main.go`): `BRPOP sepay_retry_queue 0` (blocking, no timeout) → decode envelope → backoff sleep `min(60s, 2^attempts * 1s)` if `attempts > 0` → replay `ProcessPaidTransaction` logic using the stored raw payload.
-- **Max retries per message:** 3. On 4th attempt failure → `LPUSH sepay_dead_letter <envelope>` (uncapped list for now) + log + `sendAdminAlertNonBlocking(AdminAlert{Kind:"retry_dead_letter"})`.
+- **Max retries per message:** 3. On 4th attempt failure → `LPUSH sepay_dead_letter <envelope>` (uncapped list for now) + log + `sendAdminAlertNonBlocking(AdminAlert{Kind:"retry_dead_letter"})` (deduped via 5-min bucket map: `now.Unix()/300` — one alert per 5-min window regardless of dead-letter volume, prevents admin-DM flood during retry storm).
+- **Dead-letter test sentinel:** `provider_ref="DEADLETTER_TRIGGER"` (const `DeadLetterSentinel`) — consumer short-circuits with `ErrDeadLetterSentinel` (not transient); increments attempts normally; after 3 retries lands in dead-letter. Used by `TestRetryQueueDeadLetter` without DB fault injection.
 - **Backlog alert:** every tick of consumer loop, check `LLEN sepay_retry_queue > 400` (80% full) → `sendAdminAlertNonBlocking(AdminAlert{Kind:"retry_queue_backlog"})`. One alert per backlog event (deduped via in-memory flag until LLEN drops below 200).
 - **Re-enqueue on transient failure:** increment envelope.attempts → `LPUSH sepay_retry_queue <envelope>` → respect the 500 cap via `LTRIM 0 499` after each LPUSH.
 
@@ -350,9 +353,15 @@ type RetryEnvelope struct {
     OriginalTS int64         `json:"original_ts"`
 }
 
+// DeadLetterSentinel — reserved provider_ref value used by integration tests to force
+// unrecoverable business-error on every ProcessPaidTransaction call. Consumer recognizes
+// it, treats all attempts as failures, exercises dead-letter flow without DB fault injection.
+const DeadLetterSentinel = "DEADLETTER_TRIGGER"
+
 func retryQueueConsumer(ctx context.Context, rdb *redis.Client, svc *WebhookService,
     alertCh chan<- AdminAlert, log *zap.Logger) {
-    backlogAlertedHigh := false // dedup flag: true after >400 alert, reset when <200
+    backlogAlertedHigh := false                // dedup flag: true after >400 alert, reset when <200
+    deadLetterAlerted := make(map[int64]bool)  // 5-min bucket dedup for retry_dead_letter alerts
     for {
         // BRPOP blocks until item available or ctx cancelled
         res, err := rdb.BRPop(ctx, 0, "sepay_retry_queue").Result()
@@ -372,16 +381,32 @@ func retryQueueConsumer(ctx context.Context, rdb *redis.Client, svc *WebhookServ
         match := orderCodeRe.FindStringSubmatch(env.Payload.Content)
         if match == nil { continue } // unrecoverable; drop
         orderCode := strings.ToUpper(match[1])
-        _, procErr := svc.ProcessPaidTransaction(ctx, orderCode, env.Payload)
+
+        // Test sentinel: force unrecoverable business error without DB fault injection
+        var procErr error
+        if orderCode == DeadLetterSentinel {
+            procErr = ErrDeadLetterSentinel // defined in webhook_service.go, !errors.Is transient
+        } else {
+            _, procErr = svc.ProcessPaidTransaction(ctx, orderCode, env.Payload)
+        }
         if procErr == nil { continue } // success
 
         env.Attempts++
         if env.Attempts >= 3 {
             data, _ := json.Marshal(env)
             _ = rdb.LPush(ctx, "sepay_dead_letter", data).Err()
-            sendAdminAlertNonBlocking(alertCh, AdminAlert{
-                Kind: "retry_dead_letter", OrderCode: orderCode, Err: procErr.Error(),
-            })
+
+            // 5-min window dedup: prevents N-per-batch flood when retry storm hits dead-letter
+            bucket := time.Now().Unix() / 300
+            if !deadLetterAlerted[bucket] {
+                sendAdminAlertNonBlocking(alertCh, AdminAlert{
+                    Kind: "retry_dead_letter", OrderCode: orderCode, Err: procErr.Error(),
+                })
+                deadLetterAlerted[bucket] = true
+                for b := range deadLetterAlerted { // GC old buckets (keep last ~1h)
+                    if b < bucket-12 { delete(deadLetterAlerted, b) }
+                }
+            }
             log.Error("retry exhausted → dead-letter",
                 zap.String("order_code", orderCode), zap.Error(procErr))
             continue
@@ -405,13 +430,7 @@ func retryQueueConsumer(ctx context.Context, rdb *redis.Client, svc *WebhookServ
 }
 ```
 
-Producer (inside `classifyWebhookError` lock-contention branch):
-```go
-env := RetryEnvelope{Payload: p, Attempts: 0, OriginalTS: time.Now().Unix()}
-data, _ := json.Marshal(env)
-_ = deps.Rdb.LPush(context.Background(), "sepay_retry_queue", data).Err()
-_ = deps.Rdb.LTrim(context.Background(), "sepay_retry_queue", 0, 499).Err()
-```
+Producer: inlined in `classifyWebhookError` lock-contention branch (see `### [F3] Error classifier` above) — single source of truth. Envelope shape: `RetryEnvelope{Payload, Attempts, OriginalTS}` → `LPUSH sepay_retry_queue` → `LTRIM 0 499`. No separate producer snippet to avoid drift.
 
 ### [Q5] Admin alert channel wiring (`cmd/api/main.go` — phase-01 patched)
 ```go
@@ -556,7 +575,7 @@ type AdminAlert struct {
 | [Q5] Admin alert channel full (100 alerts backlog) | Low | Low | Non-blocking send with drop + warn; prevents cascading block |
 | Forbid `+goose` SQL in webhook handlers — keep logic in Go | Low | Low | Sanity: all SQL in sqlc queries or inline in service; no migrations triggered by webhook |
 | Underpaid + duplicate retry → 1st call manual_review, 2nd call AlreadyProcessed | Low | Low | ManualReview status ∉ ('pending','cancelled') → 2nd call CAS fails → AlreadyProcessed path taken → no double-handle |
-| **[round-3]** Retry consumer poisoning — permanently-failing payload loops | Low | Med | Max 3 retries per envelope; 4th attempt → `sepay_dead_letter` Redis list + `retry_dead_letter` admin alert. Log + manual inspection queue |
+| **[round-3]** Retry consumer poisoning — permanently-failing payload loops | Low | Med | Max 3 retries per envelope; 4th attempt → `sepay_dead_letter` Redis list + `retry_dead_letter` admin alert (5-min bucket dedup). Log + manual inspection queue |
 | **[round-3]** Retry queue backlog during lock storm | Low | Med | `LTRIM 0 499` caps at 500. Backlog > 400 → `retry_queue_backlog` admin alert (dedup until LLEN < 200). Old entries evicted LIFO via LTRIM |
 | **[round-3]** Retry consumer goroutine crash → queue stalls | Low | High | Consumer spawned in `cmd/api/main.go` bound to rootCtx; on panic, `recover()` + restart loop. BRPOP is blocking — no CPU burn when empty |
 

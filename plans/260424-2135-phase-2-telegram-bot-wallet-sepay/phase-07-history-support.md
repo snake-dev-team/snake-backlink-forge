@@ -33,7 +33,7 @@
 > **[Q6] Note on `/campaigns`:** deferred to Phase 4+ (requires Campaign API CRUD endpoints not landing until Phase 4). NOT routed in Phase 2. Any `/campaigns` text → falls through to unknown-command handler (already covered by router default).
 
 ### `/download`
-- Reply: "📥 Tải installer Windows: {url}" with url from env `INSTALLER_URL` (default = `https://cdn.snakebacklink.com/installer/SnakeBacklinkSetup.exe`).
+- Reply: "📥 Tải installer Windows: {url}" with url from env `INSTALLER_URL` (default = `{INSTALLER_CDN_URL}/installer/SnakeBacklinkSetup.exe` — `INSTALLER_CDN_URL` resolved in Phase 7-9 when Cloudflare R2 bucket + public base URL finalized; Phase 2 may set this to a `.fly.dev/static/` stub or leave unset to trigger "installer not yet published" reply).
 - Inline button "Hướng dẫn cài đặt" → edit to installation guide text.
 
 ### `/ref`
@@ -105,7 +105,7 @@ func (s *RefService) EnsureCode(ctx, userID UUID) (string, error) {
 
 ### Modify
 - `services/api/internal/db/queries/ledger.sql` — add `GetLedgerConsumesByUserPage` (filters `event_type IN ('consume_backlink','consume_captcha','consume_finder')`)
-- `services/api/internal/config/config.go` — add `InstallerURL` env (default `https://cdn.snakebacklink.com/installer/SnakeBacklinkSetup.exe`)
+- `services/api/internal/config/config.go` — add `InstallerURL` env (default `{INSTALLER_CDN_URL}/installer/SnakeBacklinkSetup.exe`; `INSTALLER_CDN_URL` resolved Phase 7-9). If env empty in Phase 2, `/download` replies "installer chưa publish — theo dõi announcement".
 - `services/api/internal/bot/router.go` — route new commands + callbacks
 
 ## sqlc queries (new)
