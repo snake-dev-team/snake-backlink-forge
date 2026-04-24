@@ -381,8 +381,7 @@ snake-backlink-forge/
 │   │   │   │       ├── ledger.sql
 │   │   │   │       └── audit.sql
 │   │   │   ├── migrations/                   # goose .sql
-│   │   │   │   ├── 20260424001_init.up.sql
-│   │   │   │   ├── 20260424001_init.down.sql
+│   │   │   │   ├── 20260424001_init.sql       # single-file goose (+goose Up/Down sections)
 │   │   │   │   └── ...
 │   │   │   ├── redis/
 │   │   │   │   └── redis.go
@@ -527,7 +526,7 @@ snake-backlink-forge/
 ### 3.1 Full DDL
 
 ```sql
--- migrations/20260424001_init.up.sql
+-- migrations/20260424001_init.sql (Up section)
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -880,7 +879,7 @@ GROUP BY u.id, w.premium_credits, w.standard_credits;
 -- (seed dork patterns, tiers sẽ có trong file migration tiếp theo)
 ```
 
-### 3.2 Seed dork patterns file (`20260424002_seed_dorks.up.sql`)
+### 3.2 Seed dork patterns file (`20260424002_seed_dorks.sql`)
 
 Viết file seed 30 dork patterns VN + EN cho mỗi `target_type`. Ví dụ:
 
@@ -2104,7 +2103,7 @@ curl -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE}/purge_cache"
 
 - **Unit tests**: mỗi service có `*_test.go`, target ≥ 80% coverage
 - **Integration tests**: test containers (testcontainers-go) spin up Postgres + Redis, run full HTTP flow
-- **Migration smoke test**: Phase nào có thay đổi DB migration MUST có integration test dùng testcontainers-go spin up Postgres real + run goose.Up/Down cycle → assert schema + seed data correct. KHÔNG defer runtime test lý do "chưa có Docker" — testcontainers-go dùng Docker tự động trong test process. Lesson từ Phase 1 verify block C goose version parsing bug.
+- **Migration smoke test**: MANDATORY in any phase modifying DB schema. Use testcontainers-go for real Postgres in CI — don't defer runtime test. Lesson: Phase 1 Block C bug layer 1 (duplicate version from `YYYYMMDD_NNN_` prefix collision) + layer 2 (split `.up.sql`/`.down.sql` files incompatible with goose single-file parser) both exposed by deferred runtime test. Single-file goose format is the only supported convention: `YYYYMMDDNNN_name.sql` with `-- +goose Up` and `-- +goose Down` sections separated by directive lines.
 - **Load tests**: `k6` scripts cho `/v1/campaign/next` và `/webhooks/sepay` (target p95 < 300ms @ 50 VU)
 - **Security tests**:
   - HMAC bypass attempt → must 401

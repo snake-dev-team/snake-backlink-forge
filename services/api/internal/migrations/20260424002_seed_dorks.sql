@@ -42,3 +42,8 @@ INSERT INTO dork_patterns (pattern, target_type, expected_platform, success_weig
 ('"{niche} directory" "free submission"',                                 'directory_listing', 'generic', 0.420),
 ('inurl:/add-url "{niche}"',                                              'directory_listing', 'generic', 0.380),
 ('"thư mục {niche}" "đăng ký miễn phí"',                                  'directory_listing', 'generic', 0.360);
+
+
+-- +goose Down
+-- Safe delete scoped to seed date; preserves any user-added patterns created after this migration.
+DELETE FROM dork_patterns WHERE created_at >= '2026-04-24' AND created_at < '2026-04-25';
