@@ -27,8 +27,9 @@ type Config struct {
 	ClaudeModel   string `env:"CLAUDE_MODEL"`
 
 	// -- Telegram / Payments (Phase 2) --
-	TelegramBotToken  string `env:"TELEGRAM_BOT_TOKEN"`
-	SepayWebhookToken string `env:"SEPAY_WEBHOOK_TOKEN"`
+	TelegramBotToken    string `env:"TELEGRAM_BOT_TOKEN"`
+	TelegramBotUsername string `env:"TELEGRAM_BOT_USERNAME"`
+	SepayWebhookToken   string `env:"SEPAY_WEBHOOK_TOKEN"`
 
 	// -- External APIs (Phase 4-6) --
 	SerpapiKey          string  `env:"SERPAPI_KEY"`

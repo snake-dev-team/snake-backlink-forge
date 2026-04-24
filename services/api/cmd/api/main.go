@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/api"
+	appbot "github.com/kekuta/snake-backlink-forge/services/api/internal/bot"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	appdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db"
 	appredis "github.com/kekuta/snake-backlink-forge/services/api/internal/redis"
@@ -59,6 +61,32 @@ func main() {
 		log.Info("redis connected")
 	}
 
+	// --- Bot (Phase 2, optional) ---
+	// Bot manages its own internal contexts (loopCtx + handlerCtx).
+	// Shutdown is coordinated via bot.Stop(), which drains in-flight handlers
+	// before cancelling handlerCtx — so we do NOT pass a cancellable ctx here.
+	var bot *appbot.Bot
+	if cfg.TelegramBotToken == "" {
+		log.Warn("bot disabled — TELEGRAM_BOT_TOKEN empty")
+	} else {
+		b, botErr := appbot.New(&appbot.Deps{
+			Pool: dbPool,
+			Rdb:  rdb,
+			Log:  log.Named("bot"),
+			Cfg:  cfg,
+		})
+		if botErr != nil {
+			if errors.Is(botErr, appbot.ErrBotDisabled) {
+				log.Warn("bot disabled", zap.Error(botErr))
+			} else {
+				log.Error("bot init failed", zap.Error(botErr))
+			}
+		} else {
+			bot = b
+			go bot.Start(context.Background())
+		}
+	}
+
 	// --- HTTP Server ---
 	app := api.New(cfg, log, dbPool, rdb)
 
@@ -84,13 +112,22 @@ func main() {
 	}
 
 	log.Info("shutting down — draining connections (max 10s)")
+
+	// 1. Stop bot first: loopCancel stops new updates, drains in-flights (10s),
+	//    then handlerCancel fires. Must happen before closing DB/Redis.
+	if bot != nil {
+		bot.Stop()
+		log.Info("bot stopped")
+	}
+
+	// 2. Shutdown HTTP server.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
 	if shutdownErr := app.ShutdownWithContext(shutdownCtx); shutdownErr != nil {
 		log.Error("graceful shutdown failed", zap.Error(shutdownErr))
 	}
 
+	// 3. Close shared resources — safe now that bot handlers have fully drained.
 	if dbPool != nil {
 		dbPool.Close()
 		log.Info("database pool closed")
