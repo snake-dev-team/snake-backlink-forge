@@ -141,3 +141,52 @@ Review plan files before `/ck:cook`.
 - Business model: credit pools Premium/Standard, keys via Telegram bot, HWID-free
 - Brand: Orbit S v1.0 finalized (archived cyber serpent direction)
 
+---
+
+## 2026-04-24 — Phase 1 Verify Complete (7/7 blocks PASS)
+
+### Outcome
+Phase 1 Foundation end-to-end verified on new machine (E:\tool_backlink, branch `dev` @ `da20dba`). All 7 verify blocks PASS. Ready for Phase 2.
+
+### Tools installed on new machine
+| Tool | Version | Method |
+|---|---|---|
+| pnpm | 9.15.9 | `npm install -g pnpm@9.15.9` |
+| Go | 1.26.2 | MSI installer (winget UAC elevation failed from non-interactive shell) |
+| make | 4.4.1 | `winget install ezwinports.make` |
+| goose CLI | 3.27.0 | `go install github.com/pressly/goose/v3/cmd/goose@latest` |
+
+### Migration bugs fixed (2 PRs merged to dev)
+- **PR #1 `343698d`** — goose parses version as prefix-before-first-underscore. `20260424_001_init.up.sql` → version `20260424` → 4 files collided. Rename `YYYYMMDD_NNN` → `YYYYMMDDNNN` made versions unique.
+- **PR #2 `da20dba`** — goose v3 regex `^(\d+)_(.+)\.sql$` doesn't differentiate `.up.sql` from `.down.sql`. Phase 03 mixed golang-migrate split-file naming with goose single-file directives inside. Consolidated 4 split files → 2 single-file migrations (`-- +goose Up` / `-- +goose Down` sections in one file). MASTER_PROMPT §11.1 updated: migration UP/DOWN smoke test is MANDATORY for DB schema phases.
+
+### Verify results on `dev` @ `da20dba`
+| Block | Command | Result |
+|---|---|---|
+| A | `make dev-setup` | `.env` templates at root + `services/api` |
+| B | `make dev-up` | `sbf_postgres` + `sbf_redis` healthy (5432/6379) |
+| C | `make migrate-up` | 12 base tables + 30 dork_patterns (post-fix) |
+| D | `make run` + `/health` + `/ready` | HTTP 200 JSON, DB+Redis `ok` |
+| E | docker stop/start postgres | 200 → 503 (`degraded`, `db=err`) → 200 recovery |
+| F | `make migrate-down` ×2 | Zero residue: 0 base tables / 0 enums / 0 user functions / 0 views / 0 triggers; idempotent across cycles |
+| G | kill API + `make dev-down` | Port free, containers removed, volumes preserved |
+
+### 9Router revival
+Public endpoint `r7yyfje.9router.com` returned HTTP 530 (dead trycloudflare tunnel from machine handoff). Fix: `9router --tray --skip-update -n` spawned cloudflared, tunnel URL rotated, DNS manager re-routed. Verified with `POST /v1/messages` returning proper Anthropic 401 shape (proxy forwarding correctly).
+
+### Phase 2 pre-reqs status (all ✓)
+- [x] Docker Desktop running
+- [x] Phase 1 stack verified end-to-end (A→G)
+- [x] Telegram bot `@SnakeBacklinkBot` + avatar live
+- [x] SePay webhook token pre-generated (`sbf_sepay_<64hex>`), bind to SePay dashboard post-deploy
+- [x] Admin Telegram ID captured (`8042306755`)
+- [x] 9Router `cc/claude-sonnet-4-6` verified active
+- [x] `services/api/.env` populated (renamed from `.env.local` — godotenv loads `.env` by default)
+- [x] Stored procs `grant_credits` + `consume_credits` live + tested (verified via migration UP cycles)
+
+### Session journal
+`docs/journals/2026-04-24-machine-handoff-phase1-verify.md`
+
+### Next
+Kickoff `/ck:plan --hard "Phase 2 Telegram Bot + Wallet + SePay"` with red-team review before `/ck:cook`.
+
