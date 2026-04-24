@@ -15,6 +15,7 @@
 - Trial grant + `users.trial_used=TRUE` + wallet insert MUST be atomic in single Postgres txn.
 - `users.phone_e164` stored normalized (+84..., strip spaces/dashes).
 - New users get `wallets` row on `users` INSERT via stored proc `ensure_wallet()` OR inline INSERT in same txn (pick inline — simpler, no new proc).
+- **[F4] Partial index `idx_users_phone_trial` is the REAL enforcement — no `COUNT(*)` pre-check.** Atomic gate via `SELECT ... FOR UPDATE` + conditional UPDATE in same txn. 23505 on the index → `ErrTrialPhoneReused`. No singleflight for trial gate (redundant once partial index guards race).
 
 ## Requirements
 ### Functional
@@ -39,31 +40,79 @@
             case user.IsVerified == true:
                clear state; send welcome_back (show key prefix, balance pointer)
 
-[contact share event] → UserService.VerifyContact(ctx, user, phone) →
-   tx := BEGIN
-      UPDATE users SET phone_e164=$1, is_verified=TRUE WHERE id=$2
-      gate := checkTrialGate(tx, user.ID, phone)
-      if gate == OK && !user.TrialUsed:
-         SELECT grant_credits(user.id, 'standard', 5, 'trial_grant', 'user', user.id)
-         UPDATE users SET trial_used=TRUE WHERE id=$1
+[contact share event] → UserService.VerifyContactAndGrantTrial(ctx, user, phone) →
+   tx := BEGIN (pgx.ReadCommitted)
+      -- [F4] row lock the user to serialize concurrent /start for same tg_id
+      SELECT id, trial_used, is_banned FROM users WHERE id=$1 FOR UPDATE  → locked
+      if is_banned: ROLLBACK, return TrialUserBanned
+      -- conditional UPDATE: only flip if not yet trialed
+      UPDATE users
+        SET phone_e164=$1, is_verified=TRUE, trial_used=TRUE, updated_at=NOW()
+        WHERE id=$2 AND trial_used=FALSE
+        RETURNING id                                                      → RowsAffected
+      if RowsAffected == 0: ROLLBACK, return TrialAlreadyUsed
+      -- IF partial index `idx_users_phone_trial` fires SQLSTATE 23505 here →
+      -- ROLLBACK, return TrialPhoneReused (NO pre-check; index IS the gate)
+      SELECT grant_credits($2, 'standard', 5, 'trial_grant', 'user', $2)
       COMMIT
-   → send success message with key_prefix from api_keys (issued by phase 3 in same call)
+   → send success message with key_prefix from api_keys (issued by phase 3 after commit)
 ```
 
-### Trial gate (`user_service.go`)
+### Trial gate (`user_service.go`) — [F4] atomic, no pre-check
 ```go
-func checkTrialGate(tx pgx.Tx, userID UUID, phone string) TrialGateResult {
-    // 1. Already used on this user
-    if user.TrialUsed { return TrialAlreadyUsed }
-    // 2. Banned
-    if user.IsBanned { return TrialUserBanned }
-    // 3. Phone reuse — UNIQUE partial index will throw; pre-check for friendlier error
-    var count int
-    tx.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE phone_e164=$1 AND trial_used=TRUE AND id != $2`, phone, userID).Scan(&count)
-    if count > 0 { return TrialPhoneReused }
-    return TrialOK
+// No separate checkTrialGate func — logic inlined into VerifyContactAndGrantTrial
+// to keep the lock + UPDATE + grant inside one pgx.Tx
+
+var (
+    ErrTrialAlreadyUsed  = errors.New("trial_already_used")
+    ErrTrialPhoneReused  = errors.New("trial_phone_reused")
+    ErrTrialUserBanned   = errors.New("trial_user_banned")
+)
+
+func (s *UserService) VerifyContactAndGrantTrial(ctx context.Context, userID uuid.UUID, rawPhone string) error {
+    phone, err := phoneutil.Normalize(rawPhone) // E.164
+    if err != nil { return fmt.Errorf("phone: %w", err) }
+
+    tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+    if err != nil { return err }
+    defer tx.Rollback(ctx)
+
+    // 1. Row lock — serializes concurrent /start for the same tg_id
+    var trialUsed, isBanned bool
+    err = tx.QueryRow(ctx,
+        `SELECT trial_used, is_banned FROM users WHERE id=$1 FOR UPDATE`, userID,
+    ).Scan(&trialUsed, &isBanned)
+    if err != nil { return err }
+    if isBanned { return ErrTrialUserBanned }
+
+    // 2. Conditional UPDATE — partial index `idx_users_phone_trial` catches phone reuse across tg_ids
+    ct, err := tx.Exec(ctx, `
+        UPDATE users SET phone_e164=$1, is_verified=TRUE, trial_used=TRUE, updated_at=NOW()
+        WHERE id=$2 AND trial_used=FALSE`, phone, userID)
+    if err != nil {
+        var pgErr *pgconn.PgError
+        if errors.As(err, &pgErr) && pgErr.Code == "23505" &&
+            (pgErr.ConstraintName == "idx_users_phone_trial" || strings.Contains(pgErr.Message, "phone")) {
+            return ErrTrialPhoneReused
+        }
+        return err
+    }
+    if ct.RowsAffected() == 0 {
+        return ErrTrialAlreadyUsed // already consumed between SELECT and UPDATE — rare but possible
+    }
+
+    // 3. Grant credits in same txn
+    var newBal int
+    if err := tx.QueryRow(ctx,
+        `SELECT grant_credits($1,$2,$3,$4,$5,$6)`,
+        userID, "standard", 5, "trial_grant", "user", userID,
+    ).Scan(&newBal); err != nil { return err }
+
+    return tx.Commit(ctx)
 }
 ```
+
+**Why not use `INSERT ... ON CONFLICT DO UPDATE ... WHERE trial_used=FALSE RETURNING`?** User row is created upstream by `loadUser` middleware on bot update; trial grant runs after contact event when row already exists. `SELECT FOR UPDATE` + conditional UPDATE is the cleanest shape; keeps `users` row creation separate from trial gate. Documented in code comment.
 
 ## Related Code Files
 ### Create
@@ -100,12 +149,8 @@ SET phone_e164 = $2, is_verified = TRUE, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
--- name: MarkTrialUsed :exec
-UPDATE users SET trial_used = TRUE, updated_at = NOW() WHERE id = $1;
-
--- name: CountOtherUsersWithPhoneTrialUsed :one
-SELECT COUNT(*) FROM users
-WHERE phone_e164 = $1 AND trial_used = TRUE AND id != $2;
+-- [F4] VerifyAndGrantTrial query — inline in user_service.go as raw SQL (uses FOR UPDATE + conditional UPDATE pattern).
+-- sqlc doesn't model the compound tx flow cleanly; use pgx.Tx directly.
 
 -- name: EnsureWallet :exec
 INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING;
@@ -114,7 +159,7 @@ INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING;
 UPDATE users SET language = $2, updated_at = NOW() WHERE id = $1;
 ```
 
-## Migration `20260424002_phase2.sql` (shared with other phases — full file written once)
+## Migration `20260424003_phase2_indexes.sql` (base indexes + new tables — phase-02 scope)
 ```sql
 -- +goose Up
 -- +goose NO TRANSACTION
@@ -151,35 +196,40 @@ DROP INDEX IF EXISTS idx_tx_user_pkg_pending;
 DROP INDEX IF EXISTS idx_users_phone_trial;
 ```
 
+> Separate migration `20260424004_phase2_schema_deltas.sql` (ENUM additions + provider_ref partial UNIQUE) lives in phase-04 scope. See **phase-04-wallet-ledger.md** for full DDL + down migration notes.
+
 ## Implementation Steps
-1. Write migration file `20260424002_phase2.sql` with both Up and Down sections.
-2. Apply migration locally via `make migrate-up` and verify schema.
+1. Write migration file `20260424003_phase2_indexes.sql` with both Up and Down sections.
+2. Apply migration locally via `make migrate-up` and verify schema (esp. `idx_users_phone_trial`).
 3. Write `db/queries/users.sql` queries; run `sqlc generate`.
 4. Implement `util/phone.go` normalizer with VN default country; unit tests for common formats.
 5. Implement `service/user_service.go`:
    - `EnsureStub(ctx, tgID, tgUsername) (User, error)` — called by loadUser middleware.
    - `Flow(ctx, user) (Reply, error)` — state machine for `/start`.
-   - `VerifyContactAndGrantTrial(ctx, userID, rawPhone) (TrialResult, error)` — atomic txn.
+   - **[F4] `VerifyContactAndGrantTrial(ctx, userID, rawPhone) error`** — atomic txn using `SELECT ... FOR UPDATE` + conditional UPDATE + grant_credits, no `COUNT(*)` pre-check. Catch 23505 on partial index as `ErrTrialPhoneReused`.
 6. Implement `bot/commands/start.go`:
    - Handle `/start` command and contact-update event.
    - Set/clear Redis FSM states via `bot.state.Store`.
    - Call `key_service.EnsureActiveKey()` after trial grant — but plaintext returned ONLY on first creation (phase 03 concern).
+   - Map errors: `ErrTrialPhoneReused` → render `trial_phone_reused` template; `ErrTrialAlreadyUsed` → `start_verified_repeat`; `ErrTrialUserBanned` → `error_account_disabled`.
 7. Write integration test `user_service_test.go` with testcontainers-go:
    - New user → `Flow` returns welcome + awaiting_contact.
    - Contact received → trial granted, wallet.standard_credits=5, ledger row inserted, trial_used=TRUE.
-   - Second user with SAME phone → returns TrialPhoneReused, wallet stays 0.
-   - Double-tap same trial → second call returns TrialAlreadyUsed.
+   - Second user with SAME phone → returns `ErrTrialPhoneReused`, wallet stays 0 (partial index fires).
+   - Double-tap same trial → second call returns `ErrTrialAlreadyUsed`.
+   - **[F4 race] Concurrent 2 tg_ids SAME phone → exactly 1 succeeds, 1 gets ErrTrialPhoneReused** — see phase-10 Suite B.
 
 ## Todo List
-- [ ] Write migration `20260424002_phase2.sql`
+- [ ] Write migration `20260424003_phase2_indexes.sql`
 - [ ] Apply migration + verify indexes (`psql \d users`, `\d transactions`)
 - [ ] Write `db/queries/users.sql`
 - [ ] Run `sqlc generate`
 - [ ] Implement `util/phone.go` + tests
-- [ ] Implement `service/user_service.go`
-- [ ] Implement `bot/commands/start.go`
+- [ ] [F4] Implement `service/user_service.go` with atomic trial gate (SELECT FOR UPDATE + conditional UPDATE + grant in single tx; no COUNT pre-check)
+- [ ] Implement `bot/commands/start.go` — map `ErrTrialPhoneReused` → template `trial_phone_reused`
 - [ ] Wire router: `/start` + contact event
 - [ ] Integration tests (testcontainers)
+- [ ] [F4] Concurrent phone race test: 2 tg_ids same phone → exactly 1 succeeds (integration harness handles; see phase-10 Suite B)
 - [ ] Manual smoke: real Telegram → `/start` → share contact → credits granted
 
 ## Success Criteria
@@ -194,8 +244,8 @@ DROP INDEX IF EXISTS idx_users_phone_trial;
 |---|---|---|---|
 | Phone normalizer eats valid phones | Med | High | Unit-test 15+ VN formats; fallback to rawPhone if unparseable, log warning |
 | Partial txn commit (user verified but trial not granted) | Low | High | Whole flow in single `pgx.Tx` — no partial commits possible |
-| Race: 2 updates for same user hit trial grant | Med | High | `singleflight` in phase 01 + `trial_used` write-once check INSIDE txn |
-| Phone reuse index throws `23505` at runtime | Low | Med | Pre-check via `CountOtherUsersWithPhoneTrialUsed` + treat 23505 as reuse (defense in depth) |
+| Race: 2 updates for same user hit trial grant | Low | High | [F4] `SELECT ... FOR UPDATE` row lock + conditional `UPDATE ... WHERE trial_used=FALSE` (RowsAffected gate) |
+| Race: 2 tg_ids SAME phone hit trial grant concurrently | Med | High | [F4] Partial UNIQUE index `idx_users_phone_trial` → loser gets SQLSTATE 23505 → mapped to `ErrTrialPhoneReused`. No pre-check needed — index IS the gate |
 | Contact event fires without `/start` precedent | Low | Low | FSM state guard: accept contact ONLY if state=awaiting_contact, else ignore |
 
 ## Security Considerations

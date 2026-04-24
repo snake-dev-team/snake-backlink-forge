@@ -13,6 +13,9 @@
 - Admin role check is middleware-level: `isAdmin(tgID)` via `slices.Contains(cfg.AdminTelegramIDs, tgID)`. No DB role table needed — YAGNI.
 - Admin commands use `/admin <subcmd> <args>` pattern, single command router with subcmd switch.
 - Every admin write action (grant, ban, unban) MUST write to `audit_log` with `event` like `admin_grant | admin_ban | admin_unban`.
+- **[F5] Audit ordering for admin_grant:** INSERT audit_log BEFORE `grant_credits` call, within same pgx.Tx. On grant failure → ROLLBACK drops audit row atomically. No orphan audit rows claiming side effects that didn't happen.
+- **[M3] Self-ban guard:** `/admin ban <tg>` rejects if target tg_id ∈ `cfg.AdminTelegramIDs`. Prevents admin lockout.
+- **[L3] `ADMIN_TELEGRAM_IDS` env parsing:** comma-separated int64 list — `strings.Split(",") + strconv.ParseInt`. Fail boot on non-int. Log warn on dupes.
 - `/admin lookup <tg_id|phone|key_prefix>` — 3-way search: numeric → by telegram_id; starts with `+` → by phone_e164; starts with `sbf_live_` → by key_prefix.
 
 ## Requirements
@@ -31,12 +34,18 @@ Reply as monospace table.
 ### `/admin grant <tg_id> <pool> <amount> [reason]`
 - Validate pool ∈ {premium, standard}, amount > 0, amount <= 10000 (sanity cap).
 - Resolve user by tg_id. If not found → error.
-- `WITHIN TXN`: `wallet.Grant(tx, ..., event_type='admin_adjust', ref_type='audit_log', ref_id=audit_row_id)` + audit_log insert.
+- **[F5] Ordering within single pgx.Tx:**
+  1. `BEGIN`
+  2. `INSERT INTO audit_log (user_id, event, metadata) VALUES ($admin_user_id, 'admin_grant_credits', jsonb_build_object('target_user_id', $target, 'pool', $pool, 'amount', $amount, 'reason', $reason)) RETURNING id` → `audit_id`
+  3. `SELECT grant_credits($target_user_id, $pool, $amount, 'admin_adjust', 'audit_log', $audit_id)` → `new_balance`
+  4. `COMMIT`
+  - If step 3 fails (e.g., P0001 INSUFFICIENT_CREDITS for negative adjusts, schema error): `ROLLBACK` drops the audit row. No orphan audit.
 - Reply confirmation with new balance + optional reason in audit metadata.
 
 ### `/admin ban <tg_id> [reason]`
+- **[M3] Self-ban guard:** reject if target `tg_id` ∈ `cfg.AdminTelegramIDs` → return `ErrCannotBanAdmin`, render `admin_self_ban_blocked` template (do NOT leak list of admin IDs in reply).
 - `UPDATE users SET is_banned=TRUE WHERE telegram_id=$1`
-- Audit log.
+- Audit log (post-UPDATE but same tx for consistency).
 - Send DM to banned user: "Tài khoản bị khoá. Liên hệ @support."
 - Their active key not revoked (Phase 3 auth middleware checks `users.is_banned` at request time).
 
@@ -175,26 +184,39 @@ UPDATE users SET is_banned = FALSE, updated_at = NOW() WHERE telegram_id = $1;
 ## Implementation Steps
 1. Write `db/queries/audit.sql` + `admin_stats.sql`; `sqlc generate`.
 2. Write `service/audit_service.go`.
-3. Write `service/admin_service.go` with `Stats(ctx)`, `Grant(ctx, tgID, pool, amt, reason)`, `Ban/Unban`, `Lookup`.
-4. Write `bot/commands/admin.go` dispatcher.
-5. Wire `AuditService` dep into phase 02/03/06 services. Propagate via Deps struct.
-6. Add `isAdmin(tgID)` to middleware — use in `/admin` router short-circuit.
-7. Write integration test:
+3. **[L3]** In `config/config.go`: implement `parseAdminTelegramIDs(raw string) ([]int64, error)` — `strings.Split(",") + strings.TrimSpace + strconv.ParseInt(base=10, bitSize=64)`. Error on any non-int. Use `map[int64]struct{}` to detect dupes → log warn, keep first occurrence.
+4. Write `service/admin_service.go` with:
+   - `Stats(ctx)`
+   - **[F5]** `Grant(ctx, adminUserID, targetTGID, pool, amt, reason)` — audit_log INSERT then grant_credits, both in single pgx.Tx; return (newBalance, err).
+   - **[M3]** `Ban(ctx, adminUserID, targetTGID, reason)` — reject if target tg_id ∈ `cfg.AdminTelegramIDs`; else UPDATE + audit_log in same tx.
+   - `Unban`, `Lookup`.
+5. Write `bot/commands/admin.go` dispatcher.
+6. Wire `AuditService` dep into phase 02/03/06 services. Propagate via Deps struct.
+7. Add `isAdmin(tgID)` to middleware — use in `/admin` router short-circuit.
+8. Write integration test:
    - Non-admin sends `/admin stats` → bot ignores (no reply).
-   - Admin `/admin grant 123 standard 100 reason=test` → wallet +100, audit_log has row with event=`admin_grant` and metadata.reason=test.
+   - Admin `/admin grant 123 standard 100 reason=test` → wallet +100, audit_log has row with event=`admin_grant_credits` and metadata.reason=test.
+   - **[F5]** Force grant_credits failure (mock `pgconn.PgError{Code:"P0001"}` via stored-proc monkey-patch OR deliberately invalid pool through a raw SQL path) → audit_log row ABSENT after rollback.
    - Admin `/admin ban 123` → user.is_banned=TRUE, audit row, banned user's subsequent `/balance` → "account disabled".
+   - **[M3]** Admin `/admin ban <self_tg_id>` → reply `admin_self_ban_blocked`, user.is_banned UNCHANGED, no audit row.
    - Admin `/admin lookup 123` → returns user summary.
+   - **[L3]** Config boot with `ADMIN_TELEGRAM_IDS="abc,123"` → fail startup with parse error.
 
 ## Todo List
 - [ ] Write `audit.sql` + `admin_stats.sql` queries
 - [ ] Run `sqlc generate`
 - [ ] Implement `AuditService`
-- [ ] Implement `AdminService` with stats/grant/ban/unban/lookup
+- [ ] **[L3]** Implement `parseAdminTelegramIDs` in `config.go` with dupe warning + non-int fail
+- [ ] **[F5]** Implement `AdminService.Grant` with audit-then-grant ordering in single pgx.Tx
+- [ ] **[M3]** Implement `AdminService.Ban` self-ban guard
+- [ ] Implement `AdminService` stats/unban/lookup
 - [ ] Implement `bot/commands/admin.go` router
 - [ ] Inject AuditService into phases 02/03/06 services
 - [ ] Call `Audit.Log` at all audit points
 - [ ] Unit test audit insert
 - [ ] Integration test admin grant flow
+- [ ] **[F5]** Integration test: grant_credits failure → audit row NOT present
+- [ ] **[M3]** Integration test: /admin ban on admin's own tg_id rejected, users row unchanged
 - [ ] Integration test non-admin silent ignore
 - [ ] Manual smoke: real admin TG ID → `/admin stats` works
 
@@ -210,7 +232,9 @@ UPDATE users SET is_banned = FALSE, updated_at = NOW() WHERE telegram_id = $1;
 |---|---|---|---|
 | Admin accidentally grants to wrong tg_id | Med | Med | `/admin grant` replies with username + current balance; admin eyeballs before next action |
 | Admin list leak (env misconfig) | Low | Critical | `ADMIN_TELEGRAM_IDS` treated as secret, Fly secret not env file. Document in deploy checklist |
-| Audit log insert fails silently after side-effect commits | Med | Med | Audit inside same txn where possible (grant path); for post-commit events, use retry with bounded backoff; fail-open (do not rollback user action) |
+| Audit log insert fails silently after side-effect commits | Low | Med | **[F5]** For `admin_grant_credits`: audit INSERT happens BEFORE grant_credits in SAME tx; on grant failure, rollback drops audit row atomically. Post-commit audit events (trial_granted, sepay_success) remain best-effort with warn-log on failure |
+| Admin bans own tg_id → locked out | Low | Critical | **[M3]** `AdminService.Ban` rejects if `target.telegram_id IN cfg.AdminTelegramIDs` → `ErrCannotBanAdmin` template reply |
+| Malformed `ADMIN_TELEGRAM_IDS` env crashes boot | Low | High | **[L3]** Explicit parse in `config.go` with validation; fail-fast on non-int; log warn + dedupe on dupes |
 | Lookup leaks phone PII to admin chat | Low | Low | Masked display: `phone: +84***54321`; raw phone only on explicit `lookup +84...` match |
 | `/admin grant amount=10000000000` overflows int32 | Low | Med | Cap at 10_000 per invocation; docstring on service method |
 | Stats query scans whole wallets table on big DB | Low | Low | SUM acceptable at 10k users; Phase 08+ introduce `daily_stats` materialized view |

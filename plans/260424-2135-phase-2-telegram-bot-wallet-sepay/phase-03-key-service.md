@@ -23,6 +23,7 @@
 - `KeyService.GetActiveMask(ctx, userID) (maskedDisplay, error)` — shows `sbf_live_Zk3p•••••dVo5` (prefix + last 4 hash chars — last 4 not of plaintext since we don't store it).
 - `/key` — show masked + inline buttons Copy (copies key_prefix only — plaintext not retrievable) and Regenerate (triggers /regenkey).
 - `/regenkey` — FSM: idle → buy_confirming-like confirmation keyboard Yes/Cancel → on Yes: `Issue()` → display plaintext ONCE with warning.
+- **[H5] Rate limit `/regenkey`** to 3/day per user via Redis `INCR regen_rl:<user_id>` with `EXPIRE 86400`. On count > 3 → reply `regen_rate_limited` template (do NOT call `Issue`). Check runs at command dispatch BEFORE FSM confirmation prompt.
 
 ### Non-functional
 - Hash via `crypto/sha256`, NOT `bcrypt` (we need O(1) lookup by hash, not verification — keys are high-entropy already).
@@ -112,12 +113,14 @@ SELECT * FROM api_keys WHERE key_hash = $1 AND is_active = TRUE LIMIT 1;
    - Query `GetActiveKeyByUser`. If none → call `Issue` (covers edge case where /start trial granted but key gen failed mid-flow).
    - Reply: masked prefix + inline keyboard [Copy prefix] [Regenerate].
 5. Write `bot/commands/regenkey.go`:
-   - On `/regenkey` command: reply confirm prompt with callback `key:regen:confirm|cancel`.
+   - **[H5]** At command entry: `INCR regen_rl:<user_id>` pipelined with `EXPIRE 86400 NX`. If value > 3 → reply template `regen_rate_limited`, return early (no FSM transition, no Issue call).
+   - On `/regenkey` command (within rate): reply confirm prompt with callback `key:regen:confirm|cancel`.
    - On callback `confirm`: call `Issue`, reply plaintext with bold warning "Save this NOW — won't show again".
    - On callback `cancel`: edit message to "cancelled".
 6. Hook phase 02 trial-grant flow to call `key_service.Issue` AFTER the trial-grant txn commits (not inside — keys are not financial state).
 7. Write unit test for base58 encoding + key uniqueness.
 8. Write integration test: issue key → revoke old → old hash no longer `is_active`.
+9. **[H5]** Integration test: 4th `/regenkey` in same day → rate-limited reply, 3rd-key active row unchanged, Redis key expires after 86400s.
 
 ## Todo List
 - [ ] Implement `util/token.go` + tests (entropy, base58 correctness)
@@ -125,10 +128,11 @@ SELECT * FROM api_keys WHERE key_hash = $1 AND is_active = TRUE LIMIT 1;
 - [ ] Run `sqlc generate`
 - [ ] Implement `key_service.go` with Issue/Resolve
 - [ ] Implement `bot/commands/key.go`
-- [ ] Implement `bot/commands/regenkey.go` with confirmation FSM
+- [ ] **[H5]** Implement `bot/commands/regenkey.go` with Redis rate-limit (`regen_rl:<user_id>` INCR + EXPIRE 86400, cap 3/day) + confirmation FSM
 - [ ] Wire router + callbacks
 - [ ] Unit tests for key gen
 - [ ] Integration test for rotation (old revoked, new active)
+- [ ] **[H5]** Integration test: 4th /regenkey rate-limited reply
 - [ ] Verify no plaintext in logs (grep zap output)
 
 ## Success Criteria
@@ -145,7 +149,7 @@ SELECT * FROM api_keys WHERE key_hash = $1 AND is_active = TRUE LIMIT 1;
 | Base58 encoder off-by-one | Low | High | Unit test round-trip on 1000 samples |
 | Old key still valid in cached request after rotation | Med | Med | Phase 3 will add Redis blocklist `key_revoked:<hash>` TTL 24h (deferred scope note here) |
 | Plaintext leaks via zap structured field | Med | Critical | Lint rule: forbid `zap.String("plaintext_key"…)`; use only `zap.String("key_prefix", k.KeyPrefix)` |
-| Regen spammed → DB bloat in audit | Low | Low | Rate-limit `/regenkey` in Redis `regen_rl:<user_id>` — 3/day cap |
+| Regen spammed → DB bloat in audit | Low | Low | **[H5] Implemented:** Rate-limit `/regenkey` in Redis `regen_rl:<user_id>` — 3/day cap, short-circuit before FSM |
 
 ## Security Considerations
 - `crypto/rand` (not math/rand).

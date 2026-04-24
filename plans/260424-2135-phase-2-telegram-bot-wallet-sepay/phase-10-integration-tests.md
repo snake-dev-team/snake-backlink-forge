@@ -31,6 +31,8 @@
 - Repeat `/start` → "already verified" reply, no new credits
 - Second tg_id with SAME phone → trial blocked, no grant
 - `/regenkey confirm` → old key revoked, new key issued, plaintext returned once
+- **[F4] Concurrent phone race** — 2 tg_ids, SAME phone, `VerifyContactAndGrantTrial` fired simultaneously via `FireN` → exactly 1 succeeds, 1 returns `ErrTrialPhoneReused` (partial index fires). Run in Suite D stress matrix too.
+- **[H5] /regenkey rate limit** — 4th `/regenkey` in same day → reply `regen_rate_limited`, no new key issued, Redis key `regen_rl:<user_id>` value=4 with TTL ~86400s
 
 #### Suite C — Buy + Topup idempotency (`e2e_topup_test.go`)
 - User with key + verified
@@ -40,16 +42,27 @@
 - New `/buy confirm` after cancel → new pending row OK
 
 #### Suite D — SePay webhook atomic grant (`webhook_e2e_test.go`) — CRITICAL
-- Setup pending tx (user X, order ABC12345, amount 329000, premium 200)
+- Setup pending tx (user X, order ABCDEF012345, amount 329000, premium 200) — **[F2]** 12-hex order code
 - POST /webhooks/sepay with valid Apikey + payload → 200 success
 - Verify: wallet.premium_credits=200, tx.status=paid, ledger row, audit row `sepay_success`
 - POST same payload again → 200 success (idempotent_replay), wallet unchanged
 - 10 goroutines POST same payload concurrently → wallet.premium_credits EXACTLY 200 (not 400, not 2000)
+- **[F6] Stress matrix**: `go test -race -count=100 -cpu=1,2,4,8 -run TestWebhookRace` → 100/100 iterations pass. Makefile target + CI step (see below).
 - POST with wrong Apikey → 200 success=false, wallet unchanged, audit `sepay_auth_fail`
 - POST with `Bearer ...` header → 200 success=false (wrong scheme)
 - POST with content missing order code → 200 success, audit `sepay_unmatched_transfer`
 - POST with transferAmount 100000 < required 329000 → 200 success, tx.status=manual_review, wallet unchanged
 - POST with transferType="out" → 200 success ignored
+- **[F1] Over-payment exact** — order `standard_pro_200` (329000đ, 200 std), transferAmount=400000 → wallet.standard=200+43=243, ledger rows `topup` + `topup_excess`, `metadata.manual_review != true` (diff=71000 < 50000 flag threshold)
+- **[F1] Over-payment 50k flag** — diff=51000 → `metadata.manual_review=true`, credits granted, audit `sepay_overpaid`
+- **[F1] Over-payment admin alert** — diff=15000 (≥10k) → `adminAlertCh` receives alert (assert via test consumer goroutine)
+- **[Q2] Cancel-then-pay** — create pending → `CancelPendingTransaction` → POST webhook → tx.status='recovered_by_late_payment', wallet credited full, audit `sepay_success`
+- **[Q3] account_mismatch** — payload.accountNumber="999999" → 200 success=false, audit `sepay_account_mismatch`, wallet unchanged
+- **[Q3] gateway_mismatch** — payload.gateway="UnknownBank" → 200 success=false, audit `sepay_gateway_mismatch`
+- **[Q4] rate_limit** — 21st POST within 1s from same IP → 429 (fake IP via middleware injection)
+- **[F2] mixed-case memo** — content="sbf topup abcdef012345" → `ToUpper` → matches DB-stored `ABCDEF012345`, normal paid flow
+- **[F3] deadlock_injection** — advisory-lock contention simulated via parallel tx holding lock on `wallets` row → webhook returns 200 queued_for_retry, Redis `sepay_retry_queue` has payload; consumer retry eventually commits once
+- **[M6] real_payload_fixture** — `testutil/sepay_payload_real.json` (copy from SePay docs example) → parse succeeds, `TransferAmount` populated as int64
 
 #### Suite E — History + Support (`e2e_history_support_test.go`)
 - User with 12 tx + 20 ledger rows → /history pagination across 3 pages, no dup, total matches count
@@ -64,6 +77,11 @@
 - Admin `/admin lookup 12345` → user summary rendered
 - Admin `/admin grant 12345 invalid 100` → error "unknown pool"
 - Admin `/admin grant 12345 standard -5` → error "amount must be > 0"
+- Admin `/admin grant 12345 standard 10001` → error "amount exceeds cap 10000"
+- **[F5]** Admin `/admin grant` on user with bad data causing grant_credits failure → audit_log has NO row for this attempt (rollback dropped it); wallet unchanged
+- **[M3]** Admin `/admin ban <self_tg_id>` → reply `admin_self_ban_blocked`, target (self) `is_banned` UNCHANGED, no audit row
+- **[L3]** Boot config with `ADMIN_TELEGRAM_IDS="abc,123"` → fail with parse error
+- **[L3]** Boot config with `ADMIN_TELEGRAM_IDS="123,123,456"` → boot succeeds, warn log "duplicate admin tg_id", final list `[123, 456]`
 
 #### Suite G — Security fuzz (`security_test.go`)
 - SQL injection attempt in `/start` contact phone → sanitized, no SQL error
@@ -117,26 +135,56 @@ func (f *FakeBot) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
 }
 ```
 
-### Race test helper (`testutil/concurrent.go`)
+### Race test helper (`testutil/concurrent.go`) — [F6] true-simultaneous fire
 ```go
+// FireN fires N concurrent executions of fn with a release barrier so all
+// goroutines park at the start, then race simultaneously on a single close().
+// This eliminates sequential dispatch jitter from errgroup.Go's scheduler
+// preference on multi-core, making race conditions deterministically exposable.
 func FireN(n int, fn func() error) []error {
-    var eg errgroup.Group
+    start := make(chan struct{})
+    var wg sync.WaitGroup
     errs := make([]error, n)
     for i := 0; i < n; i++ {
         i := i
-        eg.Go(func() error { errs[i] = fn(); return nil })
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            <-start // park here until release
+            errs[i] = fn()
+        }()
     }
-    _ = eg.Wait()
+    // Brief park to ensure all goroutines reach the barrier.
+    // (Runtime-dependent; 2ms adequate on modern schedulers.)
+    time.Sleep(2 * time.Millisecond)
+    close(start) // simultaneous release
+    wg.Wait()
     return errs
 }
 ```
+
+### [F6] Stress matrix — Makefile + CI workflow
+Makefile target (new in `services/api/Makefile`):
+```make
+test-integration-stress:
+	go test -race -count=100 -cpu=1,2,4,8 -run 'TestWebhookRace|TestTrialRace|TestTopupIdempotency' ./internal/e2e/...
+```
+
+CI workflow step (new in `.github/workflows/ci.yml`):
+```yaml
+- name: Stress race tests
+  run: make -C services/api test-integration-stress
+```
+
+Success criteria: **100/100 iterations pass across the -cpu=1,2,4,8 matrix** for each target test.
 
 ## Related Code Files
 ### Create
 - `services/api/internal/testutil/harness.go`
 - `services/api/internal/testutil/fake_tgbotapi.go`
-- `services/api/internal/testutil/concurrent.go`
+- `services/api/internal/testutil/concurrent.go` — **[F6]** barrier-release `FireN`
 - `services/api/internal/testutil/fixtures.go` — seed users/tx
+- `services/api/internal/testutil/sepay_payload_real.json` — **[M6]** real-shape SePay payload fixture copied from docs
 - `services/api/internal/migrations/migrations_test.go`
 - `services/api/internal/e2e/user_flow_test.go`
 - `services/api/internal/e2e/topup_flow_test.go`
@@ -146,8 +194,9 @@ func FireN(n int, fn func() error) []error {
 - `services/api/internal/e2e/security_test.go`
 
 ### Modify
-- `services/api/go.mod` — add `github.com/testcontainers/testcontainers-go`, `github.com/alicebob/miniredis/v2` (unit), `github.com/stretchr/testify`
-- `services/api/Makefile` — add `test-integration` target (runs with `-tags=integration` to gate expensive tests)
+- `services/api/go.mod` — add `github.com/testcontainers/testcontainers-go`, `github.com/alicebob/miniredis/v2` (unit), `github.com/stretchr/testify`, `github.com/jackc/pgerrcode`
+- `services/api/Makefile` — add `test-integration` target (runs with `-tags=integration` to gate expensive tests) AND **[F6]** `test-integration-stress` target (100-iter matrix)
+- `.github/workflows/ci.yml` — add `Stress race tests` step running `test-integration-stress`
 
 ## Implementation Steps
 1. Add test deps to go.mod (`testcontainers-go`, `miniredis`, `testify`).
@@ -163,24 +212,39 @@ func FireN(n int, fn func() error) []error {
 11. Run load-test manually (k6 script) — DEFERRED to Phase 10 of master plan, not in scope here. Note in success criteria.
 
 ## Todo List
-- [ ] Add test deps to go.mod
+- [ ] Add test deps to go.mod (testcontainers-go, miniredis, testify, pgerrcode)
 - [ ] Implement test harness + fake tgbotapi
+- [ ] **[F6]** Implement barrier-release `FireN` in `testutil/concurrent.go`
+- [ ] **[M6]** Copy real SePay payload example → `testutil/sepay_payload_real.json`
 - [ ] Refactor bot to accept BotAPI interface
-- [ ] Write Suite A: migrations
+- [ ] Write Suite A: migrations (include 20260424003 + 20260424004)
 - [ ] Write Suite D: webhook atomic grant (10x concurrent)
+- [ ] **[F1]** Suite D: over-payment exact + 50k flag + admin alert channel receives
+- [ ] **[Q2]** Suite D: cancel-then-pay recovery
+- [ ] **[Q3]** Suite D: account_mismatch + gateway_mismatch
+- [ ] **[Q4]** Suite D: rate_limit 21st/s → 429
+- [ ] **[F2]** Suite D: mixed-case memo
+- [ ] **[F3]** Suite D: deadlock_injection → 200 queued + retry queue
+- [ ] **[M6]** Suite D: real_payload_fixture parse
 - [ ] Write Suite B: user flow (trial + regen)
+- [ ] **[F4]** Suite B: concurrent phone race (2 tg_ids, same phone)
+- [ ] **[H5]** Suite B: /regenkey rate limit 4th call
 - [ ] Write Suite C: topup idempotency
-- [ ] Write Suite E: history + support
-- [ ] Write Suite F: admin
+- [ ] Write Suite E: history + support (+ **[M5]** body cap + one-shot state)
+- [ ] Write Suite F: admin (+ **[F5]** audit rollback + **[M3]** self-ban + **[L3]** config parse)
 - [ ] Write Suite G: security fuzz
 - [ ] Add `test-integration` Makefile target
+- [ ] **[F6]** Add `test-integration-stress` Makefile target (`-race -count=100 -cpu=1,2,4,8`)
 - [ ] Update CI workflow for postgres/redis service containers
+- [ ] **[F6]** Add CI step `Stress race tests`
 - [ ] Coverage check: ≥ 80% on service/, bot/, integration/sepay/
 - [ ] Local run green
+- [ ] **[F6]** Stress run 100/100 pass across -cpu matrix
 - [ ] CI run green
 
 ## Success Criteria
 - `make test-integration` completes < 3min on dev machine
+- **[F6]** `make test-integration-stress` passes 100/100 iterations across `-cpu=1,2,4,8` matrix for `TestWebhookRace|TestTrialRace|TestTopupIdempotency`
 - `go test -race` passes across all suites
 - Suite D concurrent webhook test: wallet credited EXACTLY ONCE under 10x concurrent
 - Coverage ≥ 80% in target packages
@@ -190,7 +254,7 @@ func FireN(n int, fn func() error) []error {
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | testcontainers-go slow to pull image in CI | Med | Low | Cache Docker images in CI (`actions/cache`) |
-| Flaky race test — rare schedule lets 2 concurrent win | Low | High | Sleep jitter between goroutines; run 100x in CI with `-count=100` on critical test |
+| Flaky race test — rare schedule lets 2 concurrent win | Low | High | **[F6]** Barrier-release `FireN` + `test-integration-stress` Makefile target runs `-race -count=100 -cpu=1,2,4,8` matrix in CI |
 | Fake tgbotapi drifts from real API shape | Med | Med | Interface kept minimal; upgrade tgbotapi in lockstep |
 | Windows Docker Desktop incompatibility with testcontainers | Med | Med | Doc alt: run via WSL2; CI on ubuntu-latest primary gate |
 | Test harness DB state leaks between tests | Med | High | Each test gets fresh DB container (slow but isolated); for fast tests use `TRUNCATE` between tests in same container |
@@ -204,4 +268,5 @@ func FireN(n int, fn func() error) []error {
 ## Next Steps
 - On green: commit + push + create PR if applicable.
 - Load test (k6) and chaos test deferred to Phase 10 of master plan (ops).
-- Monitoring / alerting for `sepay_auth_fail` burst — Phase 08+ (deploy).
+- Monitoring / alerting for `sepay_auth_fail` burst — wired via `adminAlertCh` in phase-06 (Q5).
+- **Pre-deploy blocker (Q4):** research SePay source IPs at https://docs.sepay.vn. If docs publish static IPs → add IP allowlist at Fly firewall level. If not published → fall back to rate limit (20/s/IP) as sole gate. Document outcome before prod deploy.

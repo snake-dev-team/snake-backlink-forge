@@ -12,10 +12,12 @@
 
 ## Key Insights
 - Packages defined as Go struct constant (not DB table — KISS; changes rare, code review easier). One source of truth in `service/packages.go`.
-- Order code = uppercase first 8 chars of transaction UUID, stored in `transactions.provider_ref`. SePay webhook content format `SBF TOPUP <8CHAR>` parsed back.
+- **[F2] Order code = 12 uppercase hex chars** from first 6 bytes of UUID (`hex.EncodeToString(uuidBytes[:6])` then `ToUpper`). 48-bit space → collision ~1 in 280T. Stored in `transactions.provider_ref`. SePay webhook content format `SBF TOPUP <12CHAR>`.
+- **[F2] Provider_ref UNIQUE is partial** on active states (`pending`, `paid`, `recovered_by_late_payment`) — cancelled/failed/refunded rows can share with new attempts. Migration `20260424004` (phase-04) drops the unconditional UNIQUE and adds partial index.
 - QR URL is ephemeral per order; no caching. `tgbotapi.NewPhoto` with URL string — Telegram fetches & caches on their end.
 - FSM `topup_waiting` TTL 24h. User can leave app, come back, still see pending status.
 - Double-tap prevention: Redis `SET NX topup_lock:<user_id>:<package_code>` TTL 30s + DB unique partial index.
+- **[Q2] Cancel-then-pay policy:** user cancels pending → status='cancelled' (via CancelPendingTransaction). If SePay webhook arrives later matching that provider_ref → webhook CAS widens to `status IN ('pending','cancelled')` and flips to `recovered_by_late_payment` with full credits granted. Handled in phase-06.
 
 ## Requirements
 ### Functional
@@ -32,6 +34,8 @@
 - Idempotent `CreateTopupIntent`: on UNIQUE violation (23505) on `idx_tx_user_pkg_pending` → SELECT existing pending row + return its QR.
 - QR URL construction pure function: `BuildQRURL(bank, acc, amount, desc) string`.
 - Package codes match regex `^(standard|premium)_(starter|basic|pro|max)_(50|100|200|300)$` or `^combo_(p100_s50|p200_s100)$`.
+- **[F2]** On `23505` against `idx_tx_provider_ref_active` (astronomically rare at 48-bit): retry up to 3 times with fresh `orderCode`. Log warn. Abort with error after 3 retries.
+- **[Q2] CancelPendingTransaction** sets `status='cancelled'` (not `'failed'`). Preserves provider_ref in active-state partial index, allowing recovery if user later pays. Phase-06 recovery branch flips to `recovered_by_late_payment`.
 
 ## Architecture
 
@@ -61,38 +65,49 @@ var Packages = map[string]Package{
 }
 ```
 
-### CreateTopupIntent (`transaction_service.go`)
+### CreateTopupIntent (`transaction_service.go`) — [F2] 12-hex order code + provider_ref retry
 ```go
-func (s *TransactionService) CreateTopupIntent(ctx, userID UUID, pkgCode string) (Transaction, qrURL string, err error) {
-    pkg, ok := Packages[pkgCode]; if !ok { return zero, "", ErrUnknownPackage }
+func (s *TransactionService) CreateTopupIntent(ctx context.Context, userID uuid.UUID, pkgCode string) (Transaction, string, error) {
+    pkg, ok := Packages[pkgCode]
+    if !ok { return Transaction{}, "", ErrUnknownPackage }
 
     // Redis lock (UX fast path)
     lockKey := fmt.Sprintf("topup_lock:%s:%s", userID, pkgCode)
-    ok, _ := s.rdb.SetNX(ctx, lockKey, "1", 30*time.Second).Result()
-    // continue regardless — DB is authoritative; lock just narrows the window
+    _, _ = s.rdb.SetNX(ctx, lockKey, "1", 30*time.Second).Result()
 
-    txID := uuid.New()
-    orderCode := strings.ToUpper(strings.ReplaceAll(txID.String()[:8], "-", ""))
+    // [F2] 12-hex uppercase from first 6 bytes of UUID
+    for attempt := 0; attempt < 3; attempt++ {
+        u := uuid.New()
+        orderCode := strings.ToUpper(hex.EncodeToString(u[:6])) // 12 hex chars, 48-bit entropy
 
-    row := s.pool.QueryRow(ctx, `
-        INSERT INTO transactions (id, user_id, provider, provider_ref, package_code, amount_vnd, premium_granted, standard_granted, status)
-        VALUES ($1, $2, 'sepay', $3, $4, $5, $6, $7, 'pending')
-        RETURNING *`,
-        txID, userID, orderCode, pkgCode, pkg.AmountVND, pkg.PremiumCredits, pkg.StandardCredits)
+        row := s.pool.QueryRow(ctx, `
+            INSERT INTO transactions (id, user_id, provider, provider_ref, package_code, amount_vnd, premium_granted, standard_granted, status)
+            VALUES ($1, $2, 'sepay', $3, $4, $5, $6, $7, 'pending')
+            RETURNING id, user_id, provider_ref, package_code, amount_vnd, premium_granted, standard_granted, status, created_at`,
+            u, userID, orderCode, pkgCode, pkg.AmountVND, pkg.PremiumCredits, pkg.StandardCredits)
 
-    var tx Transaction; err = row.Scan(...)
-    if err != nil {
-        // 23505 unique_violation → return existing pending
-        if pgErr := asPgError(err); pgErr.Code == "23505" && pgErr.ConstraintName == "idx_tx_user_pkg_pending" {
-            existing, _ := s.q.GetPendingTxByUserPackage(ctx, userID, pkgCode)
-            qr := BuildQRURL(..., existing.ProviderRef)
-            return existing, qr, nil
+        var tx Transaction
+        err := row.Scan(&tx.ID, &tx.UserID, &tx.ProviderRef, &tx.PackageCode, &tx.AmountVND, &tx.PremiumGranted, &tx.StandardGranted, &tx.Status, &tx.CreatedAt)
+        if err == nil {
+            qr := BuildQRURL(s.cfg.SepayBankCode, s.cfg.SepayBankAccount, pkg.AmountVND, fmt.Sprintf("SBF TOPUP %s", orderCode))
+            return tx, qr, nil
         }
-        return zero, "", err
+        var pgErr *pgconn.PgError
+        if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+            switch pgErr.ConstraintName {
+            case "idx_tx_user_pkg_pending":
+                existing, qErr := s.q.GetPendingTxByUserPackage(ctx, userID, pkgCode)
+                if qErr != nil { return Transaction{}, "", qErr }
+                qr := BuildQRURL(s.cfg.SepayBankCode, s.cfg.SepayBankAccount, existing.AmountVND, fmt.Sprintf("SBF TOPUP %s", existing.ProviderRef))
+                return existing, qr, nil
+            case "idx_tx_provider_ref_active":
+                s.log.Warn("provider_ref collision — retrying", zap.String("order_code", orderCode), zap.Int("attempt", attempt))
+                continue
+            }
+        }
+        return Transaction{}, "", err
     }
-
-    qr := BuildQRURL(s.cfg.SepayBankCode, s.cfg.SepayBankAcc, pkg.AmountVND, fmt.Sprintf("SBF TOPUP %s", orderCode))
-    return tx, qr, nil
+    return Transaction{}, "", fmt.Errorf("provider_ref collision after 3 retries")
 }
 ```
 
@@ -122,7 +137,7 @@ func BuildQRURL(bankCode, accNo string, amount int64, des string) string {
 - `services/api/internal/db/queries/transactions.sql`
 
 ### Modify
-- `services/api/internal/config/config.go` — add `SepayBankCode`, `SepayBankAcc` env
+- `services/api/internal/config/config.go` — add `SepayBankCode` (env `SEPAY_BANK_CODE`) + `SepayBankAccount` (env `SEPAY_BANK_ACCOUNT`) — both used by QR builder AND webhook match (Q3)
 - `services/api/internal/bot/router.go` — route `/buy`, `/topup`, callbacks `buy:pkg:*`, `buy:confirm:*`, `buy:cancel`, `topup:check`, `topup:cancel`
 
 ## sqlc queries
@@ -143,8 +158,9 @@ ORDER BY created_at DESC LIMIT 1;
 SELECT * FROM transactions WHERE provider = 'sepay' AND provider_ref = $1 LIMIT 1;
 
 -- name: CancelPendingTransaction :exec
+-- [Q2] cancelled (not failed) — keeps provider_ref in active-state partial index for late-payment recovery
 UPDATE transactions
-SET status = 'failed', updated_at = NOW(), metadata = metadata || jsonb_build_object('cancel_reason', $2::text)
+SET status = 'cancelled', updated_at = NOW(), metadata = metadata || jsonb_build_object('cancel_reason', $2::text, 'cancelled_at', to_char(NOW(), 'YYYY-MM-DD"T"HH24:MI:SSOF'))
 WHERE id = $1 AND status = 'pending';
 
 -- name: GetTxByUserPage :many
@@ -156,12 +172,14 @@ SELECT COUNT(*) FROM transactions WHERE user_id = $1;
 ```
 
 ## Implementation Steps
-1. Add env `SEPAY_BANK_CODE`, `SEPAY_BANK_ACC` to config.
+1. Add env `SEPAY_BANK_CODE` + `SEPAY_BANK_ACCOUNT` to config (Q3 rename from `SEPAY_BANK_ACC` — used by QR builder + webhook match).
 2. Write `service/packages.go` with full package registry.
 3. Write `db/queries/transactions.sql`; run `sqlc generate`.
 4. Write `integration/sepay/qr.go` + pure-function test (URL encoding assertions).
-5. Write `service/transaction_service.go` with `CreateTopupIntent`, `CancelPendingTransaction`, `GetTxByRef`.
-6. Handle `23505 unique_violation` by fetching existing pending → return same QR (idempotent UX).
+5. **[F2]** Write `service/transaction_service.go` with `CreateTopupIntent` (12-hex uppercase via `hex.EncodeToString(uuid[:6])` + up to 3 retries on `idx_tx_provider_ref_active` 23505), `CancelPendingTransaction` (status='cancelled' per Q2), `GetTxByRef`.
+6. Handle `23505 unique_violation` by constraint name:
+   - `idx_tx_user_pkg_pending` → fetch existing pending, return same QR (idempotent UX).
+   - `idx_tx_provider_ref_active` → retry with fresh order code (up to 3x).
 7. Write `bot/keyboards/buy.go` helpers: `PackageMenu(lang) InlineKeyboardMarkup`, `ConfirmCancel(pkgCode) InlineKeyboardMarkup`, `TopupActions(txID) InlineKeyboardMarkup`.
 8. Write `bot/commands/buy.go`:
    - `/buy` → send package menu, state=`buy_selecting_package`.
@@ -170,27 +188,30 @@ SELECT COUNT(*) FROM transactions WHERE user_id = $1;
    - Callback `buy:cancel` → clear state, edit message "đã huỷ".
 9. Write `bot/commands/topup.go`:
    - `/topup` → resend last pending QR (from FSM data); if no pending, redirect to `/buy`.
-   - Callback `topup:check` → SELECT status; if paid → success message + clear FSM; else reply "still waiting".
-   - Callback `topup:cancel` → CancelPendingTransaction, clear FSM.
+   - Callback `topup:check` → SELECT status; if paid/recovered_by_late_payment → success message + clear FSM; else reply "still waiting".
+   - Callback `topup:cancel` → CancelPendingTransaction (flips to `cancelled`), clear FSM.
 10. Integration test:
-    - CreateTopupIntent → row inserted, QR URL well-formed (host=qr.sepay.vn, correct params).
-    - Second CreateTopupIntent same user+package → returns SAME tx (idempotent).
+    - **[F2]** CreateTopupIntent → row inserted, `provider_ref` matches regex `^[A-F0-9]{12}$`, QR URL well-formed (host=qr.sepay.vn, correct params).
+    - Second CreateTopupIntent same user+package → returns SAME tx (idempotent via `idx_tx_user_pkg_pending`).
     - Concurrent 10x CreateTopupIntent → exactly 1 tx row created.
+    - **[Q2]** CancelPendingTransaction → status='cancelled' (not 'failed'), provider_ref retained in `idx_tx_provider_ref_active`.
     - `/buy` callback flow in bot sim test (mock tgbotapi) — state transitions correct.
 
 ## Todo List
-- [ ] Add `SEPAY_BANK_CODE` + `SEPAY_BANK_ACC` to config
+- [ ] Add `SEPAY_BANK_CODE` + `SEPAY_BANK_ACCOUNT` to config (Q3 env names)
 - [ ] Write `service/packages.go`
 - [ ] Write `db/queries/transactions.sql`
 - [ ] Run `sqlc generate`
 - [ ] Implement QR builder + tests
-- [ ] Implement `TransactionService.CreateTopupIntent` with 23505 handling
+- [ ] **[F2]** Implement `TransactionService.CreateTopupIntent` — 12-hex uppercase order code + retry-on-provider_ref-collision (3x)
 - [ ] Implement keyboards (menu / confirm / topup actions)
 - [ ] Implement `bot/commands/buy.go`
-- [ ] Implement `bot/commands/topup.go`
+- [ ] **[Q2]** Implement `bot/commands/topup.go` — cancel flips status to `cancelled` (not `failed`)
 - [ ] Wire router + callbacks
 - [ ] Integration test for idempotent create
 - [ ] Race test: 10x concurrent CreateTopupIntent → 1 row
+- [ ] **[F2]** Test provider_ref format `^[A-F0-9]{12}$` via 1000 generated samples
+- [ ] **[Q2]** Test cancelled tx preserves provider_ref in active partial index
 
 ## Success Criteria
 - Spam clicking `/buy confirm` → exactly 1 pending row
@@ -201,11 +222,12 @@ SELECT COUNT(*) FROM transactions WHERE user_id = $1;
 ## Risk Assessment
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| 23505 constraint name change breaks idempotent handling | Low | Med | Use explicit constraint name in error check; covered by migration test |
+| 23505 constraint name change breaks idempotent handling | Low | Med | Use explicit constraint name in error check (`idx_tx_user_pkg_pending` + `idx_tx_provider_ref_active`); covered by migration test |
 | FSM `topup_waiting` TTL expires while user paying | Med | Med | 24h TTL; after expiry user can re-/buy and old pending auto-expires via janitor (deferred Phase 8) |
 | Package registry drift between bot menu & webhook grant | Low | High | Single source `Packages` map used by BOTH menu render and webhook grant (phase 06) |
 | Package price change mid-pending → user paid old amount → webhook grants new amount | Med | Med | Snapshot amount_vnd/premium/standard INTO `transactions` row on create; webhook reads from row, not registry |
-| Rapid cancel-then-buy creates duplicate keys | Low | Low | `status='failed'` not 'pending' — partial index allows new pending |
+| Cancel-then-pay: late webhook matches cancelled tx | Med | Med | **[Q2]** status='cancelled' retains provider_ref in partial index; webhook flips to `recovered_by_late_payment` + full credits (phase-06) |
+| Provider_ref 12-hex collision | Extremely Low | High | **[F2]** 48-bit space; retry up to 3x on `idx_tx_provider_ref_active` 23505 |
 | QR description param URL-encoded breaks SePay parse | Med | High | Description is ASCII + spaces; URL.Values.Encode() produces `SBF+TOPUP+...`, SePay docs accept both `+` and `%20`. Test with real SePay sandbox in phase 10 |
 
 ## Security Considerations

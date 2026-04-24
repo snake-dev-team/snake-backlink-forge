@@ -15,6 +15,7 @@
 - Wallet service is a THIN WRAPPER — no new stored proc. We keep the procs as-is (they're correct for the atomic math+ledger insert). Idempotency is caller-side.
 - `/balance` is read-only; no locking needed.
 - `total_vnd_spent` tracked in `wallets` but NOT incremented by `grant_credits` — need separate UPDATE in the same txn in phase 06 (webhook).
+- **[F2 + Q1 + Q2] Schema delta migration** `20260424004_phase2_schema_deltas.sql` required to unblock phase-05/06: adds `topup_excess` ledger_event_type, `recovered_by_late_payment` transaction_status, drops unconditional UNIQUE on `provider_ref`, adds partial UNIQUE on active states only. Ordered AFTER `20260424003_phase2_indexes.sql`.
 
 ## Requirements
 ### Functional
@@ -81,6 +82,7 @@ The gate is step 1. Steps 2-4 only execute if step 1 returned a pending row.
 - `services/api/internal/bot/commands/balance.go`
 - `services/api/internal/db/queries/wallets.sql`
 - `services/api/internal/db/queries/ledger.sql`
+- **[F2+Q1+Q2] `services/api/internal/migrations/20260424004_phase2_schema_deltas.sql`** — ENUM additions + provider_ref partial UNIQUE (see SQL below)
 
 ### Modify
 - `services/api/internal/db/sqlc/wallets.sql.go` (regenerated)
@@ -107,20 +109,67 @@ ORDER BY created_at DESC LIMIT $2 OFFSET $3;
 SELECT COUNT(*) FROM ledger WHERE user_id = $1;
 ```
 
+## Migration `20260424004_phase2_schema_deltas.sql` — [F2 + Q1 + Q2]
+
+Adds two enum values + replaces base `provider_ref` UNIQUE constraint with a partial UNIQUE scoped to active states.
+
+```sql
+-- +goose Up
+-- +goose NO TRANSACTION
+-- Reason for NO TRANSACTION: ALTER TYPE ADD VALUE cannot run inside a txn block in Postgres.
+
+-- Q1: new ledger event for bonus credits on over-payment
+ALTER TYPE ledger_event_type ADD VALUE IF NOT EXISTS 'topup_excess';
+
+-- Q2: new transaction statuses for late-payment recovery
+ALTER TYPE transaction_status ADD VALUE IF NOT EXISTS 'cancelled';
+ALTER TYPE transaction_status ADD VALUE IF NOT EXISTS 'recovered_by_late_payment';
+
+-- F2: drop unconditional UNIQUE on provider_ref (constraint name from 20260424001)
+ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_provider_ref_key;
+
+-- F2: partial UNIQUE limited to active states only; failed/refunded rows can share provider_ref with new attempts.
+-- 'cancelled' is kept in the active set so a late webhook can transition to 'recovered_by_late_payment'.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_provider_ref_active
+  ON transactions(provider_ref)
+  WHERE status IN ('pending','paid','cancelled','recovered_by_late_payment');
+
+-- +goose Down
+-- IRREVERSIBILITY NOTE: Postgres does not support removing enum values without recreating the type.
+-- Dropping the enum values 'topup_excess' and 'recovered_by_late_payment' requires:
+--   (a) CREATE new enum without them, (b) migrate columns to new type, (c) drop old type.
+-- This is disruptive and unnecessary in practice (values remain but unused post-revert).
+-- Down migration only reverts the provider_ref constraint change.
+
+DROP INDEX IF EXISTS idx_tx_provider_ref_active;
+-- Restore unconditional UNIQUE (may fail if duplicate provider_ref rows exist; accept manual cleanup)
+ALTER TABLE transactions ADD CONSTRAINT transactions_provider_ref_key UNIQUE (provider_ref);
+```
+
+**Deploy ordering:** `20260424001_init.sql` → `20260424002_seed_dorks.sql` → `20260424003_phase2_indexes.sql` → `20260424004_phase2_schema_deltas.sql`. Goose applies in lexicographic order; file names enforce sequence.
+
 ## Implementation Steps
-1. Write `db/queries/wallets.sql` + `ledger.sql`; run `sqlc generate`.
-2. Write `service/wallet_service.go` with `Grant`/`Consume`/`AddVNDSpent`/`GetBalance`.
-3. Translate pgErrCode P0001 → `ErrInsufficientCredits` using `errors.As` on `*pgconn.PgError`.
-4. Write `bot/commands/balance.go`:
+1. **[F2+Q1+Q2]** Write `migrations/20260424004_phase2_schema_deltas.sql` with goose Up/Down sections.
+2. Apply migration locally (`make migrate-up`) and verify:
+   - `SELECT unnest(enum_range(NULL::ledger_event_type))` contains `topup_excess`
+   - `SELECT unnest(enum_range(NULL::transaction_status))` contains `recovered_by_late_payment`
+   - `\d transactions` shows `idx_tx_provider_ref_active` partial UNIQUE, no base UNIQUE on `provider_ref`
+3. Write `db/queries/wallets.sql` + `ledger.sql`; run `sqlc generate`.
+4. Write `service/wallet_service.go` with `Grant`/`Consume`/`AddVNDSpent`/`GetBalance`.
+5. Translate pgErrCode P0001 → `ErrInsufficientCredits` using `errors.As` on `*pgconn.PgError`.
+6. Write `bot/commands/balance.go`:
    - Call `GetBalance`, render message with tmpl key `balance` + data `{Premium, Standard, TotalVND}`.
-5. Write integration test:
+7. Write integration test:
    - New user wallet 0/0 → Grant(premium, 100) → balance 100/0, ledger row has `delta=+100, balance_after=100`.
    - Grant(standard, 5, 'trial_grant', 'user', userID) → 100/5.
    - Consume(standard, 3, 'consume_backlink', 'job', jobID) → 100/2.
    - Consume(standard, 999) → ErrInsufficientCredits, ledger untouched.
-6. Race test: 10 goroutines Grant(premium, 1) concurrently → final balance = 10, exactly 10 ledger rows.
+   - **[Q1]** Grant(standard, 43, 'topup_excess', 'transaction', txID) → ledger row with event_type='topup_excess'.
+8. Race test: 10 goroutines Grant(premium, 1) concurrently → final balance = 10, exactly 10 ledger rows.
 
 ## Todo List
+- [ ] **[F2+Q1+Q2]** Write `migrations/20260424004_phase2_schema_deltas.sql` (ENUM additions + provider_ref partial UNIQUE)
+- [ ] Apply migration, verify ENUM values + partial index present
 - [ ] Write `wallets.sql` + `ledger.sql` queries
 - [ ] Run `sqlc generate`
 - [ ] Implement `WalletService`
@@ -129,6 +178,7 @@ SELECT COUNT(*) FROM ledger WHERE user_id = $1;
 - [ ] Wire router
 - [ ] Unit + integration tests
 - [ ] Race test: 10x concurrent Grant
+- [ ] **[Q1]** Ledger test: event_type='topup_excess' renders correctly in /history
 - [ ] Verify ledger row count matches grant count
 
 ## Success Criteria

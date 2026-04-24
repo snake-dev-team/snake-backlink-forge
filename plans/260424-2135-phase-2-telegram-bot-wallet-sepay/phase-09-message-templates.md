@@ -39,10 +39,12 @@
 | `start_trial_blocked_phone_reuse` | Phone already used | — |
 | `start_trial_blocked_banned` | Banned account | — |
 | `start_contact_rejected` | Contact from wrong user | — |
+| `trial_phone_reused` | **[F4]** Friendly error: phone already consumed trial (alias of blocked_phone_reuse surfaced via user_service error mapping) | — |
 | `key_show` | `/key` response | `{KeyPrefixMasked, LastUsedAt}` |
 | `key_regen_confirm` | Confirm regenkey prompt | — |
 | `key_regen_done` | New key issued | `{Key}` |
 | `key_regen_cancelled` | User cancelled | — |
+| `regen_rate_limited` | **[H5]** /regenkey cap 3/day hit | `{ResetIn}` (optional) |
 | `balance` | `/balance` response | `{Premium, Standard, TotalVNDSpent}` |
 | `buy_menu_header` | `/buy` menu title | — |
 | `buy_package_row` | Single package row button label | `{DisplayName, PriceVND, Credits}` |
@@ -53,6 +55,8 @@
 | `topup_paid_success` | Webhook notified | `{Premium, Standard, Package.Display}` |
 | `topup_underpaid` | Underpayment manual review | — |
 | `topup_cancelled` | User cancelled pending | — |
+| `topup_overpaid_success` | **[Q1]** Overpaid — base + bonus credits granted | `{Premium, Standard, BonusCredits, BonusPool, ExcessVND, Package.Display}` |
+| `topup_recovered_late_payment` | **[Q2]** Late payment recovered from cancelled order | `{Premium, Standard, Package.Display}` |
 | `history_empty` | No history | — |
 | `history_tx_row` | Single tx row | `{Status, Display, AmountVND, CreatedAt}` |
 | `history_ledger_row` | Single ledger event row | `{EventType, Pool, Delta, CreatedAt}` |
@@ -85,6 +89,7 @@
 | `admin_unban_ok` | |
 | `admin_lookup_result` | |
 | `admin_error_user_not_found` | |
+| `admin_self_ban_blocked` | **[M3]** Attempt to ban an admin tg_id → rejected | — |
 | `admin_unknown_subcmd` | |
 
 ## Architecture
@@ -97,7 +102,21 @@ const (
     KeyStartWelcome         = "start_welcome"
     KeyStartVerifiedFirst   = "start_verified_first"
     // ... all keys as constants
+
+    // Round-2 additions (placeholder copy; copywriter agent fills in /ck:cook)
+    KeyTopupOverpaidSuccess       = "topup_overpaid_success"        // [Q1]
+    KeyTopupRecoveredLatePayment  = "topup_recovered_late_payment"  // [Q2]
+    KeyTrialPhoneReused           = "trial_phone_reused"            // [F4]
+    KeyRegenRateLimited           = "regen_rate_limited"            // [H5]
+    KeyAdminSelfBanBlocked        = "admin_self_ban_blocked"        // [M3]
 )
+
+// Placeholder copy (added to `bundles["vi"]` and `bundles["en"]`):
+// topup_overpaid_success:        "TODO: VN copy — overpaid bonus granted"   / "TODO: EN copy — overpaid bonus granted"
+// topup_recovered_late_payment:  "TODO: VN copy — late payment recovered"   / "TODO: EN copy — late payment recovered"
+// trial_phone_reused:            "TODO: VN copy — phone already used trial" / "TODO: EN copy — phone already used trial"
+// regen_rate_limited:            "TODO: VN copy — /regenkey rate limited"   / "TODO: EN copy — /regenkey rate limited"
+// admin_self_ban_blocked:        "TODO: VN copy — cannot ban admin"         / "TODO: EN copy — cannot ban admin"
 
 // bot/templates/messages.go
 package templates

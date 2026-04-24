@@ -26,8 +26,11 @@
 ### `/support`
 - Show FAQ menu (inline buttons: "Thanh toán", "Key", "Credits", "Kỹ thuật", "Khác"). Each button edits message with canned FAQ text + "Vẫn cần hỗ trợ? Bấm đây" button.
 - "Vẫn cần hỗ trợ" → state=`support_describing`, prompt "Mô tả vấn đề của bạn".
-- Next text message in this state → INSERT support_ticket, reply "Đã gửi. Ticket #XXXX. Ad sẽ reply trong 24h".
+- Next text message in this state → **[M5] truncate body to 4096 chars (Telegram max)**, INSERT support_ticket, **[M5] IMMEDIATELY clear state to `idle`** (one-shot consumption — no further messages open new tickets), reply "Đã gửi. Ticket #XXXX. Ad sẽ reply trong 24h".
 - Max 3 open tickets per user (cap spam).
+- State TTL 30min; `/cancel` also clears.
+
+> **[Q6] Note on `/campaigns`:** deferred to Phase 4+ (requires Campaign API CRUD endpoints not landing until Phase 4). NOT routed in Phase 2. Any `/campaigns` text → falls through to unknown-command handler (already covered by router default).
 
 ### `/download`
 - Reply: "📥 Tải installer Windows: {url}" with url from env `INSTALLER_URL` (default = `https://cdn.snakebacklink.com/installer/SnakeBacklinkSetup.exe`).
@@ -137,6 +140,7 @@ UPDATE referrals SET total_referred = total_referred + 1 WHERE user_id = $1;
 4. Write `service/referral_service.go` — EnsureCode + ProcessReferralOnStart(ctx, newUserID, refCode).
 5. Write `bot/commands/history.go` — pagination logic, merged render.
 6. Write `bot/commands/support.go` — FAQ menu + FSM for describe-ticket.
+   - **[M5]** On state=`support_describing`, accept ONE text message: cap body to 4096 chars via `[:min(len, 4096)]`, INSERT ticket, then `state.Clear()` BEFORE sending confirmation reply. Subsequent text from same user → falls through to default handler (no further ticket creation).
 7. Write `bot/commands/download.go`.
 8. Write `bot/commands/ref.go`.
 9. Write `bot/commands/language.go`.
@@ -144,6 +148,8 @@ UPDATE referrals SET total_referred = total_referred + 1 WHERE user_id = $1;
 11. Unit test: ref code uniqueness (1000 samples, 0 collisions in 6-char space is acceptable — collision handled by retry).
 12. Integration test: `/history` across 12 tx + 20 ledger rows → pagination correct, no duplication.
 13. Integration test: `/support` 3-ticket cap enforced.
+14. **[M5]** Integration test: user in `support_describing` state sends 5 text messages rapidly → exactly 1 ticket created, remaining messages hit default handler.
+15. **[M5]** Integration test: ticket body length > 4096 → truncated to 4096 in DB.
 
 ## Todo List
 - [ ] Add `GetLedgerConsumesByUserPage` to ledger queries
@@ -156,6 +162,7 @@ UPDATE referrals SET total_referred = total_referred + 1 WHERE user_id = $1;
 - [ ] Unit test ref code generation
 - [ ] Integration test history pagination
 - [ ] Integration test support ticket cap
+- [ ] **[M5]** Integration test one-shot ticket state + 4096-char body cap
 - [ ] Integration test language toggle persists
 
 ## Success Criteria
@@ -173,10 +180,11 @@ UPDATE referrals SET total_referred = total_referred + 1 WHERE user_id = $1;
 | Ref code collision in 6-char base58 (34^6 = 1.5B) | Very Low | Low | 23505 retry loop + 8-char fallback |
 | Language toggle race: message in old lang while toggle in-flight | Low | Low | Harmless cosmetic; `singleflight` from phase 01 serializes per-user |
 | `/download` URL points to non-existent installer until Phase 7 | Certain | Low | Reply includes "Đang cập nhật Phase 7" banner when env flag set |
-| Support `support_describing` state stuck → next unrelated text opens ticket | Med | Med | TTL 30min on state; `/cancel` command clears state explicitly |
+| Support `support_describing` state stuck → next unrelated text opens ticket | Low | Med | **[M5]** State cleared BEFORE reply is sent on first accepted message (one-shot). 30min TTL + `/cancel` as backstops. Spam after that → default handler, no extra tickets |
+| Support ticket body unbounded size (DDoS via concatenated paste) | Low | Low | **[M5]** Truncate body to 4096 chars at insert time (matches Telegram max) |
 
 ## Security Considerations
-- Support ticket body stored AS-IS in DB (user controls). Render via template with HTML escape for future admin dashboard (Phase 8).
+- **[M5]** Support ticket body truncated to 4096 chars on insert (matches Telegram per-message cap). Stored otherwise AS-IS (user controls). Render via template with HTML escape for future admin dashboard (Phase 8).
 - Installer URL content-type not validated this phase — Phase 7 signs installer, user verifies via Windows Authenticode.
 - Ref code path: `ProcessReferralOnStart` idempotent — `users.referred_by` write-once (`UPDATE ... WHERE referred_by IS NULL`).
 
