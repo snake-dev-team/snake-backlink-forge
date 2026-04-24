@@ -130,6 +130,19 @@ function matchPath(matcher, testPath) {
     normalized = normalized.slice(2);
   }
 
+  // Strip Windows drive letter prefix (e.g. "E:/", "C:/") — ignore lib rejects absolute paths
+  normalized = normalized.replace(/^[A-Za-z]:\//, '');
+
+  // If path is absolute and INSIDE cwd, rebase to cwd-relative; if outside, bail (unblockable)
+  if (path.isAbsolute(testPath)) {
+    const rel = path.relative(process.cwd(), testPath).replace(/\\/g, '/');
+    if (rel === '' || rel.startsWith('..')) {
+      // Path is cwd itself OR outside cwd — not blockable via repo-scoped .ckignore
+      return { blocked: false };
+    }
+    normalized = rel;
+  }
+
   // Strip leading / for absolute paths (ignore lib requires relative paths)
   while (normalized.startsWith('/')) {
     normalized = normalized.slice(1);
