@@ -114,6 +114,7 @@ const (
 	LedgerEventTypeConsumeFinder   LedgerEventType = "consume_finder"
 	LedgerEventTypeRefund          LedgerEventType = "refund"
 	LedgerEventTypeAdminAdjust     LedgerEventType = "admin_adjust"
+	LedgerEventTypeTopupExcess     LedgerEventType = "topup_excess"
 )
 
 func (e *LedgerEventType) Scan(src interface{}) error {
@@ -284,11 +285,13 @@ func (ns NullTransactionProvider) Value() (driver.Value, error) {
 type TransactionStatus string
 
 const (
-	TransactionStatusPending      TransactionStatus = "pending"
-	TransactionStatusPaid         TransactionStatus = "paid"
-	TransactionStatusFailed       TransactionStatus = "failed"
-	TransactionStatusRefunded     TransactionStatus = "refunded"
-	TransactionStatusManualReview TransactionStatus = "manual_review"
+	TransactionStatusPending                TransactionStatus = "pending"
+	TransactionStatusPaid                   TransactionStatus = "paid"
+	TransactionStatusFailed                 TransactionStatus = "failed"
+	TransactionStatusRefunded               TransactionStatus = "refunded"
+	TransactionStatusManualReview           TransactionStatus = "manual_review"
+	TransactionStatusCancelled              TransactionStatus = "cancelled"
+	TransactionStatusRecoveredByLatePayment TransactionStatus = "recovered_by_late_payment"
 )
 
 func (e *TransactionStatus) Scan(src interface{}) error {

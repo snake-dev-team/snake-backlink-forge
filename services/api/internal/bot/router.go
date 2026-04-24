@@ -61,6 +61,8 @@ func dispatchCommand(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, upda
 		return HandleKey(ctx, deps, api, update)
 	case "regenkey":
 		return HandleRegenKey(ctx, deps, api, update)
+	case "balance":
+		return HandleBalance(ctx, deps, api, update)
 	default:
 		return cmdHelp(ctx, api, update)
 	}

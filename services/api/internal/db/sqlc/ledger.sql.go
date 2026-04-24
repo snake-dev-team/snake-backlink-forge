@@ -7,20 +7,62 @@ package sqlcdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
-const placeholderLedgerSelect = `-- name: PlaceholderLedgerSelect :one
-
-SELECT 1 AS dummy
+const countLedgerByUser = `-- name: CountLedgerByUser :one
+SELECT COUNT(*) FROM ledger WHERE user_id = $1
 `
 
-// Queries for the ledger table.
-// Phase 2+ will add real queries here (history pagination, balance reconciliation).
-// consume_credits / grant_credits are stored procs called via pool.Exec, not sqlc.
-// Placeholder kept so sqlc can parse this file without errors.
-func (q *Queries) PlaceholderLedgerSelect(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, placeholderLedgerSelect)
-	var dummy int32
-	err := row.Scan(&dummy)
-	return dummy, err
+func (q *Queries) CountLedgerByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedgerByUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getLedgerPage = `-- name: GetLedgerPage :many
+
+SELECT id, user_id, event_type, pool, delta_credits, balance_after, ref_entity_type, ref_entity_id, metadata, created_at FROM ledger WHERE user_id = $1
+ORDER BY created_at DESC LIMIT $2 OFFSET $3
+`
+
+type GetLedgerPageParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
+}
+
+// Queries for the ledger table. Phase 04: paginated history + count.
+// grant_credits / consume_credits are stored procs called via tx.QueryRow, not sqlc.
+func (q *Queries) GetLedgerPage(ctx context.Context, arg GetLedgerPageParams) ([]Ledger, error) {
+	rows, err := q.db.Query(ctx, getLedgerPage, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ledger
+	for rows.Next() {
+		var i Ledger
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.EventType,
+			&i.Pool,
+			&i.DeltaCredits,
+			&i.BalanceAfter,
+			&i.RefEntityType,
+			&i.RefEntityID,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -31,4 +31,8 @@ type Deps struct {
 	// GetActiveMasked in addition to Issue (which is on the KeyIssuer interface).
 	// Phase 03: wired in main.go alongside UserService.
 	KeyService *service.KeyService
+
+	// WalletService handles credit grant/consume and balance reads.
+	// Phase 04: wired in main.go. Nil until DB is available.
+	WalletService *service.WalletService
 }

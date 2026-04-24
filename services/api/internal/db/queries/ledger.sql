@@ -1,7 +1,9 @@
--- Queries for the ledger table.
--- Phase 2+ will add real queries here (history pagination, balance reconciliation).
--- consume_credits / grant_credits are stored procs called via pool.Exec, not sqlc.
--- Placeholder kept so sqlc can parse this file without errors.
+-- Queries for the ledger table. Phase 04: paginated history + count.
+-- grant_credits / consume_credits are stored procs called via tx.QueryRow, not sqlc.
 
--- name: PlaceholderLedgerSelect :one
-SELECT 1 AS dummy;
+-- name: GetLedgerPage :many
+SELECT * FROM ledger WHERE user_id = $1
+ORDER BY created_at DESC LIMIT $2 OFFSET $3;
+
+-- name: CountLedgerByUser :one
+SELECT COUNT(*) FROM ledger WHERE user_id = $1;

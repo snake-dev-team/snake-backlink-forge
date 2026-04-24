@@ -7,19 +7,42 @@ package sqlcdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
-const placeholderWalletsSelect = `-- name: PlaceholderWalletsSelect :one
-
-SELECT 1 AS dummy
+const addVNDSpent = `-- name: AddVNDSpent :exec
+UPDATE wallets SET total_vnd_spent = total_vnd_spent + $2, updated_at = NOW()
+WHERE user_id = $1
 `
 
-// Queries for the wallets table.
-// Phase 2+ will add real queries here (balance fetch, credit top-up via grant_credits proc).
-// Placeholder kept so sqlc can parse this file without errors.
-func (q *Queries) PlaceholderWalletsSelect(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, placeholderWalletsSelect)
-	var dummy int32
-	err := row.Scan(&dummy)
-	return dummy, err
+type AddVNDSpentParams struct {
+	UserID        uuid.UUID `json:"user_id"`
+	TotalVndSpent int64     `json:"total_vnd_spent"`
+}
+
+func (q *Queries) AddVNDSpent(ctx context.Context, arg AddVNDSpentParams) error {
+	_, err := q.db.Exec(ctx, addVNDSpent, arg.UserID, arg.TotalVndSpent)
+	return err
+}
+
+const getWalletByUser = `-- name: GetWalletByUser :one
+
+SELECT user_id, premium_credits, standard_credits, total_premium_spent, total_standard_spent, total_vnd_spent, updated_at FROM wallets WHERE user_id = $1
+`
+
+// Queries for the wallets table. Phase 04: balance fetch + VND spend bump.
+func (q *Queries) GetWalletByUser(ctx context.Context, userID uuid.UUID) (Wallet, error) {
+	row := q.db.QueryRow(ctx, getWalletByUser, userID)
+	var i Wallet
+	err := row.Scan(
+		&i.UserID,
+		&i.PremiumCredits,
+		&i.StandardCredits,
+		&i.TotalPremiumSpent,
+		&i.TotalStandardSpent,
+		&i.TotalVndSpent,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

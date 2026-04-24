@@ -16,6 +16,7 @@ import (
 	appbot "github.com/kekuta/snake-backlink-forge/services/api/internal/bot"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	appdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db"
+	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
 	appredis "github.com/kekuta/snake-backlink-forge/services/api/internal/redis"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/util"
@@ -82,6 +83,15 @@ func main() {
 		log.Warn("user service disabled — no DB pool")
 	}
 
+	// --- WalletService (Phase 04) ---
+	// Shares the same sqlcdb.Queries instance constructed from dbPool.
+	// Nil when dbPool is nil — bot /balance falls back to "coming soon" message.
+	var walletSvc *service.WalletService
+	if dbPool != nil {
+		walletSvc = service.NewWalletService(dbPool, sqlcdb.New(dbPool), log.Named("wallet_svc"))
+		log.Info("wallet service initialized")
+	}
+
 	// --- Bot (Phase 03) ---
 	// Bot manages its own internal contexts (loopCtx + handlerCtx).
 	// Shutdown is coordinated via bot.Stop(), which drains in-flight handlers
@@ -95,8 +105,9 @@ func main() {
 			Rdb:         rdb,
 			Log:         log.Named("bot"),
 			Cfg:         cfg,
-			UserService: userSvc,
-			KeyService:  keySvc, // Phase 03: real KeyService wired
+			UserService:   userSvc,
+			KeyService:    keySvc,    // Phase 03
+			WalletService: walletSvc, // Phase 04
 		})
 		if botErr != nil {
 			if errors.Is(botErr, appbot.ErrBotDisabled) {
