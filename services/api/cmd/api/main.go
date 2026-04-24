@@ -17,6 +17,7 @@ import (
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	appdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db"
 	appredis "github.com/kekuta/snake-backlink-forge/services/api/internal/redis"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/util"
 	"go.uber.org/zap"
 )
@@ -61,7 +62,18 @@ func main() {
 		log.Info("redis connected")
 	}
 
-	// --- Bot (Phase 2, optional) ---
+	// --- UserService (Phase 02) ---
+	// NoopKeyIssuer used until Phase 03 wires real KeyService.
+	// If dbPool is nil (lenient boot), UserService is nil — bot handlers fall back to dev mode.
+	var userSvc *service.UserService
+	if dbPool != nil {
+		userSvc = service.New(dbPool, rdb, service.NoopKeyIssuer, log.Named("user_svc"))
+		log.Info("user service initialized")
+	} else {
+		log.Warn("user service disabled — no DB pool")
+	}
+
+	// --- Bot (Phase 02, optional) ---
 	// Bot manages its own internal contexts (loopCtx + handlerCtx).
 	// Shutdown is coordinated via bot.Stop(), which drains in-flight handlers
 	// before cancelling handlerCtx — so we do NOT pass a cancellable ctx here.
@@ -70,10 +82,12 @@ func main() {
 		log.Warn("bot disabled — TELEGRAM_BOT_TOKEN empty")
 	} else {
 		b, botErr := appbot.New(&appbot.Deps{
-			Pool: dbPool,
-			Rdb:  rdb,
-			Log:  log.Named("bot"),
-			Cfg:  cfg,
+			Pool:        dbPool,
+			Rdb:         rdb,
+			Log:         log.Named("bot"),
+			Cfg:         cfg,
+			UserService: userSvc,
+			// KeyService: nil — Phase 03 will set this; UserService uses NoopKeyIssuer internally.
 		})
 		if botErr != nil {
 			if errors.Is(botErr, appbot.ErrBotDisabled) {

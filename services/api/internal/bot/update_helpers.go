@@ -17,13 +17,13 @@ const (
 	ctxKeyLang
 )
 
-// BotUser is a minimal user record attached to handler contexts.
-// Phase 02 replaces this with the sqlc-generated User model via loadUser middleware update.
+// BotUser is a minimal user record attached to handler contexts by loadUser middleware.
 // TelegramID is intentionally omitted (YAGNI/M2): re-extract via updateTelegramID(update) when needed.
 type BotUser struct {
-	ID       uuid.UUID
-	Language string
-	IsBanned bool
+	ID         uuid.UUID
+	Language   string
+	IsBanned   bool
+	IsVerified bool // Phase 02: needed by /start to decide welcome vs repeat flow.
 }
 
 // HandlerFunc is the signature every bot command handler must satisfy.

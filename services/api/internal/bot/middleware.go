@@ -79,17 +79,17 @@ func loggerMiddleware(log *zap.Logger) func(HandlerFunc) HandlerFunc {
 	}
 }
 
-// loadUser upserts the Telegram user in Postgres and attaches a BotUser to ctx.
+// loadUser upserts the Telegram user in Postgres via UserService and attaches a BotUser to ctx.
 //
 // Failure semantics are FAIL-CLOSED (H1): on any DB error, no next() call is made
 // so that banCheck cannot be bypassed by a transient DB blip.
 //
-// Dev-mode (deps.Pool == nil): a synthetic BotUser with safe defaults is attached
+// Dev-mode (deps.UserService == nil): a synthetic BotUser with safe defaults is attached
 // so handlers work normally in local dev without a database.
 func loadUser(deps *Deps) func(HandlerFunc) HandlerFunc {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
-			if deps.Pool == nil {
+			if deps.UserService == nil {
 				// Dev mode: create synthetic user so middleware chain is exercisable.
 				synthetic := BotUser{
 					Language: "vi",
@@ -104,32 +104,33 @@ func loadUser(deps *Deps) func(HandlerFunc) HandlerFunc {
 				return next(ctx, bot, update)
 			}
 
-			// Derive username if available.
-			var username *string
-			if update.Message != nil && update.Message.From != nil && update.Message.From.UserName != "" {
-				s := update.Message.From.UserName
-				username = &s
+			// Extract first name and username for upsert.
+			var username, firstName string
+			if update.Message != nil && update.Message.From != nil {
+				username = update.Message.From.UserName
+				firstName = update.Message.From.FirstName
+			} else if update.CallbackQuery != nil {
+				username = update.CallbackQuery.From.UserName
+				firstName = update.CallbackQuery.From.FirstName
 			}
 
-			var user BotUser
-			err := deps.Pool.QueryRow(ctx, `
-				INSERT INTO users (telegram_id, telegram_username, language, updated_at)
-				VALUES ($1, $2, 'vi', NOW())
-				ON CONFLICT (telegram_id) DO UPDATE
-					SET telegram_username = EXCLUDED.telegram_username,
-					    updated_at = NOW()
-				RETURNING id, language, is_banned
-			`, tgID, username).Scan(&user.ID, &user.Language, &user.IsBanned)
+			dbUser, err := deps.UserService.EnsureStub(ctx, tgID, username, firstName)
 			if err != nil {
 				// Fail closed: do NOT call next() — a banned user must not reach the handler.
-				deps.Log.Warn("loadUser: upsert failed, failing closed",
+				deps.Log.Warn("loadUser: EnsureStub failed, failing closed",
 					zap.Int64("tg_id", tgID), zap.Error(err))
 				msg := tgbotapi.NewMessage(updateChatID(update),
-					"⚠️ Hệ thống tạm thời gặp sự cố. Vui lòng thử lại sau.")
+					"Hệ thống tạm thời gặp sự cố. Vui lòng thử lại sau.")
 				_, _ = bot.Send(msg)
 				return nil
 			}
 
+			user := BotUser{
+				ID:         dbUser.ID,
+				Language:   dbUser.Language,
+				IsBanned:   dbUser.IsBanned,
+				IsVerified: dbUser.IsVerified,
+			}
 			ctx = context.WithValue(ctx, ctxKeyUser, user)
 			return next(ctx, bot, update)
 		}
