@@ -35,4 +35,8 @@ type Deps struct {
 	// WalletService handles credit grant/consume and balance reads.
 	// Phase 04: wired in main.go. Nil until DB is available.
 	WalletService *service.WalletService
+
+	// TxService manages pending topup intents, QR generation, and cancel lifecycle.
+	// Phase 05: wired in main.go. Nil until DB is available.
+	TxService *service.TransactionService
 }

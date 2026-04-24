@@ -31,6 +31,12 @@ type Config struct {
 	TelegramBotUsername string `env:"TELEGRAM_BOT_USERNAME"`
 	SepayWebhookToken   string `env:"SEPAY_WEBHOOK_TOKEN"`
 
+	// -- SePay QR + Webhook (Phase 05-06) --
+	// SepayBankCode is the SePay bank identifier used in QR URL generation (e.g. "MBBank").
+	SepayBankCode string `env:"SEPAY_BANK_CODE" envDefault:"MBBank"`
+	// SepayBankAccount is the destination bank account number. Never logged in full.
+	SepayBankAccount string `env:"SEPAY_BANK_ACCOUNT"`
+
 	// -- External APIs (Phase 4-6) --
 	SerpapiKey          string  `env:"SERPAPI_KEY"`
 	MozAccessID         string  `env:"MOZ_ACCESS_ID"`

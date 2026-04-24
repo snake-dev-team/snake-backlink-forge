@@ -63,6 +63,10 @@ func dispatchCommand(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, upda
 		return HandleRegenKey(ctx, deps, api, update)
 	case "balance":
 		return HandleBalance(ctx, deps, api, update)
+	case "buy":
+		return HandleBuy(ctx, deps, api, update)
+	case "topup":
+		return HandleTopup(ctx, deps, api, update)
 	default:
 		return cmdHelp(ctx, api, update)
 	}
@@ -84,16 +88,36 @@ func dispatchCallback(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, upd
 
 	data := update.CallbackQuery.Data
 
-	switch data {
-	case "key:copy_prefix":
+	switch {
+	case data == "key:copy_prefix":
 		return handleKeyCopyPrefixCallback(ctx, deps, api, update)
-	case "key:regen":
+	case data == "key:regen":
 		// "Regenerate" button on /key view — dispatch to /regenkey flow.
 		return HandleRegenKey(ctx, deps, api, update)
-	case "key:regen:confirm":
+	case data == "key:regen:confirm":
 		return handleRegenConfirmCallback(ctx, deps, api, update)
-	case "key:regen:cancel":
+	case data == "key:regen:cancel":
 		return handleRegenCancelCallback(ctx, deps, api, update)
+
+	// Phase 05: buy flow callbacks.
+	// buy:pkg:<code> — package selected from menu.
+	case strings.HasPrefix(data, "buy:pkg:"):
+		return handleBuyPackageCallback(ctx, deps, api, update)
+	// buy:confirm:<code> — user confirmed purchase.
+	case strings.HasPrefix(data, "buy:confirm:"):
+		return handleBuyConfirmCallback(ctx, deps, api, update)
+	// buy:cancel — user cancelled buy flow.
+	case data == "buy:cancel":
+		return handleBuyCancelCallback(ctx, deps, api, update)
+
+	// Phase 05: topup flow callbacks.
+	// topup:check:<tx_id> — poll payment status.
+	case strings.HasPrefix(data, "topup:check:"):
+		return handleTopupCheckCallback(ctx, deps, api, update)
+	// topup:cancel:<tx_id> — cancel pending transaction.
+	case strings.HasPrefix(data, "topup:cancel:"):
+		return handleTopupCancelCallback(ctx, deps, api, update)
+
 	default:
 		return handleUnknownCallback(api, update)
 	}

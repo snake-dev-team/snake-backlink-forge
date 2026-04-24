@@ -12,7 +12,12 @@ import (
 
 type Querier interface {
 	AddVNDSpent(ctx context.Context, arg AddVNDSpentParams) error
+	// [Q2] Sets status='cancelled' (NOT 'failed') so provider_ref stays in the
+	// idx_tx_provider_ref_active partial index, enabling late-payment recovery in Phase 06.
+	// Metadata is augmented (||) rather than replaced to preserve existing fields.
+	CancelPendingTransaction(ctx context.Context, arg CancelPendingTransactionParams) error
 	CountLedgerByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountTxByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	EnsureWallet(ctx context.Context, userID uuid.UUID) error
 	// Queries for the api_keys table.
 	// Phase 03: real queries replacing placeholder stub.
@@ -22,6 +27,12 @@ type Querier interface {
 	// Queries for the ledger table. Phase 04: paginated history + count.
 	// grant_credits / consume_credits are stored procs called via tx.QueryRow, not sqlc.
 	GetLedgerPage(ctx context.Context, arg GetLedgerPageParams) ([]Ledger, error)
+	// Returns the most-recent pending row for a user+package combination.
+	// Used by CreateTopupIntent idempotent path when idx_tx_user_pkg_pending fires (23505).
+	GetPendingTxByUserPackage(ctx context.Context, arg GetPendingTxByUserPackageParams) (Transaction, error)
+	// Webhook lookup: find a transaction by its SePay order code (provider_ref).
+	GetTxByProviderRef(ctx context.Context, providerRef *string) (Transaction, error)
+	GetTxByUserPage(ctx context.Context, arg GetTxByUserPageParams) ([]Transaction, error)
 	// Queries for the users table.
 	// Phase 02: real queries replacing placeholder stub.
 	// NOTE: F4 trial-gate flow (SELECT FOR UPDATE + conditional UPDATE + grant_credits)
@@ -31,6 +42,9 @@ type Querier interface {
 	// Queries for the wallets table. Phase 04: balance fetch + VND spend bump.
 	GetWalletByUser(ctx context.Context, userID uuid.UUID) (Wallet, error)
 	InsertKey(ctx context.Context, arg InsertKeyParams) (ApiKey, error)
+	// Queries for the transactions table. Phase 05: pending intent + cancel.
+	// Phase 06 webhook will add MarkPaid / MarkRecovered queries.
+	InsertPendingTransaction(ctx context.Context, arg InsertPendingTransactionParams) (Transaction, error)
 	// Queries for the audit_log and safeguard_hits tables.
 	// Phase 2+ will add real queries here (event insert, anomaly lookup).
 	// ip_hash stores sha256(ip) — raw IP is never persisted (see docs/threat-model.md Phase 7).

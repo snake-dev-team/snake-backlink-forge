@@ -92,6 +92,15 @@ func main() {
 		log.Info("wallet service initialized")
 	}
 
+	// --- TransactionService (Phase 05) ---
+	// Manages pending topup intents, QR URL generation, and cancel lifecycle.
+	// Nil when dbPool is nil — bot /buy falls back to "coming soon" message.
+	var txSvc *service.TransactionService
+	if dbPool != nil {
+		txSvc = service.NewTransactionService(dbPool, sqlcdb.New(dbPool), rdb, cfg, log.Named("tx"))
+		log.Info("transaction service initialized")
+	}
+
 	// --- Bot (Phase 03) ---
 	// Bot manages its own internal contexts (loopCtx + handlerCtx).
 	// Shutdown is coordinated via bot.Stop(), which drains in-flight handlers
@@ -101,13 +110,14 @@ func main() {
 		log.Warn("bot disabled — TELEGRAM_BOT_TOKEN empty")
 	} else {
 		b, botErr := appbot.New(&appbot.Deps{
-			Pool:        dbPool,
-			Rdb:         rdb,
-			Log:         log.Named("bot"),
-			Cfg:         cfg,
+			Pool:          dbPool,
+			Rdb:           rdb,
+			Log:           log.Named("bot"),
+			Cfg:           cfg,
 			UserService:   userSvc,
 			KeyService:    keySvc,    // Phase 03
 			WalletService: walletSvc, // Phase 04
+			TxService:     txSvc,     // Phase 05
 		})
 		if botErr != nil {
 			if errors.Is(botErr, appbot.ErrBotDisabled) {
