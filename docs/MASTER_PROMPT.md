@@ -118,7 +118,11 @@ Khách hàng:
 ### 1.3 Credit & Key Model (CỰC QUAN TRỌNG — CORE BUSINESS LOGIC)
 
 **Key:**
-- Format: `sbf_live_<32-char-base58>` (46 chars total)
+- Format: `sbf_live_<32-char-base58>` (41 chars total, ~187 bits base58 entropy)
+  - Breakdown: `sbf_live_` prefix (9) + 32 base58 chars = 41 chars
+  - Entropy: 32 × log2(58) ≈ 187 bits (exceeds UUID v4 122 bits; collision-resistant far beyond SBF scale)
+  - Base58 alphabet excludes `0OIl` to prevent eye-confusion
+  - [Locked 2026-04-25 — phase-03 code review; supersedes earlier 46-char draft]
 - Store: SHA256 hash in DB, plaintext chỉ hiện 1 lần cho user khi `/start` hoặc `/regenkey`
 - 1 Telegram user = 1 active key (regenerate invalidate cũ)
 - Không lock HWID, không lock IP — khách dùng đâu cũng được
