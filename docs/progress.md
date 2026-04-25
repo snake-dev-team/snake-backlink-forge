@@ -297,6 +297,69 @@ Kickoff `/ck:plan --hard "Phase 2 Telegram Bot + Wallet + SePay"` with red-team 
 - **Phase 10:** ~2-3h (deploy + production verify + SePay sandbox dashboard binding)
 - **Total Phase 2 wrap:** ~6-8h, 1-2 ngày next sessions
 
+---
+
+## 2026-04-25 (continued) — Phase 07-09 Complete (90%)
+
+### Done (additional)
+- **Phase 07** (`a385a18`) — `/history` paginated tx + ledger; `/support` FAQ + describe-ticket FSM (M5 one-shot, 4096 byte cap, 3-ticket cap); `/download` with InstallerURL + guide; `/ref` 6-char base58 + 23505 retry + 8-char fallback + idempotent EnsureCode + ProcessReferralOnStart atomic; `/language` VN/EN toggle. **H1+H2 fix loop** (Opus review caught Sonnet impl race bugs): IncrementReferralCount now uses tx.WithTx; EnsureCode distinguishes referrals_user_id_key vs code_key on 23505.
+- **Phase 08** (`a385a18`) — `/admin` namespace (silent ignore for non-admin) with 5 subcmds: stats / grant (F5 Option A atomic) / ban (M3 self-ban guard) / unban / lookup (3-way heuristic by tg_id|phone|key_prefix); AuditService for atomic audit-with-grant; auditFailAlertWatcher goroutine (60s tick, 15min window, ≥20 threshold, bucket dedup); L3 config validator for ADMIN_TELEGRAM_IDS.
+- **Phase 09** (`11f51e0`) — Central template registry: 56 Key constants × 2 langs = 112 bundle entries; sync.Map cached Renderer with VN fallback chain; MarkdownV2 escape helper; renderTpl/renderTplCtx facade with nil-safety; 14 cmd_*.go handlers + middleware refactored. **H1+H2 fix loop** (Opus): resendTopupQR template swap (KeyTopupQRCaption not KeyBuyConfirm), KeyDownloadUnavailable added for empty-URL fail-safe. NoSecretsInBundles + AllKeysListMatchesBundles tests enforce parity.
+
+### Cluster commits Phase 07-09
+- `11f51e0 feat(bot): phase 2.09 message templates registry + 14 handlers refactored`
+- `774f3a0 docs(reports): code review phase 09 templates — APPROVED_WITH_FIXES`
+- `a385a18 feat(bot): phase 2.07+08 history/support/admin/ref/language + auth-fail watcher`
+- `4e09286 docs(reports): code review phase 07 history-support — APPROVED_WITH_FIXES`
+- `b1998bd docs(reports): code review phase 08 admin commands — APPROVED_WITH_FIXES`
+
+### E2E Test Results (M21-M39 hybrid PART A auto + PART B manual)
+- **PART A auto: 12/12 PASS** — A1+A2 /history pagination integrity, A3+A4 support cap (3 max), A5 ref idempotent (UNIQUE on user_id), A6 admin stats 12 metrics, **A7 F5 grant atomic** (ledger ref_type=user UUID + audit metadata.ledger_id bigint in jsonb, single tx commit), A8 M3 self-ban guard (TestBan_M3 PASS), A9 lookup 3 patterns return same UUID, A10 watcher 41 audit rows seeded + dedup verified (single DM per 15-min bucket per spec), A11 webhook notify (placeholder per Phase 06 deferred design), A12 VN error template parity.
+- **PART B manual: 7/7 PASS** — B1 /support menu, B2 /download fail-safe (KeyDownloadUnavailable rendered = H2 fix verified), B3 /language toggle EN→VN (DB UPDATE + render flip), B4 /admin menu (admin role recognized), **B5 /start fresh + VN tone APPROVED** (screenshot reviewed: pronoun consistent, bold emphasis, plaintext key code-block, warning UPPERCASE, CTA actionable), **B6 /buy keyboard VN** (5×2 layout, 10 packages, ⭐ markers, compact prices match §1.3), B7 EN full sweep (6 commands EN + revert clean).
+- **Total: 19/19 PASS, 0 residual bugs.** All 4 Opus-caught HIGH bugs (Phase 07 H1 atomicity, H2 23505 user_id race, Phase 09 H1 template swap, H2 download fail-safe) verified fixed live.
+
+### Final state pre-deploy
+- **Local stack**: postgres + redis healthy (uptime 6+ hours), bot PID 4288 (current at break) running full Phase 01-09 code
+- **DB test data**: clean fresh-onboarded user `tg_id=8042306755` post-cleanup with `sbf_live_DW9` active key + 5 std credits + language=vi (ready for Phase 10 production smoke)
+- **Templates registry**: 56 keys × 2 langs loaded, sync.Map cache primed
+- **Commands registered**: 21 total — `start`, `ping`, `key`, `regenkey`, `balance`, `buy`, `topup`, `history`, `support`, `download`, `ref`, `language`, `admin {stats,grant,ban,unban,lookup}`, plus 8+ inline keyboard callbacks
+
+### Phase 2 progress: **9/10 (90%)** — final phase pending
+| Phase | Status |
+|---|---|
+| 01-09 | ✅ COMPLETE locally |
+| 10 Deploy | 🔜 PENDING (production verify) |
+
+### Phase 10 pre-deploy checklist (mày làm TRƯỚC resume)
+- [ ] Verify SePay merchant dashboard access (login OK, can create webhooks)
+- [ ] Verify Fly.io CLI authenticated: `flyctl auth whoami`
+- [ ] Verify Fly.io payment method active (Hobby tier $5 credit)
+- [ ] Reserve app name: `flyctl apps create snake-backlink-api` (or alternative if taken)
+- [ ] Check `fly.toml` exists in `services/api/` (Phase 10 cook will create if missing)
+- [ ] Save 99K từ 1 account khác sẵn sàng test transfer (Standard Starter 50 = 99,000đ minimum)
+
+### Resume instructions (next session)
+1. Verify stack: `docker ps` + bot still running PID 4288 OR restart
+2. Verify pre-deploy checklist all green
+3. Read `plans/260424-2135-phase-2-telegram-bot-wallet-sepay/phase-10-integration-tests.md`
+4. **Cook Phase 10 sequential** (deploy operations don't parallelize):
+   - Step 1: Provision Fly.io infrastructure (app + postgres + redis OR external managed)
+   - Step 2: `fly secrets set` ALL secrets from `.env`
+   - Step 3: `fly deploy services/api`
+   - Step 4: Verify `https://snake-backlink-api.fly.dev/health` → 200
+   - Step 5: Create SePay webhook with `.fly.dev` URL → verify acceptance (Outcome A/B/C)
+   - Step 6: REAL 99K transfer test → verify webhook fires + credits granted
+   - Step 7: CI integration test suite full run với Linux `-race -count=100`
+   - Step 8: Tag `v0.1.0-beta` release
+5. Sau deploy verify → **Phase 2 100% COMPLETE** → product MVP launchable
+
+### Estimated remaining
+- **Phase 10 deploy:** 2-3h cook + setup
+- **Pre-deploy blocker resolution** (if any): 30-60 min
+- **Real money flow E2E test**: 30 min (transfer 99K + đợi webhook)
+- **Total Phase 10 wrap**: ~3-4h next session
+
+
 
 
 
