@@ -13,18 +13,56 @@ import (
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 )
 
-// pkgLabel returns the display label for a package button.
-// Featured packages get a ⭐ prefix.
+// pkgLabel returns a compact button label that fits Telegram's 2-per-row width.
+// Format: "<TierShort> <Tier suffix> <PriceCompact>" + featured ⭐ marker.
+// e.g. "Std Starter 50 · 99K", "Prem Pro 200 ⭐ 1.7M", "Combo P100+S50 · 999K".
 func pkgLabel(code string) string {
 	pkg, ok := service.Packages[code]
 	if !ok {
 		return code
 	}
-	label := pkg.DisplayVI
+	short := shortPkgName(code)
+	star := ""
 	if pkg.Featured {
-		label = "⭐ " + label
+		star = " ⭐"
 	}
-	return label
+	return fmt.Sprintf("%s%s · %s", short, star, compactVND(pkg.AmountVND))
+}
+
+// shortPkgName collapses long DisplayVI into a Telegram-safe short form.
+func shortPkgName(code string) string {
+	// Map known codes to short forms; unknown codes fall back to code itself.
+	switch code {
+	case "standard_starter_50":
+		return "Std Starter 50"
+	case "standard_basic_100":
+		return "Std Basic 100"
+	case "standard_pro_200":
+		return "Std Pro 200"
+	case "standard_max_300":
+		return "Std Max 300"
+	case "premium_starter_50":
+		return "Prem Starter 50"
+	case "premium_basic_100":
+		return "Prem Basic 100"
+	case "premium_pro_200":
+		return "Prem Pro 200"
+	case "premium_max_300":
+		return "Prem Max 300"
+	case "combo_p100_s50":
+		return "Combo P100+S50"
+	case "combo_p200_s100":
+		return "Combo P200+S100"
+	}
+	return code
+}
+
+// compactVND renders int64 VND as "99K" / "1.7M" for narrow keyboard buttons.
+func compactVND(vnd int64) string {
+	if vnd >= 1_000_000 {
+		return fmt.Sprintf("%.1fM", float64(vnd)/1_000_000)
+	}
+	return fmt.Sprintf("%dK", vnd/1000)
 }
 
 // pkgBtn is a shorthand for building a package selection button.
@@ -32,22 +70,25 @@ func pkgBtn(code string) tgbotapi.InlineKeyboardButton {
 	return tgbotapi.NewInlineKeyboardButtonData(pkgLabel(code), "buy:pkg:"+code)
 }
 
-// PackageMenuKeyboard returns the 3-row inline keyboard for /buy.
-// Row 1: Standard Starter / Basic / Pro* / Max
-// Row 2: Premium Starter / Basic / Pro* / Max
-// Row 3: Combo P100+S50 / Combo P200+S100
+// PackageMenuKeyboard returns the 5-row × 2-button-per-row inline keyboard for /buy.
+// 2-per-row keeps button labels readable on Telegram (4-per-row truncates).
+// Spec §5.1 + §1.3: 2 rows Standard + 2 rows Premium + 1 row Combo.
 // lang is reserved for future i18n (currently uses DisplayVI for all).
 func PackageMenuKeyboard(_ string) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			pkgBtn("standard_starter_50"),
 			pkgBtn("standard_basic_100"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			pkgBtn("standard_pro_200"),
 			pkgBtn("standard_max_300"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			pkgBtn("premium_starter_50"),
 			pkgBtn("premium_basic_100"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			pkgBtn("premium_pro_200"),
 			pkgBtn("premium_max_300"),
 		),
