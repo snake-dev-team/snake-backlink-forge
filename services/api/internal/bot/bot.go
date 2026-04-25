@@ -66,6 +66,10 @@ func New(deps *Deps) (*Bot, error) {
 
 	deps.Log.Info("bot authenticated", zap.String("username", api.Self.UserName))
 
+	// Publish command list so Telegram's "Menu" button shows /start, /balance, etc.
+	// Best-effort: failure is logged but doesn't block startup.
+	registerCommandMenu(api, deps.Log)
+
 	loopCtx, loopCancel := context.WithCancel(context.Background())
 	handlerCtx, handlerCancel := context.WithCancel(context.Background())
 
