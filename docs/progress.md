@@ -190,3 +190,53 @@ Public endpoint `r7yyfje.9router.com` returned HTTP 530 (dead trycloudflare tunn
 ### Next
 Kickoff `/ck:plan --hard "Phase 2 Telegram Bot + Wallet + SePay"` with red-team review before `/ck:cook`.
 
+---
+
+## 2026-04-25 — Phase 2 Foundation Complete (50%)
+
+### Done
+- **Phase 01 Bot Skeleton** (`5ab2ab1`) — M smoke pass; long-poll FSM Redis, middleware chain, per-user mutex serialization, graceful shutdown 10s drain
+- **Phase 02 User Service** (`581e32b`) — M1+M2 pass; F4 atomic trial gate (SELECT FOR UPDATE + conditional UPDATE + grant_credits in single tx, partial UNIQUE `idx_users_phone_trial` is the gate)
+- **Phase 03 Key Service** (`0ac8fa2`) — M3-M6 pass; race-safe rotation (Serializable + 23505/40001 retry), partial UNIQUE `idx_keys_user_active_unique`, H5 rate limit /regenkey 3/day
+- **Phase 04 Wallet + Ledger** (`fda0fc1`) — M7 pass; thin service wrapping `grant_credits`/`consume_credits` stored procs, caller-tx composability for Phase 06, /balance VND comma-separator format
+- **Phase 05 Transactions + Topup** (`e9aa722` + `015ecb8`) — M8-M13 pass; 10 packages per §1.3, F2 12-hex provider_ref + retry, Q2 cancel preserves provider_ref, idempotency via `idx_tx_user_pkg_pending`, snapshot invariant on amount/credits, QR via SePay/MB/VietQR
+
+### Stats cluster
+- **13 manual E2E tests** pass (M1-M13: /start trial → /key /regenkey rotation → /balance → /buy keyboard → /topup QR → idempotency → cancel → re-buy)
+- **80+ automated tests** pass (race + integration: Phase 01-05 service+util+bot packages)
+- **0 critical findings** outstanding (all F1-F6 + H1-H7 + Q1-Q6 closed via planner round 1-3 + reviewer fix loops)
+- **Foundation production-shape** verified — money-flow correctness audit CLEAN across Phase 04 + Phase 05
+
+### Hook bug fixes shipped (bonus)
+- `33b8a16` — `vendor/ignore.cjs` shim restored (ClaudeKit bundle missing module)
+- `1712573` — Pattern-matcher Windows abs path normalize (drive letter strip + cwd-relative rebase)
+- `2671a7e` — `$CLAUDE_PROJECT_DIR` for hook commands (fix recurring `loader:1459` when CWD changes via subprocess)
+
+### Pending — Phase 06-10
+- **Phase 06 SePay webhook** — *highest risk*, money-flow critical. Implements F1 over-payment 3-way branch + bonus credits, F3 race-safe CAS, Q2 cancel-then-pay recovery (`recovered_by_late_payment`), Q3 strict account+gateway match, Q4 20/s/IP rate limit, Q5 admin alert goroutine, H6 scoped notify ctx
+- **Phase 07** History + Support — `/history` pagination, support ticket FSM, /campaigns scope-cut placeholder
+- **Phase 08** Admin Commands — F5 audit-then-grant atomic, M3 self-ban guard, auth-fail burst alert producer
+- **Phase 09** Message Templates VN — i18n key map, copywriter polish 5 new templates from round 3
+- **Phase 10** Integration Tests + Deploy — Suite D race + Suite F rollback, Fly.io subdomain deploy with SePay verification fallback (CF Tunnel / custom domain)
+
+### Resume instructions (next session)
+1. **Verify stack:** `docker ps` (sbf_postgres + sbf_redis healthy) + bot process check (`netstat -ano | grep :8080`)
+2. **Read spec:** `plans/260424-2135-phase-2-telegram-bot-wallet-sepay/phase-06-sepay-webhook.md`
+3. **Cook Phase 06:** sequential, NO parallel (money flow risky); planner→fullstack-developer→code-reviewer→fix loops
+4. **Code review** must reach APPROVED before manual webhook simulate
+5. **Manual test Phase 06:** curl simulate SePay payload → assert credit grant + Telegram notify reach user; test recovery using cancelled tx `56D391967CC8` for Q2 late-pay
+6. **DB invariants** to preserve: tg_id=8042306755 has active key (`sbf_live_CDv`) + pending tx `D49B493200EB` + cancelled tx `56D391967CC8` (Q2 recovery test target)
+
+### Resume key facts
+- **Bot running:** PID 4672 (port 8080) at break time. Kill via `taskkill //PID 4672 //F` if mày muốn fresh restart, hoặc keep running để resume nhanh
+- **DB test user:** tg_id=8042306755, phone +84706706468, wallet 5/0 std/prem, key sbf_live_CDv active, 2 transactions (1 cancelled Q2-recovery-ready, 1 pending)
+- **Bank env:** `SEPAY_BANK_CODE=MB` + `SEPAY_BANK_ACCOUNT=060320070000` configured in `services/api/.env`
+- **Deploy URL:** still TBD — verify SePay accepts `.fly.dev` post-deploy (Outcome A); fallback Cloudflare Tunnel (B) or custom domain (C) per phase-10 checklist
+
+### Estimated remaining
+- **Phase 06:** ~2.5h (cook + review + fix loops + manual webhook simulate)
+- **Phase 07-10:** ~7-10h combined
+- **Total Phase 2 wrap:** ~10-13h, chia 2-3 ngày next sessions
+
+
+
