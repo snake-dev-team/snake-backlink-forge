@@ -98,6 +98,24 @@ func main() {
 		log.Info("transaction service initialized")
 	}
 
+	// --- SupportService + ReferralService (Phase 07) ---
+	var supportSvc *service.SupportService
+	var refSvc *service.ReferralService
+	if dbPool != nil {
+		supportSvc = service.NewSupportService(dbPool, sqlcdb.New(dbPool), log.Named("support_svc"))
+		refSvc = service.NewReferralService(dbPool, sqlcdb.New(dbPool), log.Named("ref_svc"))
+		log.Info("support + referral services initialized")
+	}
+
+	// --- AuditService + AdminService (Phase 08) ---
+	var auditSvc *service.AuditService
+	var adminSvc *service.AdminService
+	if dbPool != nil {
+		auditSvc = service.NewAuditService(dbPool, sqlcdb.New(dbPool), log.Named("audit_svc"))
+		adminSvc = service.NewAdminService(dbPool, sqlcdb.New(dbPool), auditSvc, cfg, log.Named("admin_svc"))
+		log.Info("audit + admin services initialized")
+	}
+
 	// --- [Q5] Admin alert channel (Phase 06) ---
 	// Buffered cap=100; non-blocking sends in webhook/retry consumer; closed on shutdown.
 	adminAlertCh := make(chan notify.AdminAlert, 100)
@@ -117,14 +135,18 @@ func main() {
 		log.Warn("bot disabled — TELEGRAM_BOT_TOKEN empty")
 	} else {
 		b, botErr := appbot.New(&appbot.Deps{
-			Pool:          dbPool,
-			Rdb:           rdb,
-			Log:           log.Named("bot"),
-			Cfg:           cfg,
-			UserService:   userSvc,
-			KeyService:    keySvc,
-			WalletService: walletSvc,
-			TxService:     txSvc,
+			Pool:           dbPool,
+			Rdb:            rdb,
+			Log:            log.Named("bot"),
+			Cfg:            cfg,
+			UserService:    userSvc,
+			KeyService:     keySvc,
+			WalletService:  walletSvc,
+			TxService:      txSvc,
+			SupportService: supportSvc,
+			RefService:     refSvc,
+			AdminService:   adminSvc,
+			AuditService:   auditSvc,
 		})
 		if botErr != nil {
 			if errors.Is(botErr, appbot.ErrBotDisabled) {
@@ -147,6 +169,13 @@ func main() {
 	if rdb != nil && webhookSvc != nil {
 		go service.RetryQueueConsumer(rootCtx, rdb, webhookSvc, adminAlertCh, log.Named("retry_consumer"))
 		log.Info("retry queue consumer started")
+	}
+
+	// --- [Phase 08] Auth-fail burst alert watcher ---
+	// Polls audit_log every 60s; ≥20 sepay_auth_fail in 15min → admin alert (bucket-deduped).
+	if dbPool != nil {
+		go appbot.AuditFailAlertWatcher(rootCtx, dbPool, adminAlertCh, log.Named("audit_fail_watcher"))
+		log.Info("audit fail watcher started")
 	}
 
 	// --- HTTP Server ---

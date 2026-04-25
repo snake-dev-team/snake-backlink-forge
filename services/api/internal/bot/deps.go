@@ -39,4 +39,20 @@ type Deps struct {
 	// TxService manages pending topup intents, QR generation, and cancel lifecycle.
 	// Phase 05: wired in main.go. Nil until DB is available.
 	TxService *service.TransactionService
+
+	// SupportService creates support tickets with body cap + 3-ticket-per-user limit.
+	// Phase 07: wired in main.go.
+	SupportService *service.SupportService
+
+	// RefService manages referral codes (6-char base58 upper, 23505 retry → 8-char fallback).
+	// Phase 07.
+	RefService *service.ReferralService
+
+	// AdminService aggregates dashboard stats + atomic /admin grant (F5 Option A) + Ban/Unban/Lookup.
+	// Phase 08.
+	AdminService *service.AdminService
+
+	// AuditService inserts audit_log rows. Used by AdminService (in-tx) and bot.AuditFailAlertWatcher.
+	// Phase 08. Phase 02/03/06 use inline pool.Exec for audit (locked, not refactored).
+	AuditService *service.AuditService
 }

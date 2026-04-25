@@ -4,6 +4,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"sort"
 	"strings"
 
 	"github.com/caarlos0/env/v10"
@@ -37,6 +39,11 @@ type Config struct {
 	// SepayBankAccount is the destination bank account number. Never logged in full.
 	SepayBankAccount string `env:"SEPAY_BANK_ACCOUNT"`
 
+	// -- Phase 07: Installer download URL --
+	// InstallerURL is the full URL to the Windows installer binary (e.g. Cloudflare R2 CDN).
+	// Empty string → /download replies "installer not yet published".
+	InstallerURL string `env:"INSTALLER_URL"`
+
 	// -- External APIs (Phase 4-6) --
 	SerpapiKey          string  `env:"SERPAPI_KEY"`
 	MozAccessID         string  `env:"MOZ_ACCESS_ID"`
@@ -59,7 +66,38 @@ func Load() (*Config, error) {
 	// Normalize env value for predictable comparisons downstream.
 	cfg.Env = strings.ToLower(strings.TrimSpace(cfg.Env))
 
+	// [L3] Validate + deduplicate admin telegram IDs after env.Parse populates the slice.
+	validated, err := validateAdminTelegramIDs(cfg.AdminTelegramIDs)
+	if err != nil {
+		return nil, fmt.Errorf("config: ADMIN_TELEGRAM_IDS: %w", err)
+	}
+	cfg.AdminTelegramIDs = validated
+
 	return cfg, nil
+}
+
+// validateAdminTelegramIDs deduplicates and validates the parsed admin ID slice.
+// Rules:
+//   - Non-positive values → error (fail boot)
+//   - Duplicate values → warn to stderr (keep first occurrence)
+//   - Result is sorted ascending for deterministic iteration
+func validateAdminTelegramIDs(ids []int64) ([]int64, error) {
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, fmt.Errorf("non-positive value: %d", id)
+		}
+		if _, dup := seen[id]; dup {
+			// Log warn to stderr — logger not yet constructed at config load time.
+			fmt.Fprintf(os.Stderr, "config: duplicate ADMIN_TELEGRAM_ID %d (kept first occurrence)\n", id)
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out, nil
 }
 
 // IsProduction returns true when running in production mode.

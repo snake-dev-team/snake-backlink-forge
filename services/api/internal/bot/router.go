@@ -15,12 +15,14 @@ const helpText = `Snake Backlink Forge — lệnh khả dụng:
 /ping     — Kiểm tra kết nối
 /key      — Xem API key (masked) + nút tạo lại
 /regenkey — Tạo lại API key (key cũ bị thu hồi)
-/topup    — Nạp credits (sắp ra mắt)
-/balance  — Xem số dư (sắp ra mắt)
-/buy      — Mua gói credits (sắp ra mắt)
-/history  — Lịch sử giao dịch (sắp ra mắt)
-/ref      — Chương trình giới thiệu (sắp ra mắt)
-/support  — Liên hệ hỗ trợ (sắp ra mắt)`
+/balance  — Xem số dư
+/buy      — Mua gói credits
+/topup    — Nạp credits (gửi lại QR pending nếu có)
+/history  — Lịch sử giao dịch + ngân sách
+/ref      — Chương trình giới thiệu (mã + link)
+/support  — Liên hệ hỗ trợ
+/download — Tải installer Windows
+/language — Chuyển đổi ngôn ngữ (VN/EN)`
 
 // route dispatches the update to the appropriate handler.
 // Returns a HandlerFunc so it can sit at the end of the middleware chain.
@@ -39,8 +41,22 @@ func route(b *Bot) HandlerFunc {
 				return HandleStart(ctx, b.deps, api, update)
 			}
 			return handleContactFallback(ctx, api, update)
+
+		case update.Message != nil && update.Message.Text != "":
+			// Phase 07 [M5] — text message FSM dispatch (one-shot support ticket capture).
+			// Only fires when state == "support_describing"; HandleSupportDescribeMessage
+			// internally clears state BEFORE replying so subsequent text falls through here
+			// again and lands in the silent-ignore branch below.
+			if b.deps.SupportService != nil && b.deps.Rdb != nil {
+				tgID := updateTelegramID(update)
+				if tgID != 0 {
+					if st, err := NewStore(b.deps.Rdb).Load(ctx, tgID); err == nil && st.Name == "support_describing" {
+						return HandleSupportDescribeMessage(ctx, b.deps, api, update)
+					}
+				}
+			}
 		}
-		// Non-command, non-contact messages: ignore silently.
+		// Non-command, non-contact, non-FSM messages: ignore silently.
 		return nil
 	}
 }
@@ -67,6 +83,20 @@ func dispatchCommand(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, upda
 		return HandleBuy(ctx, deps, api, update)
 	case "topup":
 		return HandleTopup(ctx, deps, api, update)
+	// Phase 07
+	case "history":
+		return HandleHistory(ctx, deps, api, update)
+	case "support":
+		return HandleSupport(ctx, deps, api, update)
+	case "download":
+		return HandleDownload(ctx, deps, api, update)
+	case "ref":
+		return HandleRef(ctx, deps, api, update)
+	case "language":
+		return HandleLanguage(ctx, deps, api, update)
+	// Phase 08 — silent ignore for non-admin handled inside HandleAdmin (no info leak).
+	case "admin":
+		return HandleAdmin(ctx, deps, api, update)
 	default:
 		return cmdHelp(ctx, api, update)
 	}
@@ -117,6 +147,24 @@ func dispatchCallback(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, upd
 	// topup:cancel:<tx_id> — cancel pending transaction.
 	case strings.HasPrefix(data, "topup:cancel:"):
 		return handleTopupCancelCallback(ctx, deps, api, update)
+
+	// Phase 07: history pagination, support FAQ, download guide, language switch.
+	case strings.HasPrefix(data, "hist:tx:"):
+		return HandleHistoryTxPageCallback(ctx, deps, api, update)
+	case strings.HasPrefix(data, "hist:ledger:"):
+		return HandleHistoryLedgerPageCallback(ctx, deps, api, update)
+	case strings.HasPrefix(data, "support:faq:"):
+		return HandleSupportFAQCallback(ctx, deps, api, update)
+	case data == "support:menu":
+		return HandleSupportMenuCallback(ctx, deps, api, update)
+	case data == "support:describe":
+		return HandleSupportDescribeCallback(ctx, deps, api, update)
+	case data == "support:cancel":
+		return HandleSupportCancelCallback(ctx, deps, api, update)
+	case data == "download:guide":
+		return HandleDownloadGuideCallback(ctx, deps, api, update)
+	case strings.HasPrefix(data, "lang:set:"):
+		return HandleLangSetCallback(ctx, deps, api, update)
 
 	default:
 		return handleUnknownCallback(api, update)

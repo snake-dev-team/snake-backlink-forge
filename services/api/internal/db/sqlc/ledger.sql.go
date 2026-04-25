@@ -22,6 +22,64 @@ func (q *Queries) CountLedgerByUser(ctx context.Context, userID uuid.UUID) (int6
 	return count, err
 }
 
+const countLedgerConsumesByUser = `-- name: CountLedgerConsumesByUser :one
+SELECT COUNT(*) FROM ledger
+WHERE user_id = $1
+  AND event_type IN ('consume_backlink', 'consume_captcha', 'consume_finder')
+`
+
+func (q *Queries) CountLedgerConsumesByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedgerConsumesByUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getLedgerConsumesByUserPage = `-- name: GetLedgerConsumesByUserPage :many
+SELECT id, user_id, event_type, pool, delta_credits, balance_after, ref_entity_type, ref_entity_id, metadata, created_at FROM ledger
+WHERE user_id = $1
+  AND event_type IN ('consume_backlink', 'consume_captcha', 'consume_finder')
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetLedgerConsumesByUserPageParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
+}
+
+func (q *Queries) GetLedgerConsumesByUserPage(ctx context.Context, arg GetLedgerConsumesByUserPageParams) ([]Ledger, error) {
+	rows, err := q.db.Query(ctx, getLedgerConsumesByUserPage, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ledger
+	for rows.Next() {
+		var i Ledger
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.EventType,
+			&i.Pool,
+			&i.DeltaCredits,
+			&i.BalanceAfter,
+			&i.RefEntityType,
+			&i.RefEntityID,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLedgerPage = `-- name: GetLedgerPage :many
 
 SELECT id, user_id, event_type, pool, delta_credits, balance_after, ref_entity_type, ref_entity_id, metadata, created_at FROM ledger WHERE user_id = $1

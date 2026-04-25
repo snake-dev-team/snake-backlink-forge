@@ -1,7 +1,15 @@
--- Queries for the audit_log and safeguard_hits tables.
--- Phase 2+ will add real queries here (event insert, anomaly lookup).
--- ip_hash stores sha256(ip) — raw IP is never persisted (see docs/threat-model.md Phase 7).
--- Placeholder kept so sqlc can parse this file without errors.
+-- Queries for the audit_log table. Phase 08: real event insert + lookup queries.
+-- ip_hash stores sha256(ip) — raw IP is never persisted.
+-- Phase 2 placeholder removed and replaced with real queries below.
 
--- name: PlaceholderAuditSelect :one
-SELECT 1 AS dummy;
+-- name: InsertAuditLog :one
+INSERT INTO audit_log (user_id, key_id, event, ip_hash, country, metadata)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+-- name: GetAuditLogByEventSince :many
+SELECT * FROM audit_log WHERE event = $1 AND created_at > $2
+ORDER BY created_at DESC LIMIT $3;
+
+-- name: CountAuditLogByEventSince :one
+SELECT COUNT(*) FROM audit_log WHERE event = $1 AND created_at > $2;

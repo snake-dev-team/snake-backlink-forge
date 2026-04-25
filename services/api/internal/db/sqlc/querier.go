@@ -12,27 +12,46 @@ import (
 
 type Querier interface {
 	AddVNDSpent(ctx context.Context, arg AddVNDSpentParams) error
+	BanUser(ctx context.Context, telegramID int64) error
 	// [Q2] Sets status='cancelled' (NOT 'failed') so provider_ref stays in the
 	// idx_tx_provider_ref_active partial index, enabling late-payment recovery in Phase 06.
 	// Metadata is augmented (||) rather than replaced to preserve existing fields.
 	CancelPendingTransaction(ctx context.Context, arg CancelPendingTransactionParams) error
+	CountActiveKeys(ctx context.Context) (int64, error)
+	CountAuditLogByEventSince(ctx context.Context, arg CountAuditLogByEventSinceParams) (int64, error)
 	CountLedgerByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountLedgerConsumesByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountOpenTicketsByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountTxByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	// Queries for admin dashboard stats. Phase 08: read-only aggregates used by AdminService.Stats.
+	// All queries are point-in-time reads; no writes here.
+	CountUsers(ctx context.Context) (int64, error)
+	CountUsersBanned(ctx context.Context) (int64, error)
+	CountUsersTrialUsed(ctx context.Context) (int64, error)
+	CountUsersVerified(ctx context.Context) (int64, error)
+	CreditsOutstanding(ctx context.Context) (CreditsOutstandingRow, error)
 	EnsureWallet(ctx context.Context, userID uuid.UUID) error
 	// Queries for the api_keys table.
 	// Phase 03: real queries replacing placeholder stub.
 	// key_hash is BYTEA (SHA-256 of plaintext). Plaintext is NEVER stored.
 	GetActiveKeyByUser(ctx context.Context, userID uuid.UUID) (ApiKey, error)
+	GetAuditLogByEventSince(ctx context.Context, arg GetAuditLogByEventSinceParams) ([]AuditLog, error)
 	GetKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
+	GetLedgerConsumesByUserPage(ctx context.Context, arg GetLedgerConsumesByUserPageParams) ([]Ledger, error)
 	// Queries for the ledger table. Phase 04: paginated history + count.
 	// grant_credits / consume_credits are stored procs called via tx.QueryRow, not sqlc.
 	GetLedgerPage(ctx context.Context, arg GetLedgerPageParams) ([]Ledger, error)
 	// Returns the most-recent pending row for a user+package combination.
 	// Used by CreateTopupIntent idempotent path when idx_tx_user_pkg_pending fires (23505).
 	GetPendingTxByUserPackage(ctx context.Context, arg GetPendingTxByUserPackageParams) (Transaction, error)
+	GetReferralByCode(ctx context.Context, code string) (Referral, error)
+	// Queries for referrals table. Phase 07: code lookup + insert + increment.
+	GetReferralByUser(ctx context.Context, userID uuid.UUID) (Referral, error)
 	// Webhook lookup: find a transaction by its SePay order code (provider_ref).
 	GetTxByProviderRef(ctx context.Context, providerRef *string) (Transaction, error)
 	GetTxByUserPage(ctx context.Context, arg GetTxByUserPageParams) ([]Transaction, error)
+	GetUserByKeyPrefix(ctx context.Context, keyPrefix string) (User, error)
+	GetUserByPhone(ctx context.Context, phoneE164 *string) (User, error)
 	// Queries for the users table.
 	// Phase 02: real queries replacing placeholder stub.
 	// NOTE: F4 trial-gate flow (SELECT FOR UPDATE + conditional UPDATE + grant_credits)
@@ -41,15 +60,18 @@ type Querier interface {
 	GetUserByTelegramID(ctx context.Context, telegramID int64) (User, error)
 	// Queries for the wallets table. Phase 04: balance fetch + VND spend bump.
 	GetWalletByUser(ctx context.Context, userID uuid.UUID) (Wallet, error)
+	IncrementReferralCount(ctx context.Context, userID uuid.UUID) error
+	// Queries for the audit_log table. Phase 08: real event insert + lookup queries.
+	// ip_hash stores sha256(ip) — raw IP is never persisted.
+	// Phase 2 placeholder removed and replaced with real queries below.
+	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertKey(ctx context.Context, arg InsertKeyParams) (ApiKey, error)
 	// Queries for the transactions table. Phase 05: pending intent + cancel.
 	// Phase 06 webhook will add MarkPaid / MarkRecovered queries.
 	InsertPendingTransaction(ctx context.Context, arg InsertPendingTransactionParams) (Transaction, error)
-	// Queries for the audit_log and safeguard_hits tables.
-	// Phase 2+ will add real queries here (event insert, anomaly lookup).
-	// ip_hash stores sha256(ip) — raw IP is never persisted (see docs/threat-model.md Phase 7).
-	// Placeholder kept so sqlc can parse this file without errors.
-	PlaceholderAuditSelect(ctx context.Context) (int32, error)
+	InsertReferral(ctx context.Context, arg InsertReferralParams) (Referral, error)
+	// Queries for support_tickets table. Phase 07: ticket insert + open-count cap.
+	InsertSupportTicket(ctx context.Context, arg InsertSupportTicketParams) (SupportTicket, error)
 	// Queries for the campaigns table.
 	// Phase 2+ will add real queries here (create, list, pause, resume, archive).
 	// trg_campaign_limit trigger enforces max 3 running campaigns at DB layer.
@@ -67,6 +89,8 @@ type Querier interface {
 	RevokeActiveKeysForUser(ctx context.Context, userID uuid.UUID) error
 	SetLanguage(ctx context.Context, arg SetLanguageParams) error
 	SetPhoneAndVerify(ctx context.Context, arg SetPhoneAndVerifyParams) (User, error)
+	TxStats24h(ctx context.Context) (TxStats24hRow, error)
+	UnbanUser(ctx context.Context, telegramID int64) error
 	UpsertUserStub(ctx context.Context, arg UpsertUserStubParams) (User, error)
 }
 

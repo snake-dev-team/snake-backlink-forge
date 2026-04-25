@@ -7,9 +7,11 @@ import (
 	"context"
 	"fmt"
 	"runtime/debug"
+	"slices"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	"go.uber.org/zap"
 )
 
@@ -173,4 +175,11 @@ func buildChain(deps *Deps, final HandlerFunc) HandlerFunc {
 		banCheck, // M1: banCheck no longer takes deps
 		i18nMiddleware(),
 	}, final)
+}
+
+// IsAdmin reports whether the given Telegram user ID is in the admin allowlist.
+// Zero-cost linear scan against pre-validated cfg.AdminTelegramIDs (sorted, deduped by config.Load).
+// Uses slices.Contains (Go 1.21+) for clarity; list is small (typically 1-5 entries).
+func IsAdmin(cfg *config.Config, tgID int64) bool {
+	return slices.Contains(cfg.AdminTelegramIDs, tgID)
 }

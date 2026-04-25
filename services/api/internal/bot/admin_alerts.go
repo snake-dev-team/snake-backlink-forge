@@ -1,4 +1,5 @@
 // admin_alerts.go — Phase 06 [Q5]: admin DM consumer + non-blocking send helper.
+// Phase 08: adds AuditFailAlertWatcher goroutine for sepay_auth_fail burst detection.
 // AdminAlert struct lives in internal/notify to avoid service→bot import cycle.
 package bot
 
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/notify"
 	"go.uber.org/zap"
@@ -141,4 +143,66 @@ func formatAlertVND(n int64) string {
 		result = append(result, byte(ch))
 	}
 	return string(result)
+}
+
+// AuditFailAlertWatcher polls audit_log every 60 seconds for sepay_auth_fail bursts.
+// Threshold: ≥20 events in the last 15 minutes → fires one AdminAlert{Kind:"auth_fail_burst"}.
+// Window-bucket dedup (now.Unix() / 900) prevents duplicate alerts within the same 15-min window.
+// GC retains the last 4 buckets to guard against clock skew.
+// Spawned in cmd/api/main.go bound to rootCtx:
+//
+//	go bot.AuditFailAlertWatcher(rootCtx, dbPool, adminAlertCh, log.Named("audit_fail_watcher"))
+func AuditFailAlertWatcher(ctx context.Context, pool *pgxpool.Pool, alertCh chan<- notify.AdminAlert, log *zap.Logger) {
+	auditFailAlertWatcherWithTicker(ctx, pool, alertCh, log, 60*time.Second)
+}
+
+// auditFailAlertWatcherWithTicker is the testable inner implementation.
+// Exported AuditFailAlertWatcher calls this with the production 60s interval.
+// Tests inject a shorter interval (e.g. 1s) for fast assertion.
+func auditFailAlertWatcherWithTicker(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	alertCh chan<- notify.AdminAlert,
+	log *zap.Logger,
+	tickInterval time.Duration,
+) {
+	ticker := time.NewTicker(tickInterval)
+	defer ticker.Stop()
+	alertedWindows := make(map[int64]struct{})
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			bucket := now.Unix() / (15 * 60) // 15-min window bucket
+			if _, already := alertedWindows[bucket]; already {
+				continue
+			}
+
+			var count int
+			err := pool.QueryRow(ctx,
+				`SELECT COUNT(*) FROM audit_log WHERE event='sepay_auth_fail' AND created_at > NOW() - INTERVAL '15 minutes'`,
+			).Scan(&count)
+			if err != nil {
+				log.Warn("audit_fail_watcher: poll failed", zap.Error(err))
+				continue
+			}
+
+			if count >= 20 {
+				SendAdminAlertNonBlocking(alertCh, notify.AdminAlert{
+					Kind: "auth_fail_burst",
+					Err:  fmt.Sprintf("%d SePay webhook auth failures in 15min", count),
+					At:   now,
+				}, log)
+				alertedWindows[bucket] = struct{}{}
+				// GC old buckets — retain [bucket-4, bucket] to tolerate minor clock jitter.
+				for b := range alertedWindows {
+					if b < bucket-4 {
+						delete(alertedWindows, b)
+					}
+				}
+			}
+		}
+	}
 }
