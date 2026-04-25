@@ -56,15 +56,18 @@ func HandleRef(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, update tgb
 		deepLink = fmt.Sprintf("ref_%s (cấu hình TELEGRAM_BOT_USERNAME để có deep-link)", code)
 	}
 
-	text := fmt.Sprintf(
-		"🎁 <b>Mã giới thiệu của bạn:</b> <code>%s</code>\n\n"+
-			"🔗 Link: %s\n\n"+
-			"👥 Đã giới thiệu: <b>%d</b> người",
-		code, deepLink, totalReferred,
-	)
+	text := renderTplCtx(ctx, deps, tplRefShow, struct {
+		Code          string
+		DeepLink      string
+		TotalReferred int32
+	}{
+		Code:          code,
+		DeepLink:      deepLink,
+		TotalReferred: totalReferred,
+	})
 
 	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = tgbotapi.ModeHTML
+	msg.ParseMode = "Markdown"
 	_, err = api.Send(msg)
 	return err
 }

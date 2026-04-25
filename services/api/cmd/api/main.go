@@ -15,6 +15,7 @@ import (
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/api"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/api/handlers"
 	appbot "github.com/kekuta/snake-backlink-forge/services/api/internal/bot"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/bot/templates"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	appdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db"
 	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
@@ -129,6 +130,12 @@ func main() {
 		log.Info("webhook service initialized")
 	}
 
+	// --- Templates Renderer (Phase 09) ---
+	// Single instance shared across all bot handlers. sync.Map cache is
+	// concurrent-safe; lifetime = process lifetime.
+	tmplRenderer := templates.NewRenderer(log.Named("templates"))
+	log.Info("templates renderer initialized")
+
 	// --- Bot (Phase 03) ---
 	var bot *appbot.Bot
 	if cfg.TelegramBotToken == "" {
@@ -147,6 +154,7 @@ func main() {
 			RefService:     refSvc,
 			AdminService:   adminSvc,
 			AuditService:   auditSvc,
+			Templates:      tmplRenderer,
 		})
 		if botErr != nil {
 			if errors.Is(botErr, appbot.ErrBotDisabled) {

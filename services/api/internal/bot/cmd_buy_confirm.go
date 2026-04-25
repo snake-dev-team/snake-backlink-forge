@@ -7,7 +7,6 @@ package bot
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -49,7 +48,7 @@ func handleBuyConfirmCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bot
 			zap.String("pkg", pkgCode),
 			zap.Error(err),
 		)
-		msg := tgbotapi.NewMessage(chatID, "⚠️ Không thể tạo lệnh thanh toán. Vui lòng thử lại.")
+		msg := tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplErrorGeneric, nil))
 		_, _ = api.Send(msg)
 		return err
 	}
@@ -60,17 +59,17 @@ func handleBuyConfirmCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bot
 		ref = *tx.ProviderRef
 	}
 
-	caption := fmt.Sprintf(
-		"💳 *Thanh toán gói %s*\n\n"+
-			"🏦 Ngân hàng: %s\n"+
-			"💰 Số tiền: *%sđ*\n"+
-			"📝 Nội dung CK: <code>SBF TOPUP %s</code>\n\n"+
-			"⏰ QR có hiệu lực 24 giờ.",
-		pkg.DisplayVI,
-		deps.Cfg.SepayBankCode,
-		formatVND(pkg.AmountVND),
-		ref,
-	)
+	caption := renderTplCtx(ctx, deps, tplTopupQRCaption, struct {
+		Display            string
+		BankCode           string
+		AmountVNDFormatted string
+		OrderCode          string
+	}{
+		Display:            pkg.DisplayVI,
+		BankCode:           deps.Cfg.SepayBankCode,
+		AmountVNDFormatted: formatVND(pkg.AmountVND),
+		OrderCode:          ref,
+	})
 
 	keyboard := TopupActionsKeyboard(tx.ID)
 	photo := tgbotapi.NewPhoto(chatID, tgbotapi.FileURL(qrURL))
@@ -116,7 +115,7 @@ func handleBuyCancelCallback(ctx context.Context, deps *Deps, api *tgbotapi.BotA
 		edit := tgbotapi.NewEditMessageText(
 			update.CallbackQuery.Message.Chat.ID,
 			update.CallbackQuery.Message.MessageID,
-			"Đã huỷ.",
+			renderTplCtx(ctx, deps, tplBuyCancelled, nil),
 		)
 		if _, err := api.Send(edit); err != nil {
 			deps.Log.Debug("handleBuyCancelCallback: edit failed", zap.Error(err))

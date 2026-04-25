@@ -25,7 +25,6 @@ package bot
 import (
 	"context"
 	"fmt"
-	"html"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -74,7 +73,7 @@ func HandleRegenKey(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, updat
 				zap.String("user_id", user.ID.String()), zap.Error(err))
 		} else if limited {
 			msg := tgbotapi.NewMessage(chatID,
-				"⏱ Đã đạt giới hạn 3 lần tạo lại/ngày. Thử lại sau.")
+				renderTplCtx(ctx, deps, tplRegenRateLimited, nil))
 			_, err = api.Send(msg)
 			return err
 		}
@@ -98,11 +97,8 @@ func HandleRegenKey(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, updat
 		),
 	)
 
-	msg := tgbotapi.NewMessage(chatID,
-		"⚠️ Bạn có chắc muốn tạo lại API key không?\n\n"+
-			"Key hiện tại sẽ bị <b>thu hồi ngay lập tức</b> và không thể khôi phục.\n"+
-			"Key mới sẽ được hiển thị <b>một lần duy nhất</b>.")
-	msg.ParseMode = tgbotapi.ModeHTML
+	msg := tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplKeyRegenConfirm, nil))
+	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = keyboard
 
 	_, err := api.Send(msg)
@@ -153,7 +149,7 @@ func handleRegenConfirmCallback(ctx context.Context, deps *Deps, api *tgbotapi.B
 			_ = stateStore.Clear(ctx, tgID)
 			chatID := updateChatID(update)
 			msg := tgbotapi.NewMessage(chatID,
-				"⏱ Đã đạt giới hạn 3 lần tạo lại/ngày. Thử lại sau.")
+				renderTplCtx(ctx, deps, tplRegenRateLimited, nil))
 			_, err = api.Send(msg)
 			return err
 		}
@@ -193,18 +189,18 @@ func handleRegenConfirmCallback(ctx context.Context, deps *Deps, api *tgbotapi.B
 		zap.String("key_prefix", prefix),
 	)
 
-	// Show plaintext ONCE with prominent warning.
+	// Show plaintext ONCE with prominent warning. Switching to Markdown:
+	// the template wraps {{.Key}} in backticks (code-block) which is safer
+	// than raw HTML for an alphanumeric key (no escape needed for sbf_live_*).
 	chatID := updateChatID(update)
-	safeKey := html.EscapeString(plaintext)
-	text := fmt.Sprintf(
-		"✅ API key mới của bạn:\n\n<code>%s</code>\n\n"+
-			"<b>⚠️ Lưu lại NGAY — bot sẽ không hiện lại.</b>\n\n"+
-			"Dùng /key để xem prefix và trạng thái key.",
-		safeKey,
-	)
+	text := renderTplCtx(ctx, deps, tplKeyRegenDone, struct {
+		Key string
+	}{
+		Key: plaintext,
+	})
 
 	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = tgbotapi.ModeHTML
+	msg.ParseMode = "Markdown"
 	_, err = api.Send(msg)
 	return err
 }
@@ -238,7 +234,7 @@ func handleRegenCancelCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bo
 		edit := tgbotapi.NewEditMessageText(
 			update.CallbackQuery.Message.Chat.ID,
 			update.CallbackQuery.Message.MessageID,
-			"Đã huỷ.",
+			renderTplCtx(ctx, deps, tplKeyRegenCancelled, nil),
 		)
 		if _, err := api.Send(edit); err != nil {
 			// Editing may fail on old/forwarded messages — not critical.

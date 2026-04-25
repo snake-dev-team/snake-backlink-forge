@@ -117,7 +117,7 @@ func buildHistoryMessage(ctx context.Context, deps *Deps, user BotUser, pageTx, 
 	}
 
 	if len(txs) == 0 && len(consumes) == 0 {
-		return "Chưa có lịch sử.", nil, nil
+		return renderTplCtx(ctx, deps, tplHistoryEmpty, nil), nil, nil
 	}
 
 	var sb strings.Builder

@@ -8,6 +8,7 @@ package bot
 
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/bot/templates"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	goredis "github.com/redis/go-redis/v9"
@@ -55,4 +56,14 @@ type Deps struct {
 	// AuditService inserts audit_log rows. Used by AdminService (in-tx) and bot.AuditFailAlertWatcher.
 	// Phase 08. Phase 02/03/06 use inline pool.Exec for audit (locked, not refactored).
 	AuditService *service.AuditService
+
+	// Templates renders user-facing message strings from the central registry
+	// (templates package). All cmd_*.go handlers use Templates.Render(lang, key, data)
+	// instead of inline strings. Phase 09.
+	//
+	// May be nil during early dev-mode boot — handlers that read it MUST treat
+	// nil as "fall back to inline string" to avoid panicking before main.go
+	// finishes wiring. The templateRender helper in cmd_helpers_template.go
+	// implements this guard centrally.
+	Templates *templates.Renderer
 }

@@ -7,7 +7,6 @@ package bot
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -38,7 +37,9 @@ func HandleAdmin(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, update t
 	args := strings.Fields(update.Message.Text)
 	// args[0] = "/admin", args[1] = subcmd
 	if len(args) < 2 {
-		_, err := api.Send(tgbotapi.NewMessage(chatID, adminHelpText()))
+		msg := tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplAdminMenu, nil))
+		msg.ParseMode = "Markdown"
+		_, err := api.Send(msg)
 		return err
 	}
 
@@ -54,7 +55,9 @@ func HandleAdmin(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, update t
 	case "lookup":
 		return handleAdminLookup(ctx, deps, api, chatID, args[2:])
 	default:
-		_, err := api.Send(tgbotapi.NewMessage(chatID, adminHelpText()))
+		msg := tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplAdminMenu, nil))
+		msg.ParseMode = "Markdown"
+		_, err := api.Send(msg)
 		return err
 	}
 }
@@ -100,7 +103,7 @@ func handleAdminGrant(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, cha
 	targetUserID, resolveErr := deps.AdminService.GetUserByTGID(ctx, targetTGID)
 	if resolveErr != nil {
 		if errors.Is(resolveErr, service.ErrAdminUserNotFound) {
-			_, err2 := api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("Không tìm thấy user tg_id=%d.", targetTGID)))
+			_, err2 := api.Send(tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplAdminErrorUserMissing, nil)))
 			return err2
 		}
 		_, err2 := api.Send(tgbotapi.NewMessage(chatID, "Lỗi: "+resolveErr.Error()))
@@ -123,8 +126,19 @@ func handleAdminGrant(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, cha
 		}
 	}
 
-	reply := fmt.Sprintf("Đã cộng *%d* %s credit cho tg_id=%d.\nSố dư mới: *%d*\nLý do: %s",
-		amount, pool, targetTGID, newBal, reason)
+	reply := renderTplCtx(ctx, deps, tplAdminGrantOK, struct {
+		Amount     int
+		Pool       string
+		TargetTGID int64
+		NewBalance int
+		Reason     string
+	}{
+		Amount:     amount,
+		Pool:       pool,
+		TargetTGID: targetTGID,
+		NewBalance: newBal,
+		Reason:     reason,
+	})
 	msg := tgbotapi.NewMessage(chatID, reply)
 	msg.ParseMode = "Markdown"
 	_, err = api.Send(msg)
@@ -150,7 +164,7 @@ func handleAdminBan(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, chatI
 	if banErr := deps.AdminService.Ban(ctx, callerTGID, targetTGID, reason); banErr != nil {
 		if errors.Is(banErr, service.ErrCannotBanAdmin) {
 			// [M3] Do NOT leak which IDs are admins — generic refusal message only.
-			_, err2 := api.Send(tgbotapi.NewMessage(chatID, "Không thể ban tài khoản admin."))
+			_, err2 := api.Send(tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplAdminSelfBanBlocked, nil)))
 			return err2
 		}
 		deps.Log.Error("admin ban failed", zap.Int64("target_tg_id", targetTGID), zap.Error(banErr))
@@ -158,7 +172,10 @@ func handleAdminBan(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, chatI
 		return err2
 	}
 
-	_, err = api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("Đã ban tg_id=%d.", targetTGID)))
+	reply := renderTplCtx(ctx, deps, tplAdminBanOK, struct {
+		TargetTGID int64
+	}{TargetTGID: targetTGID})
+	_, err = api.Send(tgbotapi.NewMessage(chatID, reply))
 	return err
 }
 
@@ -178,7 +195,10 @@ func handleAdminUnban(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, cha
 		_, err2 := api.Send(tgbotapi.NewMessage(chatID, "Unban thất bại: "+unbanErr.Error()))
 		return err2
 	}
-	_, err = api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("Đã unban tg_id=%d.", targetTGID)))
+	reply := renderTplCtx(ctx, deps, tplAdminUnbanOK, struct {
+		TargetTGID int64
+	}{TargetTGID: targetTGID})
+	_, err = api.Send(tgbotapi.NewMessage(chatID, reply))
 	return err
 }
 
@@ -191,7 +211,7 @@ func handleAdminLookup(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, ch
 	result, err := deps.AdminService.Lookup(ctx, args[0])
 	if err != nil {
 		if errors.Is(err, service.ErrAdminUserNotFound) {
-			_, err2 := api.Send(tgbotapi.NewMessage(chatID, "Không tìm thấy user."))
+			_, err2 := api.Send(tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplAdminErrorUserMissing, nil)))
 			return err2
 		}
 		_, err2 := api.Send(tgbotapi.NewMessage(chatID, "Lỗi: "+err.Error()))
@@ -203,12 +223,6 @@ func handleAdminLookup(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, ch
 	return err
 }
 
-// adminHelpText returns the /admin command menu.
-func adminHelpText() string {
-	return "*/admin* — lệnh quản trị:\n" +
-		"`/admin stats` — thống kê tổng quan\n" +
-		"`/admin grant <tg_id> <pool> <amount> [reason]` — cộng credit\n" +
-		"`/admin ban <tg_id> [reason]` — khóa tài khoản\n" +
-		"`/admin unban <tg_id>` — mở khóa\n" +
-		"`/admin lookup <tg_id|+phone|key_prefix>` — tra cứu user"
-}
+// adminHelpText was replaced by the templates.KeyAdminMenu bundle entry in
+// Phase 09. The function is intentionally removed; tests asserting against
+// help text now compare against templates.bundles["vi"][templates.KeyAdminMenu].

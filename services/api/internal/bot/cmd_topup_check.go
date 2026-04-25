@@ -72,12 +72,14 @@ func handleTopupCheckCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bot
 		_, _ = api.Request(cb)
 
 		pkg := service.Packages[tx.PackageCode]
-		msg := tgbotapi.NewMessage(updateChatID(update),
-			fmt.Sprintf(
-				"✅ *Nạp tiền thành công!*\n\n📦 Gói: %s\n💳 Credits: %s\n\nDùng /balance để xem số dư.",
-				pkg.DisplayVI, buildCreditSummary(pkg),
-			),
-		)
+		text := renderTplCtx(ctx, deps, tplTopupPaidOK, struct {
+			Display       string
+			CreditSummary string
+		}{
+			Display:       pkg.DisplayVI,
+			CreditSummary: buildCreditSummary(pkg),
+		})
+		msg := tgbotapi.NewMessage(updateChatID(update), text)
 		msg.ParseMode = "Markdown"
 		_, _ = api.Send(msg)
 		return nil

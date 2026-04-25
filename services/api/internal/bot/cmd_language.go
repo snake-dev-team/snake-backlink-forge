@@ -27,7 +27,7 @@ func HandleLanguage(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, updat
 		),
 	)
 
-	msg := tgbotapi.NewMessage(chatID, "🌐 Chọn ngôn ngữ / Choose language:")
+	msg := tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplLanguageMenu, nil))
 	msg.ReplyMarkup = keyboard
 	_, err := api.Send(msg)
 	return err
@@ -67,12 +67,13 @@ func HandleLangSetCallback(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI
 		}
 	}
 
+	// Render confirmation in the NEW language (the user just selected it).
 	var confirmText string
 	switch lang {
 	case "vi":
-		confirmText = "✅ Đã đổi sang Tiếng Việt."
+		confirmText = renderTpl(deps, "vi", tplLanguageSetVI, nil)
 	case "en":
-		confirmText = "✅ Switched to English."
+		confirmText = renderTpl(deps, "en", tplLanguageSetEN, nil)
 	}
 
 	if update.CallbackQuery.Message != nil {

@@ -5,8 +5,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
-	"html"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"go.uber.org/zap"
@@ -56,16 +54,17 @@ func HandleKey(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, update tgb
 		),
 	)
 
-	safeMasked := html.EscapeString(masked)
-	text := fmt.Sprintf(
-		"<b>API Key của bạn:</b>\n<code>%s</code>\n\n"+
-			"Prefix được hiển thị để xác nhận key — plaintext không thể lấy lại.\n"+
-			"Dùng <b>🔄 Regenerate</b> để tạo key mới (key cũ sẽ bị thu hồi).",
-		safeMasked,
-	)
+	// Note: KeyKeyShow uses Markdown (the bundle wraps {{.KeyPrefixMasked}} in
+	// backticks). Switch ParseMode to Markdown so the code-block renders.
+	// HTML escaping is no longer needed; the masked prefix is alphanumeric+•.
+	text := renderTplCtx(ctx, deps, tplKeyShow, struct {
+		KeyPrefixMasked string
+	}{
+		KeyPrefixMasked: masked,
+	})
 
 	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = tgbotapi.ModeHTML
+	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = keyboard
 
 	_, err = api.Send(msg)

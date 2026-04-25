@@ -27,13 +27,15 @@ const (
 	supportDescribingTTL   = 30 * time.Minute
 )
 
-// faqTopics maps callback suffix → canned text.
-var faqTopics = map[string]string{
-	"payment": "<b>❓ Thanh toán</b>\n\nChúng tôi hỗ trợ chuyển khoản qua SePay. Sau khi chuyển khoản, credits được cộng tự động trong vòng 1 phút. Nếu sau 5 phút chưa nhận được, hãy liên hệ support.",
-	"key":     "<b>❓ API Key</b>\n\nKey được cấp một lần duy nhất khi xác thực số điện thoại. Dùng /key để xem prefix. Nếu mất key, dùng /regenkey để tạo key mới (key cũ bị thu hồi).",
-	"credits": "<b>❓ Credits</b>\n\nCredits dùng để chạy backlink, captcha, và finder. Premium credits ưu tiên hơn Standard. Xem số dư bằng /balance.",
-	"tech":    "<b>❓ Kỹ thuật</b>\n\nNếu bot không phản hồi, thử gửi /start lại. Nếu lỗi liên tục, hãy mô tả chi tiết và gửi ticket để đội kỹ thuật hỗ trợ.",
-	"other":   "<b>❓ Khác</b>\n\nVới các vấn đề không có trong FAQ, hãy mô tả chi tiết và gửi ticket. Đội support sẽ phản hồi trong 24h.",
+// faqTopicKeys maps the callback suffix to the template key.
+// "other" reuses tech FAQ — no dedicated bundle entry needed (kept inline as
+// final fallback to avoid bundle bloat for low-impact copy).
+var faqTopicKeys = map[string]string{
+	"payment": tplSupportFAQPayment,
+	"key":     tplSupportFAQKey,
+	"credits": tplSupportFAQCredits,
+	"tech":    tplSupportFAQTechnical,
+	"other":   tplSupportFAQTechnical,
 }
 
 // HandleSupport handles the /support command — shows FAQ menu.
@@ -44,9 +46,8 @@ func HandleSupport(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, update
 	}
 
 	keyboard := faqMenuKeyboard()
-	msg := tgbotapi.NewMessage(chatID,
-		"🆘 <b>Trung tâm hỗ trợ</b>\n\nChọn chủ đề bạn cần hỗ trợ:")
-	msg.ParseMode = tgbotapi.ModeHTML
+	msg := tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplSupportMenu, nil))
+	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = keyboard
 	_, err := api.Send(msg)
 	return err
@@ -60,9 +61,12 @@ func HandleSupportFAQCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bot
 	_, _ = api.Request(tgbotapi.NewCallback(update.CallbackQuery.ID, ""))
 
 	topic := strings.TrimPrefix(update.CallbackQuery.Data, "support:faq:")
-	text, ok := faqTopics[topic]
+	tplKey, ok := faqTopicKeys[topic]
+	var text string
 	if !ok {
-		text = "Chủ đề không tìm thấy."
+		text = renderTplCtx(ctx, deps, tplErrorGeneric, nil)
+	} else {
+		text = renderTplCtx(ctx, deps, tplKey, nil)
 	}
 
 	// Add "Vẫn cần hỗ trợ" + Cancel buttons below FAQ text.
@@ -81,7 +85,7 @@ func HandleSupportFAQCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bot
 			update.CallbackQuery.Message.MessageID,
 			text,
 		)
-		edit.ParseMode = tgbotapi.ModeHTML
+		edit.ParseMode = "Markdown"
 		edit.ReplyMarkup = &keyboard
 		_, _ = api.Send(edit)
 	}
@@ -100,9 +104,9 @@ func HandleSupportMenuCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bo
 		edit := tgbotapi.NewEditMessageText(
 			update.CallbackQuery.Message.Chat.ID,
 			update.CallbackQuery.Message.MessageID,
-			"🆘 <b>Trung tâm hỗ trợ</b>\n\nChọn chủ đề bạn cần hỗ trợ:",
+			renderTplCtx(ctx, deps, tplSupportMenu, nil),
 		)
-		edit.ParseMode = tgbotapi.ModeHTML
+		edit.ParseMode = "Markdown"
 		edit.ReplyMarkup = &keyboard
 		_, _ = api.Send(edit)
 	}
@@ -124,7 +128,7 @@ func HandleSupportDescribeCallback(ctx context.Context, deps *Deps, api *tgbotap
 	chatID := updateChatID(update)
 	if chatID != 0 {
 		msg := tgbotapi.NewMessage(chatID,
-			"📝 Mô tả vấn đề của bạn (tối đa 4096 ký tự).\n\nGửi /cancel để huỷ.")
+			renderTplCtx(ctx, deps, tplSupportDescribePrompt, nil))
 		_, _ = api.Send(msg)
 	}
 	return nil
@@ -146,7 +150,7 @@ func HandleSupportCancelCallback(ctx context.Context, deps *Deps, api *tgbotapi.
 		edit := tgbotapi.NewEditMessageText(
 			update.CallbackQuery.Message.Chat.ID,
 			update.CallbackQuery.Message.MessageID,
-			"Đã huỷ.",
+			renderTplCtx(ctx, deps, tplBuyCancelled, nil),
 		)
 		_, _ = api.Send(edit)
 	}
@@ -194,8 +198,7 @@ func HandleSupportDescribeMessage(ctx context.Context, deps *Deps, api *tgbotapi
 		return nil
 	}
 	if count >= service.SupportTicketCap {
-		replyText(api, update,
-			"⚠️ Đã đạt giới hạn 3 ticket mở. Đợi admin reply trước khi gửi ticket mới.")
+		replyText(api, update, renderTplCtx(ctx, deps, tplSupportTicketCapReached, nil))
 		return nil
 	}
 
@@ -203,19 +206,21 @@ func HandleSupportDescribeMessage(ctx context.Context, deps *Deps, api *tgbotapi
 	ticket, err := deps.SupportService.CreateTicket(ctx, user.ID, "Support Ticket", body)
 	if err != nil {
 		if errors.Is(err, service.ErrSupportTicketCapReached) {
-			replyText(api, update,
-				"⚠️ Đã đạt giới hạn 3 ticket mở. Đợi admin reply trước khi gửi ticket mới.")
+			replyText(api, update, renderTplCtx(ctx, deps, tplSupportTicketCapReached, nil))
 			return nil
 		}
 		deps.Log.Error("HandleSupportDescribeMessage: CreateTicket failed",
 			zap.String("user_id", user.ID.String()), zap.Error(err))
-		replyText(api, update, "⚠️ Không thể gửi ticket. Vui lòng thử lại sau.")
+		replyText(api, update, renderTplCtx(ctx, deps, tplErrorGeneric, nil))
 		return nil
 	}
 
 	shortID := fmt.Sprintf("%.8s", ticket.ID.String())
-	replyText(api, update,
-		fmt.Sprintf("✅ Đã gửi ticket #%s. Admin sẽ reply trong vòng 24h.", shortID))
+	replyText(api, update, renderTplCtx(ctx, deps, tplSupportTicketSubmitted, struct {
+		TicketID string
+	}{
+		TicketID: shortID,
+	}))
 	return nil
 }
 

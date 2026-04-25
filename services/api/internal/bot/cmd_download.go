@@ -6,7 +6,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -24,8 +23,10 @@ func HandleDownload(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, updat
 	}
 
 	if url == "" {
+		// [H2 fix] Use download_unavailable template — not generic error.
+		// Original UX: "⏳ Installer chưa publish. Theo dõi announcement nhé."
 		msg := tgbotapi.NewMessage(chatID,
-			"Installer chưa publish. Theo dõi announcement nhé.")
+			renderTplCtx(ctx, deps, tplDownloadUnavailable, nil))
 		_, err := api.Send(msg)
 		return err
 	}
@@ -36,7 +37,11 @@ func HandleDownload(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, updat
 		),
 	)
 
-	text := fmt.Sprintf("📥 Tải installer Windows:\n%s", url)
+	text := renderTplCtx(ctx, deps, tplDownloadText, struct {
+		InstallerURL string
+	}{
+		InstallerURL: url,
+	})
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ReplyMarkup = keyboard
 	_, err := api.Send(msg)

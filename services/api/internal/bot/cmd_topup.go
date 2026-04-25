@@ -11,7 +11,7 @@ package bot
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"net/url"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -19,6 +19,22 @@ import (
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	"go.uber.org/zap"
 )
+
+// extractOrderCodeFromQRURL pulls the 12-hex order code from the SePay QR URL's
+// `des=SBF TOPUP <CODE>` query parameter. Returns empty string if URL is malformed
+// or the description is missing the expected prefix.
+func extractOrderCodeFromQRURL(qrURL string) string {
+	u, err := url.Parse(qrURL)
+	if err != nil {
+		return ""
+	}
+	des := u.Query().Get("des")
+	const prefix = "SBF TOPUP "
+	if !strings.HasPrefix(des, prefix) {
+		return ""
+	}
+	return strings.TrimPrefix(des, prefix)
+}
 
 // HandleTopup handles the /topup command.
 // If FSM = topup_waiting, resends the pending QR. Otherwise shows the buy menu.
@@ -62,10 +78,24 @@ func resendTopupQR(
 	}
 
 	pkg := service.Packages[data.PackageCode]
-	caption := fmt.Sprintf(
-		"💳 *Đơn hàng đang chờ thanh toán*\n\n📦 Gói: %s\n💰 Số tiền: *%sđ*\n\nQuét QR hoặc chuyển khoản theo thông tin trên ảnh.",
-		pkg.DisplayVI, formatVND(pkg.AmountVND),
-	)
+	// [H1 fix] Use the actual QR caption template (KeyTopupQRCaption) — not buy_confirm
+	// which prompts "Xác nhận thanh toán?" inappropriate after user has already confirmed.
+	// Order code parsed from the QR URL's `des` query param to avoid FSM schema change.
+	bankCode := ""
+	if deps.Cfg != nil {
+		bankCode = deps.Cfg.SepayBankCode
+	}
+	caption := renderTplCtx(ctx, deps, tplTopupQRCaption, struct {
+		Display            string
+		BankCode           string
+		AmountVNDFormatted string
+		OrderCode          string
+	}{
+		Display:            pkg.DisplayVI,
+		BankCode:           bankCode,
+		AmountVNDFormatted: formatVND(pkg.AmountVND),
+		OrderCode:          extractOrderCodeFromQRURL(data.QRUrl),
+	})
 
 	keyboard := TopupActionsKeyboard(txID)
 	photo := tgbotapi.NewPhoto(chatID, tgbotapi.FileURL(data.QRUrl))
@@ -126,18 +156,19 @@ func handleTopupCancelCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bo
 		_ = NewStore(deps.Rdb).Clear(ctx, updateTelegramID(update))
 	}
 
+	cancelMsg := renderTplCtx(ctx, deps, tplTopupCancelled, nil)
 	if update.CallbackQuery.Message != nil {
 		edit := tgbotapi.NewEditMessageCaption(
 			update.CallbackQuery.Message.Chat.ID,
 			update.CallbackQuery.Message.MessageID,
-			"Đã huỷ đơn.",
+			cancelMsg,
 		)
 		if _, editErr := api.Send(edit); editErr != nil {
 			deps.Log.Debug("handleTopupCancelCallback: edit caption failed", zap.Error(editErr))
 			editText := tgbotapi.NewEditMessageText(
 				update.CallbackQuery.Message.Chat.ID,
 				update.CallbackQuery.Message.MessageID,
-				"Đã huỷ đơn.",
+				cancelMsg,
 			)
 			_, _ = api.Send(editText)
 		}

@@ -27,7 +27,12 @@ func chain(middlewares []func(HandlerFunc) HandlerFunc, final HandlerFunc) Handl
 
 // recoverMiddleware catches any panic in downstream handlers, logs the stack trace
 // (redacting message text beyond 200 chars), and sends a generic error reply.
-func recoverMiddleware(log *zap.Logger) func(HandlerFunc) HandlerFunc {
+//
+// deps param added in Phase 09 to render error_generic via templates.
+// The recover path uses the deps' template renderer; if Templates is nil, the
+// helper returns "[error_generic]" — still better than crashing silently.
+func recoverMiddleware(deps *Deps) func(HandlerFunc) HandlerFunc {
+	log := deps.Log
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update) (retErr error) {
 			defer func() {
@@ -47,7 +52,7 @@ func recoverMiddleware(log *zap.Logger) func(HandlerFunc) HandlerFunc {
 						zap.String("stack", string(stack)),
 						zap.String("text_prefix", safeText),
 					)
-					replyText(bot, update, "Đã xảy ra lỗi. Vui lòng thử lại sau.")
+					replyText(bot, update, renderTplCtx(ctx, deps, tplErrorGeneric, nil))
 					retErr = fmt.Errorf("panic: %v", r)
 				}
 			}()
@@ -140,15 +145,18 @@ func loadUser(deps *Deps) func(HandlerFunc) HandlerFunc {
 }
 
 // banCheck short-circuits the handler chain when a user is banned.
-// deps param removed (M1): ban status lives in BotUser from loadUser, no DB query needed.
-func banCheck(next HandlerFunc) HandlerFunc {
-	return func(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
-		user, ok := UserFromCtx(ctx)
-		if ok && user.IsBanned {
-			replyText(bot, update, "Tài khoản đã bị tạm khoá. Liên hệ @support để được hỗ trợ.")
-			return nil
+// deps param: needed to render templated message; ban status itself still
+// comes from BotUser (loadUser) without an extra DB query.
+func banCheck(deps *Deps) func(HandlerFunc) HandlerFunc {
+	return func(next HandlerFunc) HandlerFunc {
+		return func(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
+			user, ok := UserFromCtx(ctx)
+			if ok && user.IsBanned {
+				replyText(bot, update, renderTplCtx(ctx, deps, tplErrorAccountDisabled, nil))
+				return nil
+			}
+			return next(ctx, bot, update)
 		}
-		return next(ctx, bot, update)
 	}
 }
 
@@ -169,10 +177,10 @@ func i18nMiddleware() func(HandlerFunc) HandlerFunc {
 // buildChain assembles the full middleware stack for a bot handler.
 func buildChain(deps *Deps, final HandlerFunc) HandlerFunc {
 	return chain([]func(HandlerFunc) HandlerFunc{
-		recoverMiddleware(deps.Log),
+		recoverMiddleware(deps),
 		loggerMiddleware(deps.Log),
 		loadUser(deps),
-		banCheck, // M1: banCheck no longer takes deps
+		banCheck(deps), // Phase 09: deps re-introduced for templated reply
 		i18nMiddleware(),
 	}, final)
 }

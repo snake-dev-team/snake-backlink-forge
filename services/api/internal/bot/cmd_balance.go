@@ -52,15 +52,15 @@ func HandleBalance(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, update
 	// VND thousand-separator: use comma (English convention, widely used in VN fintech UIs).
 	// Vietnamese locale uses '.' as thousands separator, but ',' is ubiquitous in digital products.
 	// Adjust formatVND if the product preference changes.
-	text := fmt.Sprintf(
-		"💰 *Số dư của bạn:*\n\n"+
-			"🔥 Premium: *%d* credit\n"+
-			"⚡ Standard: *%d* credit\n\n"+
-			"💸 Đã chi: %sđ",
-		wallet.PremiumCredits,
-		wallet.StandardCredits,
-		formatVND(wallet.TotalVndSpent),
-	)
+	text := renderTplCtx(ctx, deps, tplBalance, struct {
+		Premium           int32
+		Standard          int32
+		TotalVNDFormatted string
+	}{
+		Premium:           wallet.PremiumCredits,
+		Standard:          wallet.StandardCredits,
+		TotalVNDFormatted: formatVND(wallet.TotalVndSpent),
+	})
 
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = "Markdown"

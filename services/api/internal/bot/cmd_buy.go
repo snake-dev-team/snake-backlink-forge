@@ -56,8 +56,7 @@ func HandleBuy(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, update tgb
 	}
 
 	keyboard := PackageMenuKeyboard(LangFromCtx(ctx))
-	msg := tgbotapi.NewMessage(chatID,
-		"🛒 *Chọn gói credit bạn muốn mua:*\n\n⭐ = gói phổ biến nhất")
+	msg := tgbotapi.NewMessage(chatID, renderTplCtx(ctx, deps, tplBuyMenuHeader, nil))
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = keyboard
 
@@ -86,10 +85,15 @@ func handleBuyPackageCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bot
 	}
 
 	pkg := service.Packages[pkgCode]
-	text := fmt.Sprintf(
-		"📦 *%s*\n\n💳 Số credits: %s\n💰 Giá: *%sđ*\n\nXác nhận thanh toán?",
-		pkg.DisplayVI, buildCreditSummary(pkg), formatVND(pkg.AmountVND),
-	)
+	text := renderTplCtx(ctx, deps, tplBuyConfirm, struct {
+		Display            string
+		CreditSummary      string
+		AmountVNDFormatted string
+	}{
+		Display:            pkg.DisplayVI,
+		CreditSummary:      buildCreditSummary(pkg),
+		AmountVNDFormatted: formatVND(pkg.AmountVND),
+	})
 	keyboard := ConfirmCancelKeyboard(pkgCode)
 
 	if update.CallbackQuery.Message != nil {

@@ -6,10 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/bot/templates"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	"go.uber.org/zap"
 )
@@ -65,8 +65,7 @@ func handleStartCommand(ctx context.Context, deps *Deps, bot *tgbotapi.BotAPI, u
 		// Already verified: clear FSM + show repeat welcome.
 		_ = stateStore.Clear(ctx, tgID)
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-			"Tài khoản của bạn đã được xác thực.\n\n"+
-				"Dùng /key để xem API key và /balance để kiểm tra số dư.")
+			renderTplCtx(ctx, deps, tplStartVerifiedRepeat, nil))
 		_, err := bot.Send(msg)
 		return err
 	}
@@ -84,10 +83,8 @@ func handleStartCommand(ctx context.Context, deps *Deps, bot *tgbotapi.BotAPI, u
 	keyboard.ResizeKeyboard = true
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-		"Chào mừng bạn đến với Snake Backlink Forge!\n\n"+
-			"Để kích hoạt tài khoản và nhận <b>5 Standard credits miễn phí</b>, "+
-			"vui lòng nhấn nút bên dưới để chia sẻ số điện thoại.")
-	msg.ParseMode = tgbotapi.ModeHTML
+		renderTplCtx(ctx, deps, templates.KeyStartWelcome, nil))
+	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = keyboard
 
 	_, err = bot.Send(msg)
@@ -107,7 +104,7 @@ func handleContactShare(ctx context.Context, deps *Deps, bot *tgbotapi.BotAPI, u
 
 	// Security: reject spoofed contacts (user sharing someone else's number).
 	if contact.UserID != 0 && contact.UserID != tgID {
-		replyText(bot, update, "Chỉ được chia sẻ số điện thoại của chính bạn.")
+		replyText(bot, update, renderTplCtx(ctx, deps, tplStartContactRejected, nil))
 		return nil
 	}
 
@@ -135,37 +132,43 @@ func handleContactShare(ctx context.Context, deps *Deps, bot *tgbotapi.BotAPI, u
 	_ = stateStore.Clear(ctx, tgID)
 
 	if trialErr != nil {
-		return handleTrialError(bot, update, trialErr)
+		return handleTrialError(ctx, deps, bot, update, trialErr)
 	}
 
 	// Remove the contact keyboard (send RemoveKeyboard).
 	removeKbd := tgbotapi.NewRemoveKeyboard(true)
 
 	if plaintext == "" {
-		// noopKeyIssuer — key not yet wired (Phase 03 pending).
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-			"Xác thực thành công! Bạn đã nhận được <b>5 Standard credits</b>.\n\n"+
-				"API key của bạn sẽ được cấp sau khi hệ thống cập nhật. "+
-				"Dùng /key để kiểm tra sau.")
-		msg.ParseMode = tgbotapi.ModeHTML
+		// noopKeyIssuer — key not yet wired (Phase 03 pending). Render the
+		// templated success message but with empty Key field; the template
+		// still renders cleanly (backtick-wrapped empty string is harmless).
+		text := renderTplCtx(ctx, deps, templates.KeyStartVerifiedFirst, struct {
+			Key             string
+			StandardCredits int
+		}{
+			Key:             "",
+			StandardCredits: 5,
+		})
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
+		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = removeKbd
 		_, err = bot.Send(msg)
 		return err
 	}
 
-	// Show plaintext key ONCE — HTML-escaped, bold warning to save it.
-	safeKey := html.EscapeString(plaintext)
-	safePrefix := html.EscapeString(prefix)
-	text := fmt.Sprintf(
-		"Xác thực thành công! Bạn đã nhận được <b>5 Standard credits</b>.\n\n"+
-			"<b>API Key của bạn:</b>\n<code>%s</code>\n\n"+
-			"Prefix hiển thị: <code>%s...</code>\n\n"+
-			"<b>LUU Ý: Key chỉ hiển thị MỘT LẦN. Hãy lưu ngay bây giờ.</b>\n\n"+
-			"Dùng /key để xem prefix và /balance để kiểm tra số dư.",
-		safeKey, safePrefix,
-	)
+	// Show plaintext key ONCE. Template wraps {{.Key}} in backticks (Markdown
+	// code-span). API keys are alphanumeric (sbf_live_<base58>), no escape needed.
+	// Prefix is omitted from the templated body — users can run /key after.
+	text := renderTplCtx(ctx, deps, templates.KeyStartVerifiedFirst, struct {
+		Key             string
+		StandardCredits int
+	}{
+		Key:             plaintext,
+		StandardCredits: 5,
+	})
+	_ = prefix // prefix logged elsewhere; not displayed in v1 templated message
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
-	msg.ParseMode = tgbotapi.ModeHTML
+	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = removeKbd
 
 	_, err = bot.Send(msg)
@@ -173,27 +176,24 @@ func handleContactShare(ctx context.Context, deps *Deps, bot *tgbotapi.BotAPI, u
 }
 
 // handleTrialError maps domain errors to user-facing messages.
-func handleTrialError(bot *tgbotapi.BotAPI, update tgbotapi.Update, trialErr error) error {
+// Error semantics are preserved exactly; only the rendered text uses templates.
+func handleTrialError(ctx context.Context, deps *Deps, bot *tgbotapi.BotAPI, update tgbotapi.Update, trialErr error) error {
+	lang := LangFromCtx(ctx)
 	switch {
 	case errors.Is(trialErr, service.ErrTrialPhoneReused):
-		replyText(bot, update,
-			"Số điện thoại này đã được sử dụng để kích hoạt tài khoản khác. "+
-				"Mỗi số điện thoại chỉ được dùng một lần.")
+		replyText(bot, update, renderTpl(deps, lang, tplTrialPhoneReused, nil))
 		return nil // user-facing error, not a system error
 
 	case errors.Is(trialErr, service.ErrTrialAlreadyUsed):
-		replyText(bot, update,
-			"Tài khoản của bạn đã được kích hoạt trước đó. "+
-				"Dùng /key để xem API key và /balance để kiểm tra số dư.")
+		replyText(bot, update, renderTpl(deps, lang, tplStartVerifiedRepeat, nil))
 		return nil
 
 	case errors.Is(trialErr, service.ErrTrialUserBanned):
-		replyText(bot, update,
-			"Tài khoản đã bị tạm khoá. Liên hệ @support để được hỗ trợ.")
+		replyText(bot, update, renderTpl(deps, lang, tplStartTrialBlockedBan, nil))
 		return nil
 
 	default:
-		replyText(bot, update, "Đã xảy ra lỗi xác thực. Vui lòng thử lại sau.")
+		replyText(bot, update, renderTpl(deps, lang, tplErrorGeneric, nil))
 		return trialErr // propagate unexpected errors for logging
 	}
 }
