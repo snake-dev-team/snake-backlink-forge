@@ -22,10 +22,22 @@ func New(cfg *config.Config, log *zap.Logger, pool *pgxpool.Pool, rdb *goredis.C
 		// Show startup banner in development; suppress in prod containers.
 		DisableStartupMessage: cfg.IsProduction(),
 
+		// [C1] Hard cap at 64KB — SePay payloads are <2KB; reject oversized bodies to
+		// prevent memory pressure and DoS amplification. Spec §non-functional line 59.
+		BodyLimit: 64 * 1024,
+
 		// Generous but bounded timeouts to prevent resource exhaustion.
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
+
+		// [M2] Fly-Client-IP is populated by Fly.io's load balancer on every inbound request.
+		// Without this, c.IP() returns the Fly LB IP — rate-limit key collapses to one
+		// global bucket instead of per-client. TrustedProxies open for now; tighten to
+		// Fly subnet in Phase 10 deploy checklist.
+		ProxyHeader:             fiber.HeaderXForwardedFor,
+		EnableTrustedProxyCheck: true,
+		TrustedProxies:          []string{"0.0.0.0/0"},
 
 		// Return structured JSON on unhandled errors.
 		ErrorHandler: jsonErrorHandler,

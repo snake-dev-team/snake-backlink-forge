@@ -13,10 +13,12 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/api"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/api/handlers"
 	appbot "github.com/kekuta/snake-backlink-forge/services/api/internal/bot"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	appdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db"
 	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/notify"
 	appredis "github.com/kekuta/snake-backlink-forge/services/api/internal/redis"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/util"
@@ -30,7 +32,6 @@ func main() {
 	// --- Config ---
 	cfg, err := config.Load()
 	if err != nil {
-		// Use stderr directly — zap isn't built yet at this point.
 		_, _ = os.Stderr.WriteString("fatal: config: " + err.Error() + "\n")
 		os.Exit(1)
 	}
@@ -42,6 +43,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { _ = log.Sync() }()
+
+	// --- Root context — server lifetime; cancel triggers goroutine shutdown. ---
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	defer rootCancel()
 
 	// --- Database (lenient Phase 1: nil pool keeps the process running) ---
 	dbPool, err := appdb.NewPool(context.Background(), cfg)
@@ -64,8 +69,6 @@ func main() {
 	}
 
 	// --- KeyService (Phase 03) ---
-	// Wired before UserService so it can be passed as the KeyIssuer dependency.
-	// If dbPool is nil (lenient boot), both services remain nil — bot falls back to dev mode.
 	var keySvc *service.KeyService
 	if dbPool != nil {
 		keySvc = service.NewKeyService(dbPool, log.Named("key_svc"))
@@ -73,8 +76,6 @@ func main() {
 	}
 
 	// --- UserService (Phase 02+03) ---
-	// Phase 03: real KeyService replaces NoopKeyIssuer.
-	// If dbPool is nil (lenient boot), UserService is nil — bot handlers fall back to dev mode.
 	var userSvc *service.UserService
 	if dbPool != nil {
 		userSvc = service.New(dbPool, rdb, keySvc, log.Named("user_svc"))
@@ -84,8 +85,6 @@ func main() {
 	}
 
 	// --- WalletService (Phase 04) ---
-	// Shares the same sqlcdb.Queries instance constructed from dbPool.
-	// Nil when dbPool is nil — bot /balance falls back to "coming soon" message.
 	var walletSvc *service.WalletService
 	if dbPool != nil {
 		walletSvc = service.NewWalletService(dbPool, sqlcdb.New(dbPool), log.Named("wallet_svc"))
@@ -93,18 +92,26 @@ func main() {
 	}
 
 	// --- TransactionService (Phase 05) ---
-	// Manages pending topup intents, QR URL generation, and cancel lifecycle.
-	// Nil when dbPool is nil — bot /buy falls back to "coming soon" message.
 	var txSvc *service.TransactionService
 	if dbPool != nil {
 		txSvc = service.NewTransactionService(dbPool, sqlcdb.New(dbPool), rdb, cfg, log.Named("tx"))
 		log.Info("transaction service initialized")
 	}
 
+	// --- [Q5] Admin alert channel (Phase 06) ---
+	// Buffered cap=100; non-blocking sends in webhook/retry consumer; closed on shutdown.
+	adminAlertCh := make(chan notify.AdminAlert, 100)
+
+	// --- WebhookService (Phase 06) ---
+	var webhookSvc *service.WebhookService
+	if dbPool != nil && walletSvc != nil {
+		webhookSvc = service.NewWebhookService(
+			dbPool, walletSvc, cfg, log.Named("webhook_svc"), adminAlertCh,
+		)
+		log.Info("webhook service initialized")
+	}
+
 	// --- Bot (Phase 03) ---
-	// Bot manages its own internal contexts (loopCtx + handlerCtx).
-	// Shutdown is coordinated via bot.Stop(), which drains in-flight handlers
-	// before cancelling handlerCtx — so we do NOT pass a cancellable ctx here.
 	var bot *appbot.Bot
 	if cfg.TelegramBotToken == "" {
 		log.Warn("bot disabled — TELEGRAM_BOT_TOKEN empty")
@@ -115,9 +122,9 @@ func main() {
 			Log:           log.Named("bot"),
 			Cfg:           cfg,
 			UserService:   userSvc,
-			KeyService:    keySvc,    // Phase 03
-			WalletService: walletSvc, // Phase 04
-			TxService:     txSvc,     // Phase 05
+			KeyService:    keySvc,
+			WalletService: walletSvc,
+			TxService:     txSvc,
 		})
 		if botErr != nil {
 			if errors.Is(botErr, appbot.ErrBotDisabled) {
@@ -128,11 +135,37 @@ func main() {
 		} else {
 			bot = b
 			go bot.Start(context.Background())
+
+			// [Q5] Admin alert consumer — requires bot.Api() to send DMs.
+			// Goroutine exits when rootCtx cancelled OR adminAlertCh closed.
+			go appbot.ConsumeAdminAlerts(rootCtx, adminAlertCh, bot.Api(), cfg, log.Named("admin_alerts"))
+			log.Info("admin alert consumer started")
 		}
+	}
+
+	// --- [round-3] Retry queue consumer (Phase 06) ---
+	if rdb != nil && webhookSvc != nil {
+		go service.RetryQueueConsumer(rootCtx, rdb, webhookSvc, adminAlertCh, log.Named("retry_consumer"))
+		log.Info("retry queue consumer started")
 	}
 
 	// --- HTTP Server ---
 	app := api.New(cfg, log, dbPool, rdb)
+
+	// Register SePay webhook route with deps fully wired. [Phase 06]
+	if webhookSvc != nil {
+		webhookDeps := &handlers.WebhookDeps{
+			Pool:         dbPool,
+			Rdb:          rdb,
+			Cfg:          cfg,
+			Log:          log.Named("webhook"),
+			WebhookSvc:   webhookSvc,
+			AdminAlertCh: adminAlertCh,
+			RootCtx:      rootCtx,
+		}
+		api.RegisterWebhook(app, webhookDeps, log)
+		log.Info("webhook route registered")
+	}
 
 	// Start listener in a goroutine so we can wait for shutdown below.
 	listenErr := make(chan error, 1)
@@ -157,21 +190,26 @@ func main() {
 
 	log.Info("shutting down — draining connections (max 10s)")
 
-	// 1. Stop bot first: loopCancel stops new updates, drains in-flights (10s),
-	//    then handlerCancel fires. Must happen before closing DB/Redis.
+	// 1. Cancel root context — stops retry consumer + admin alert consumer goroutines.
+	rootCancel()
+
+	// 2. Stop bot first: drains in-flight handlers before closing DB/Redis.
 	if bot != nil {
 		bot.Stop()
 		log.Info("bot stopped")
 	}
 
-	// 2. Shutdown HTTP server.
+	// 3. Close admin alert channel — signals ConsumeAdminAlerts to drain remaining alerts.
+	close(adminAlertCh)
+
+	// 4. Shutdown HTTP server.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if shutdownErr := app.ShutdownWithContext(shutdownCtx); shutdownErr != nil {
 		log.Error("graceful shutdown failed", zap.Error(shutdownErr))
 	}
 
-	// 3. Close shared resources — safe now that bot handlers have fully drained.
+	// 5. Close shared resources — safe now that all goroutines have drained.
 	if dbPool != nil {
 		dbPool.Close()
 		log.Info("database pool closed")

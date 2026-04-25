@@ -180,6 +180,13 @@ func (b *Bot) handleUpdate(parentCtx context.Context, update tgbotapi.Update) {
 	}
 }
 
+// Api returns the underlying tgbotapi.BotAPI instance.
+// Used by main.go to pass the bot API to ConsumeAdminAlerts without exposing
+// the full Bot struct to the notify consumer goroutine.
+func (b *Bot) Api() *tgbotapi.BotAPI {
+	return b.api
+}
+
 // loadOffset reads the persisted poll offset from Redis.
 // Returns 0 on any error (safe default — Telegram deduplicates old updates).
 func (b *Bot) loadOffset(ctx context.Context) int {
