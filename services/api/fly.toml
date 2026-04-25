@@ -1,0 +1,39 @@
+# Fly.io app config for Snake Backlink Forge API.
+# Phase 10 Step 1B: deploy target snake-backlink-api.fly.dev
+# Region: Singapore (sin) — closest Fly region to VN customers.
+# Always-on: min_machines_running=1 ensures Telegram polling + SePay webhook
+# never miss events. auto_stop only kicks in if min already met (safe).
+
+app = "snake-backlink-api"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Non-secret env. Secrets (TELEGRAM_BOT_TOKEN, SEPAY_*, JWT_SECRET, DATABASE_URL,
+# REDIS_URL, etc.) set via `flyctl secrets set` — never stored in fly.toml.
+[env]
+  PORT = "8080"
+  ENV = "production"
+  LOG_LEVEL = "info"
+  TELEGRAM_BOT_USERNAME = "SnakeBacklinkForgeBot"
+  SEPAY_BANK_CODE = "MB"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[http_service.checks]]
+  grace_period = "30s"
+  interval = "30s"
+  method = "GET"
+  timeout = "5s"
+  path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -18,6 +18,7 @@ import (
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/bot/templates"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	appdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/db/migrator"
 	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/notify"
 	appredis "github.com/kekuta/snake-backlink-forge/services/api/internal/redis"
@@ -67,6 +68,18 @@ func main() {
 		// rdb is nil on error; handlers check for nil gracefully.
 	} else {
 		log.Info("redis connected")
+	}
+
+	// --- Auto-migration on boot (Phase 10 production hard-fail policy) ---
+	// Idempotent: applies pending migrations; no-op if up-to-date.
+	// Hard fail (log.Fatal exits non-zero) prevents serving traffic with stale schema.
+	// Fly.io machine restart policy applies backoff; permanent failure surfaces via crash-loop logs.
+	if dbPool != nil {
+		log.Info("running migrations on startup")
+		if migErr := migrator.Up(rootCtx, dbPool); migErr != nil {
+			log.Fatal("startup migration failed — refusing to boot", zap.Error(migErr))
+		}
+		log.Info("migrations applied successfully")
 	}
 
 	// --- KeyService (Phase 03) ---
