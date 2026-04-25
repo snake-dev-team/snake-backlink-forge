@@ -359,8 +359,66 @@ Kickoff `/ck:plan --hard "Phase 2 Telegram Bot + Wallet + SePay"` with red-team 
 - **Real money flow E2E test**: 30 min (transfer 99K + đợi webhook)
 - **Total Phase 10 wrap**: ~3-4h next session
 
+---
 
+## 2026-04-25 evening Phase 2 100% COMPLETE 🎉
 
+### Phase 10 Deploy — Final phase
+- Step 1A: Fly.io infrastructure (PG free + Redis Upstash free + app sin region)
+- Step 1B: fly.toml + auto-migrate on boot wired
+- Step 1E: Local Docker test pass (build + bogus DB + real DB)
+- Step 2: 8 production secrets staged (6 manual + 2 auto attach)
+- Step 3: flyctl deploy success (image 9.2MB, machine d8d2d50fe01998 healthy)
+- Step 4: Production endpoints verified (/health, /ready, /webhooks/sepay)
+- Step 5: SePay webhook setup with .fly.dev URL — ACCEPT (no domain needed!)
+- Step 6: Real money E2E PASS — 99K transfer → CAS grant → notify (BCDB7DF3A862)
 
+### Production state final
+- URL: https://snake-backlink-api.fly.dev/
+- Region: Singapore (sin / ap-southeast-1)
+- Infrastructure cost: ~\$3/month
+- Bot: @SnakeBacklinkForgeBot live
+- Webhook: SePay → Fly app working
+- DB: 5 migrations applied, fresh production schema
+- Active user: 1 (admin 8042306755 with 55 std credits, 99K spent)
+
+### Phase 2 progress: 10/10 (100%) ✅
+
+### Cumulative stats
+- Commits: 50+
+- Tests: 200+ (130 auto + 70 manual)
+- LOC: ~16,000+
+- Phases: 10/10 complete
+- Time invested: ~2.5 days productive
+
+### Followups (deferred, non-blocking)
+- Step 7: CI race test full -race -count=100 (Phase 11+ session)
+- Phase 09 i18n: full polish reviews defer (current VN+EN sufficient)
+- Migration to Fly Managed PG when MRR > \$30/mo
+- Cloudflare Tunnel ready as backup if SePay rejects fly.dev future
+
+### Next phase: Phase 3 Chrome/Edge Extension
+- MV3 manifest + Rust WASM signing
+- Communicate with Phase 2 API via /api/v1/* endpoints
+- HMAC-signed requests using API key from Phase 2 /key
+- 4 backlink types: blog_comment, forum_profile, web2_post, directory_listing
+- Phase 4-9 build on Phase 2-3 foundation
+
+### Resume instructions Phase 3 next session
+1. Verify Phase 2 production still healthy: curl /health → 200
+2. Read plans/<future-phase-3-plan> (TBD)
+3. /ck:plan --hard "Phase 3 Chrome Extension MV3"
+4. Review plan + red-team rounds
+5. Cook Phase 3 incremental
+
+### Achievement unlock 🏆
+SBF Phase 2 = MVP product launchable. Khách thật có thể:
+- /start trên @SnakeBacklinkForgeBot Telegram
+- Share contact → nhận 5 standard credits trial + API key
+- /buy package 99K-2.4M → /topup → chuyển khoản
+- Webhook auto-grant credits + notify
+- /balance, /history, /key, /regenkey commands functional
+- /admin commands cho admin role
+- VN + EN i18n
 
 
