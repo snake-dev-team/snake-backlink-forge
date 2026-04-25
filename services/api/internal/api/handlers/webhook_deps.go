@@ -8,9 +8,11 @@ import (
 	"strings"
 	"time"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/bot/templates"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/integration/sepay"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/notify"
@@ -28,6 +30,11 @@ type WebhookDeps struct {
 	Log          *zap.Logger
 	WebhookSvc   *service.WebhookService
 	AdminAlertCh chan<- notify.AdminAlert
+	// BotAPI sends Telegram DMs on payment success. May be nil in tests or when
+	// TELEGRAM_BOT_TOKEN is empty; notify is silently skipped in that case.
+	BotAPI *tgbotapi.BotAPI
+	// Templates renders i18n payment-success messages. May be nil in tests.
+	Templates *templates.Renderer
 	// RootCtx is the server-lifetime context. Notify goroutines are scoped to it
 	// with a 10s timeout so they don't outlive the process on SIGTERM. [H6]
 	RootCtx context.Context //nolint:containedctx // intentional: scoping notify goroutines

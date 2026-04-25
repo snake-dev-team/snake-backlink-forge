@@ -205,7 +205,7 @@ func (s *WebhookService) processTransaction(
 		},
 	})
 
-	return ProcessResult{
+	result := ProcessResult{
 		UserID:       row.UserID,
 		PackageCode:  row.PkgCode,
 		Premium:      row.Premium,
@@ -213,7 +213,12 @@ func (s *WebhookService) processTransaction(
 		WasCancelled: wasCancelled,
 		Overpaid:     diff > 0,
 		BonusCredits: bonus,
-	}, nil
+	}
+	if overpaid != nil {
+		result.BonusPool = overpaid.pool
+		result.ExcessVND = overpaid.diff
+	}
+	return result, nil
 }
 
 // handleNoRowsCase runs an out-of-band status check to distinguish AlreadyProcessed from UnknownOrder.

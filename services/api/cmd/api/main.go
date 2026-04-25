@@ -211,7 +211,13 @@ func main() {
 			Log:          log.Named("webhook"),
 			WebhookSvc:   webhookSvc,
 			AdminAlertCh: adminAlertCh,
+			Templates:    tmplRenderer,
 			RootCtx:      rootCtx,
+		}
+		// Wire BotAPI for post-payment Telegram DM notify (replaces Phase 06 placeholder).
+		// nil-safe: when bot is disabled (no token), notify is silently skipped.
+		if bot != nil {
+			webhookDeps.BotAPI = bot.Api()
 		}
 		api.RegisterWebhook(app, webhookDeps, log)
 		log.Info("webhook route registered")

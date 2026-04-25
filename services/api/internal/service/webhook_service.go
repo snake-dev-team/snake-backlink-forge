@@ -33,7 +33,9 @@ type ProcessResult struct {
 	UnknownOrder     bool
 	Overpaid         bool
 	BonusCredits     int
-	WasCancelled     bool // true when status transitions to 'recovered_by_late_payment'
+	BonusPool        string // "premium" or "standard" — pool the bonus credits went to (Overpaid only)
+	ExcessVND        int64  // raw VND surplus from over-payment (Overpaid only)
+	WasCancelled     bool   // true when status transitions to 'recovered_by_late_payment'
 	UserID           uuid.UUID
 	PackageCode      string
 	Premium          int // base premium credits granted (from tx row)

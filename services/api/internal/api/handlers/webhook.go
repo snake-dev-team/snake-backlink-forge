@@ -4,13 +4,10 @@
 package handlers
 
 import (
-	"context"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/integration/sepay"
-	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -108,33 +105,13 @@ func SePayWebhook(deps *WebhookDeps) fiber.Handler {
 			return ack200(c, true, "unknown_order")
 		}
 
-		// 8. [H6] Post-commit Telegram notify — non-blocking goroutine scoped to RootCtx + 10s.
+		// 8. [H6] Post-commit Telegram notify — non-blocking goroutine scoped to RootCtx + 5s.
 		//    Webhook handler returns immediately; user gets DM asynchronously.
+		//    See webhook_notify.go for the impl (loadUserNotifyInfo + pickTemplate + Send).
 		if deps.RootCtx != nil {
-			notifyCtx, notifyCancel := context.WithTimeout(deps.RootCtx, 10*time.Second)
-			go func() {
-				defer notifyCancel()
-				notifyTelegramSuccess(notifyCtx, deps, result)
-			}()
+			notifyTelegramSuccess(deps, result)
 		}
 
 		return ack200(c, true, "")
 	}
-}
-
-// notifyTelegramSuccess sends a Telegram DM to the user after a successful payment.
-// Template selection: recovered_by_late_payment → recovery template; overpaid → overpaid template; else standard.
-// Errors are logged at Warn level — notify is best-effort; user can self-serve /balance.
-func notifyTelegramSuccess(ctx context.Context, deps *WebhookDeps, result service.ProcessResult) {
-	// Bot API access is not directly available in the HTTP handler layer.
-	// Notify is best-effort: log the intent; Phase 07 will wire real bot.Send here.
-	// The audit_log row (sepay_success) already records the grant for reconciliation.
-	deps.Log.Info("sepay webhook: payment success — notify placeholder",
-		zap.String("user_id", result.UserID.String()),
-		zap.String("package_code", result.PackageCode),
-		zap.Bool("was_cancelled", result.WasCancelled),
-		zap.Bool("overpaid", result.Overpaid),
-		zap.Int("bonus_credits", result.BonusCredits),
-	)
-	_ = ctx // ctx used for timeout enforcement; real DM send in Phase 07
 }
