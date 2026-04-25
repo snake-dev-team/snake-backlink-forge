@@ -2144,6 +2144,28 @@ Sau mỗi /ck:cook, luôn chạy `/ck:test` với agent `tester` → đảm bả
 - `pnpm test` cho apps/extension, apps/landing
 - Code review với agent `code-reviewer` → 0 critical issues mới commit
 
+### 11.6 Lesson: SePay payload field discrepancy
+
+Discovered Phase 10 production E2E test that SePay actual webhook payload uses
+gateway field with FULL bank name ('MBBank'), not short code ('MB'). Phase 06
+spec initially assumed short code, requiring hotfix 34e52a9.
+
+For future expansion to other Vietnamese banks (Vietcombank, ACB, TPBank, etc.):
+- DO NOT trust docs.sepay.vn/banks.html short code mapping for gateway field
+- DO test with real webhook payload BEFORE deploying strict matcher
+- DO log full payload at INFO level in dev for first 100 transactions per bank
+- DO keep gateway match flexible: try fuzzy match before strict equals
+
+Action items adding new bank:
+1. Generate fresh test transaction
+2. Capture full webhook payload from production logs
+3. Verify gateway field exact value (case-sensitive)
+4. Update gateway whitelist with verified value
+5. Add unit test with captured payload as fixture
+
+This is a 'docs vs reality' bug class. Apply same skepticism to all 3rd-party
+webhook integrations.
+
 ---
 
 ## 12. DEPLOYMENT
