@@ -17,7 +17,7 @@ primary_region = "sin"
   ENV = "production"
   LOG_LEVEL = "info"
   TELEGRAM_BOT_USERNAME = "SnakeBacklinkForgeBot"
-  SEPAY_BANK_CODE = "MB"
+  SEPAY_BANK_CODE = "MBBank"
 
 [http_service]
   internal_port = 8080
