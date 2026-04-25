@@ -238,5 +238,66 @@ Kickoff `/ck:plan --hard "Phase 2 Telegram Bot + Wallet + SePay"` with red-team 
 - **Phase 07-10:** ~7-10h combined
 - **Total Phase 2 wrap:** ~10-13h, chia 2-3 ngày next sessions
 
+---
+
+## 2026-04-25 — Phase 06 Complete (60%) — money-flow shipped
+
+### Done
+- **Phase 06 SePay Webhook** (`7d6bde5`) — M14-M20 ALL PASS via curl simulate
+  - F1 over-payment 3-way verified: under (no credit, manual_review) / exact (base only) / over (base+bonus)
+  - F2 12-hex regex strict: `[A-F0-9]{12}` rejects non-hex (e.g. `M18EXACT12HX`), accepts `AAAAAAAAAA18`
+  - F3 retry semantics: auth/business→200 success=false; lock→200 queued+LPUSH; pool→503; panic→500+alert (NEVER 500 for normal paths)
+  - Q2 cancel-then-pay verified live: tx `56D391967CC8` (cancelled at 06:32) → webhook payload → flipped to `recovered_by_late_payment` + full credit grant + cancel metadata preserved
+  - H1 audit + admin alert POST tx.Commit (no ghost rows on commit fail)
+  - H2 ledger order: base premium/standard FIRST → topup_excess bonus AFTER (verified M20 balance_after sequence: 1005 then 1048)
+  - H3 bonus DRY: single `int(diff/rate)` site, `overpaidResult` struct
+  - C1 BodyLimit 64KB, C2 PII redact (HashIP 32-char, HashAccountPrefix 12-char), M1 recover() supervisors, M2 ProxyHeader X-Forwarded-For, M3 RootCtx audit
+  - Idempotency 7× replay → 1 grant (CAS gate proven)
+  - Admin alert ≥10K threshold (M20 71K excess fired alert), manual_review ≥50K (M20 metadata.manual_review=true)
+
+### Phase 06 cluster commits
+- `7d6bde5 feat(webhook): phase 2.06 sepay webhook + retry queue + admin alerts`
+- `dcc0ad8 docs(reports): code review phase 06 fix loop 1 — APPROVED`
+- `e9fb7cb docs(reports): code review phase 06 sepay webhook — fix-required`
+
+### Test data state (preserved for Phase 07/08 testing)
+- **user_id:** `24b84987-6ed8-403c-a656-751b7638f058`
+- **tg_id:** 8042306755
+- **wallet:** 1048 std / 0 prem / 1,717,000đ vnd_spent
+- **transactions:** 5 rows
+  - `D49B493200EB` paid (M14 happy path, 329K)
+  - `56D391967CC8` recovered_by_late_payment (M17 Q2 late-pay, 329K)
+  - `AAAAAAAAAA18` paid (M18 exact, 329K)
+  - `BBBBBBBBBB19` paid overpaid=true (M19 small excess, 330K, bonus=0 floor)
+  - `CCCCCCCCCC20` paid + manual_review=true (M20 large excess, 400K diff=71K bonus=43)
+- **ledger:** ~10 entries (1 trial + 4 base topup + 1 topup_excess)
+- **audit_log:** clean trail of `sepay_success` / `sepay_overpaid` / `sepay_replay` / `sepay_auth_fail` / `trial_granted` / `key_issued`
+
+### Phase 2 progress: 6/10 phases complete (60%)
+- Phase 01-05: foundation done (bot, user, key, wallet, tx)
+- **Phase 06: webhook done** ← highest-risk money-flow phase shipped
+- Phase 07-09: pending (read paths + admin + i18n)
+- Phase 10: pending (deploy + production verify)
+
+### Resume instructions next session
+1. Verify stack: `docker ps` (sbf_postgres + sbf_redis healthy) + bot process check
+2. Bot decision at break: PID 14928 (running) — kill/keep per user choice (see Live state)
+3. Read specs: `plans/260424-2135-phase-2-telegram-bot-wallet-sepay/phase-07-history-support.md`, `phase-08-admin-commands.md`, `phase-09-message-templates.md`
+4. **Cook Phase 07 + 08 + 09 PARALLEL OK** — no shared file overlap (Phase 09 templates touched by all but additive only). However sequential is also fine if cautious — money-flow guards already past
+5. After 07/08/09 → cook Phase 10 sequential (deploy + production verify per plan-10 checklist)
+
+### Resume key facts
+- **Bot PID 14928** at break time. State: running on port 8080 with full Phase 01-06 code. `/health` 200, `/ready` db+redis ok, webhook route registered (returns 405 on GET, accepts POST per spec)
+- **Test data preserved:** rich tx history for Phase 07 `/history` testing without re-onboarding
+- **SePay webhook live:** tested via curl 7 scenarios; retry queue + admin alert + auth-fail watcher (Phase 08) wired
+- **Deploy:** TBD Phase 10 — `.fly.dev` acceptance still to verify post-deploy (Outcome A/B/C in plan-10 checklist)
+
+### Estimated remaining Phase 2
+- **Phase 07-09:** ~4-5h combined (read paths + admin + templates — all lower risk than 06)
+- **Phase 10:** ~2-3h (deploy + production verify + SePay sandbox dashboard binding)
+- **Total Phase 2 wrap:** ~6-8h, 1-2 ngày next sessions
+
+
+
 
 
