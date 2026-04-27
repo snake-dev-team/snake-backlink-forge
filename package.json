@@ -6,7 +6,9 @@
   "license": "UNLICENSED",
   "author": "Snake Premium Hub",
   "packageManager": "pnpm@9.15.9",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "turbo run build",
     "lint": "turbo run lint",
@@ -14,6 +16,7 @@
     "test": "turbo run test",
     "dev": "turbo run dev",
     "clean": "turbo run clean && rm -rf node_modules",
+    "gen:api": "pnpm --filter @sbf/shared-types gen:api",
     "prepare": "husky"
   },
   "devDependencies": {

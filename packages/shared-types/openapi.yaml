@@ -1,0 +1,53 @@
+openapi: 3.1.0
+info:
+  title: Snake Backlink Forge API
+  version: 0.1.0
+  description: SBF — SEO backlink automation SaaS API. Phase 2 endpoints + Phase 3 web auth.
+servers:
+  - url: https://snake-backlink-api.fly.dev
+    description: Production
+  - url: http://localhost:8080
+    description: Local development
+components:
+  securitySchemes:
+    BearerApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: sbf_live_*
+      description: API key issued via Telegram bot. Format sbf_live_<random>.
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code (e.g. UNAUTHORIZED, RATE_LIMITED).
+        message:
+          type: string
+          description: Human-readable error message in Vietnamese.
+        details:
+          type: object
+          additionalProperties: true
+          description: Optional extra context.
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'

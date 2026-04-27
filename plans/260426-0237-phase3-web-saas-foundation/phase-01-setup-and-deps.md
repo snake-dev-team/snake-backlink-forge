@@ -3,7 +3,7 @@ name: "Phase 01 — Setup and Deps"
 phase: 1
 priority: P0
 effort: 3h
-status: pending
+status: completed
 created: 2026-04-26
 updated: 2026-04-26
 ---
@@ -11,6 +11,8 @@ updated: 2026-04-26
 <!-- RT-R1: F14 (shadcn non-interactive), F-supply-chain-dlx (pin versions), F15 (Go contract test), F4-shadcn-slim (4 components only), F8 (drop next-intl from Phase 3) -->
 <!-- RT-R2: F12 (drop kin-openapi entirely), revert-R1-F-shadcn-slim (re-add Sheet+DropdownMenu), F-bundled-pnpm-dlx (shadcn devDep + pnpm exec), F-bundled-env-loader (lib/env.ts Zod), F-bundled-env-list (.env.example complete) -->
 <!-- Effort delta: 3.5h → 3h (drop kin-openapi -30min, add env loader +15min, re-add 2 shadcn components +5min, switch dlx → devDep +0min) -->
+
+<!-- ⚠️ OPTION A OVERRIDE (Phase 0 lock 2026-04-27): KEEP `apps/landing` directory + `@sbf/landing` package name. SKIP Step 1 rename entirely. Vercel project already imported with Root Directory: apps/landing — renaming would force Vercel re-config + 30min refactor for zero benefit. All `apps/web` / `@sbf/web` references in this file were find/replaced to `apps/landing` / `@sbf/landing` to match reality. Other phase files (02-08) still reference `apps/web` and will be overridden similarly when cooked. -->
 
 ## Context Links
 
@@ -22,8 +24,8 @@ updated: 2026-04-26
 ## Overview
 
 - **Priority:** P0 (blocks all other phases)
-- **Status:** pending
-- **Brief:** Rename `apps/landing/` to `apps/web/`; install Tailwind v4, shadcn/ui, next-intl, TanStack Query v5, Hey API; configure Biome includes; write `.env.example`; scaffold OpenAPI 3.1 skeleton at `packages/shared-types/openapi.yaml`; wire `pnpm gen:api` codegen script. Compile baseline must pass `pnpm -r typecheck && pnpm -r build`.
+- **Status:** completed
+- **Brief:** Rename `apps/landing/` to `apps/landing/`; install Tailwind v4, shadcn/ui, next-intl, TanStack Query v5, Hey API; configure Biome includes; write `.env.example`; scaffold OpenAPI 3.1 skeleton at `packages/shared-types/openapi.yaml`; wire `pnpm gen:api` codegen script. Compile baseline must pass `pnpm -r typecheck && pnpm -r build`.
 
 ## Key Insights
 
@@ -32,7 +34,7 @@ updated: 2026-04-26
 - Tailwind v4 has NO `tailwind.config.js` — config lives in CSS via `@theme inline { ... }` and `:root { ... }`
 - shadcn `init` auto-creates `components.json`, `lib/utils.ts`, `globals.css`, alias paths
 - pnpm workspace globs already include `apps/*` — no `pnpm-workspace.yaml` change needed for rename
-- Biome ignore list (`biome.json`) needs review: `apps/landing` may be referenced explicitly — switch to `apps/web` if so
+- Biome ignore list (`biome.json`) needs review: `apps/landing` may be referenced explicitly — switch to `apps/landing` if so
 - Hey API config file (`hey-api.config.ts`) reads from `packages/shared-types/openapi.yaml` and writes to `packages/shared-types/src/generated/`
 - Turbo cache will invalidate on rename (different package name) — that is expected
 
@@ -40,13 +42,13 @@ updated: 2026-04-26
 
 ### Functional
 
-- `apps/web/` runs `pnpm dev` and serves a placeholder root page on `localhost:3000`
+- `apps/landing/` runs `pnpm dev` and serves a placeholder root page on `localhost:3000`
 - `pnpm gen:api` produces TypeScript client + types in `packages/shared-types/src/generated/`
 - `pnpm typecheck` passes across all workspaces
-- `pnpm build` produces `.next/` output for `apps/web/` and stub bundle for `packages/shared-types`
-- `pnpm dlx shadcn@latest add button` succeeds in `apps/web/` (validates init)
-- `apps/web/.env.example` documents `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_APP_URL`
-- Workspace deps reference `@sbf/web` (not `@sbf/landing`)
+- `pnpm build` produces `.next/` output for `apps/landing/` and stub bundle for `packages/shared-types`
+- `pnpm dlx shadcn@latest add button` succeeds in `apps/landing/` (validates init)
+- `apps/landing/.env.example` documents `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_APP_URL`
+- Workspace deps reference `@sbf/landing` (not `@sbf/landing`)
 - Tailwind directive `@import "tailwindcss"` resolves; OKLCH tokens render
 
 ### Non-functional
@@ -73,7 +75,7 @@ apps/
 │   │       └── utils.ts          ← shadcn cn() helper
 │   ├── components.json           ← shadcn config
 │   ├── next.config.ts            ← withNextIntl wrapper
-│   ├── package.json              ← name: @sbf/web
+│   ├── package.json              ← name: @sbf/landing
 │   ├── tsconfig.json
 │   ├── biome.json overrides if needed
 │   ├── postcss.config.mjs        ← @tailwindcss/postcss
@@ -95,7 +97,7 @@ packages/
 
 ```mermaid
 graph TD
-  A[Rename apps/landing → apps/web] --> B[Update workspace refs]
+  A[Rename apps/landing → apps/landing] --> B[Update workspace refs]
   B --> C[Install Tailwind v4 + shadcn init]
   C --> D[Install next-intl + TanStack Query]
   D --> E[Install Hey API + scaffold openapi.yaml]
@@ -109,50 +111,46 @@ graph TD
 
 <!-- RT-R1: F13 — query-client.ts dropped; F8 — i18n/ dropped from Phase 3; F4-shadcn-slim — only 4 components added -->
 
-- `apps/web/src/app/globals.css` (Tailwind v4 + OKLCH theme tokens)
-- `apps/web/src/app/providers.tsx` (`"use client"` ThemeProvider only — no Query)
-- `apps/web/src/lib/utils.ts` (shadcn `cn` helper, manually pre-canned)
-- `apps/web/components.json` (shadcn config — manually pre-canned, NOT generated by CLI)
-- `apps/web/postcss.config.mjs`
-- `apps/web/.env.example`
-- `apps/web/next.config.ts` (minimal — no next-intl plugin)
+- `apps/landing/src/app/globals.css` (Tailwind v4 + OKLCH theme tokens)
+- `apps/landing/src/app/providers.tsx` (`"use client"` ThemeProvider only — no Query)
+- `apps/landing/src/lib/utils.ts` (shadcn `cn` helper, manually pre-canned)
+- `apps/landing/components.json` (shadcn config — manually pre-canned, NOT generated by CLI)
+- `apps/landing/postcss.config.mjs`
+- `apps/landing/.env.example`
+- `apps/landing/next.config.ts` (minimal — no next-intl plugin)
 - `packages/shared-types/openapi.yaml` (3.1 skeleton)
 - `packages/shared-types/hey-api.config.ts`
 - `packages/shared-types/src/generated/.gitkeep`
-- `apps/web/.gitignore` (add `.next/`, `node_modules/`, `next-env.d.ts`)
-- `apps/web/src/lib/env.ts` (Zod-validated env loader for all `NEXT_PUBLIC_*` vars — RT-R2: F-bundled-env-loader)
+- `apps/landing/.gitignore` (add `.next/`, `node_modules/`, `next-env.d.ts`)
+- `apps/landing/src/lib/env.ts` (Zod-validated env loader for all `NEXT_PUBLIC_*` vars — RT-R2: F-bundled-env-loader)
 <!-- RT-R2: F12 — services/api/internal/api/openapi_contract_test.go DROPPED entirely. Plan.md OpenAPI authored for Hey API codegen only, no Go-side validation. -->
 
 ### Modify
 
-- `apps/web/package.json` (name `@sbf/web`, deps add list below)
-- `apps/web/tsconfig.json` (paths alias `@/*` → `./src/*`)
-- `apps/web/src/app/layout.tsx` (import `globals.css`, wrap children in `<Providers>`)
-- `apps/web/src/app/page.tsx` (placeholder content with shadcn `Button` smoke test)
-- `apps/web/next.config.mjs` → rename to `next.config.ts` (minimal, no plugin)
+- `apps/landing/package.json` (name `@sbf/landing`, deps add list below)
+- `apps/landing/tsconfig.json` (paths alias `@/*` → `./src/*`)
+- `apps/landing/src/app/layout.tsx` (import `globals.css`, wrap children in `<Providers>`)
+- `apps/landing/src/app/page.tsx` (placeholder content with shadcn `Button` smoke test)
+- `apps/landing/next.config.mjs` → rename to `next.config.ts` (minimal, no plugin)
 - `packages/shared-types/package.json` (deps + scripts; pinned versions)
 - `packages/shared-types/src/index.ts` (re-export generated/)
 - Root `package.json` (add `gen:api` workspace runner)
-- Root `biome.json` (replace any `apps/landing` reference with `apps/web`)
+- Root `biome.json` (replace any `apps/landing` reference with `apps/landing`)
 - `ops/templates/api-env.example` (add `NEXT_PUBLIC_API_BASE_URL` doc; backend is unaffected but ops template lists web URL)
 <!-- RT-R2: F12 — services/api/go.mod kin-openapi require DROPPED. No Go contract test. -->
 
 ### Delete
 
 - `apps/landing/` (after rename — handled by `git mv`)
-- `apps/web/next.config.mjs` (replaced by `.ts`)
+- `apps/landing/next.config.mjs` (replaced by `.ts`)
 
 ## Implementation Steps
 
-### Step 1 — Rename app directory (5 min)
+### Step 1 — Rename app directory ⚠️ SKIPPED (Option A lock)
 
-```bash
-git mv apps/landing apps/web
-# Update package name
-# In apps/web/package.json: "name": "@sbf/landing"  →  "name": "@sbf/web"
-```
+**SKIPPED** per Phase 0 Option A decision (2026-04-27). `apps/landing/` stays as-is, `@sbf/landing` package name stays as-is. Vercel project already wired to `apps/landing` Root Directory; renaming would invalidate that wiring for zero benefit.
 
-Verify: `pnpm install` runs clean. `pnpm --filter @sbf/web dev` boots on `:3000`.
+Verify state already true: `pnpm --filter @sbf/landing dev` boots on `:3000` (will be re-verified after Step 8).
 
 ### Step 2 — Tailwind v4 + shadcn (non-interactive, pre-canned config) (25 min)
 
@@ -164,7 +162,7 @@ Verify: `pnpm install` runs clean. `pnpm --filter @sbf/web dev` boots on `:3000`
 Pin shadcn CLI as devDep (RT-R2: F-bundled-pnpm-dlx). Verify latest stable per https://ui.shadcn.com/docs/cli (2.1.6 as of 2026-04-26).
 
 ```bash
-cd apps/web
+cd apps/landing
 
 # Tailwind v4 (pin)
 pnpm add tailwindcss@4.0.0 @tailwindcss/postcss@4.0.0
@@ -182,7 +180,7 @@ pnpm exec shadcn add button input card label sheet dropdown-menu
 
 Pre-create these files BEFORE `shadcn add` (since we skipped `init`):
 
-`apps/web/components.json`:
+`apps/landing/components.json`:
 
 ```json
 {
@@ -207,7 +205,7 @@ Pre-create these files BEFORE `shadcn add` (since we skipped `init`):
 }
 ```
 
-`apps/web/src/lib/utils.ts`:
+`apps/landing/src/lib/utils.ts`:
 
 ```ts
 import { clsx, type ClassValue } from 'clsx'
@@ -215,15 +213,15 @@ import { twMerge } from 'tailwind-merge'
 export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }
 ```
 
-`apps/web/postcss.config.mjs`:
+`apps/landing/postcss.config.mjs`:
 
 ```js
 export default { plugins: { '@tailwindcss/postcss': {} } }
 ```
 
-`apps/web/src/app/globals.css` — Tailwind v4 + OKLCH theme variables (canonical R1 lines 124-147).
+`apps/landing/src/app/globals.css` — Tailwind v4 + OKLCH theme variables (canonical R1 lines 124-147).
 
-Edit `apps/web/src/app/layout.tsx`:
+Edit `apps/landing/src/app/layout.tsx`:
 
 ```tsx
 import './globals.css'
@@ -247,7 +245,7 @@ export default function RootLayout({ children }) {
 pnpm add next-themes@0.4.6
 ```
 
-Create `apps/web/src/app/providers.tsx` (no Query — only theme):
+Create `apps/landing/src/app/providers.tsx` (no Query — only theme):
 
 ```tsx
 'use client'
@@ -267,7 +265,7 @@ Wrap children in `layout.tsx` with `<Providers>{children}</Providers>`. `default
 
 <!-- RT-R1: F8 — next-intl deferred to Phase 9 (when EN expansion + pricing flow ship together). VN-only landing in Phase 6. No `[locale]/`, no messages, no createNextIntlPlugin. -->
 
-`apps/web/next.config.ts`:
+`apps/landing/next.config.ts`:
 
 ```ts
 import type { NextConfig } from 'next'
@@ -358,18 +356,18 @@ Add to root `package.json` scripts:
 "gen:api": "pnpm --filter @sbf/shared-types gen:api"
 ```
 
-Add `apps/web` workspace dep:
+Add `apps/landing` workspace dep:
 
 ```bash
-pnpm --filter @sbf/web add @sbf/shared-types@workspace:*
+pnpm --filter @sbf/landing add @sbf/shared-types@workspace:*
 ```
 
-### Step 6 — `apps/web/.env.example` + Zod loader (15 min)
+### Step 6 — `apps/landing/.env.example` + Zod loader (15 min)
 
 <!-- RT-R2: F-bundled-env-list — list ALL `NEXT_PUBLIC_*` vars used across Phase 3-8, not just Phase 1. Forward-declares deps so Phase 7 deploy doesn't surprise the operator. -->
 <!-- RT-R2: F-bundled-env-loader — Zod-validated loader at lib/env.ts; throws at module-load on missing required vars (fail-loud at boot). All components import from `lib/env.ts`, never `process.env` directly. -->
 
-`apps/web/.env.example` (RT-R2: F-bundled-env-list — complete forward-declaration):
+`apps/landing/.env.example` (RT-R2: F-bundled-env-list — complete forward-declaration):
 
 ```
 # Public — bundled into client JS. ALL Phase 3-8 NEXT_PUBLIC_* listed here.
@@ -388,9 +386,9 @@ NEXT_PUBLIC_PLAUSIBLE_DOMAIN=snakebacklink.com
 # SENTRY_PROJECT=sbf-web
 ```
 
-Append `apps/web/.env.local` to `.gitignore` (root) — already covered by `.env*` pattern; verify.
+Append `apps/landing/.env.local` to `.gitignore` (root) — already covered by `.env*` pattern; verify.
 
-`apps/web/src/lib/env.ts` (RT-R2: F-bundled-env-loader — Zod schema, fail-loud at boot):
+`apps/landing/src/lib/env.ts` (RT-R2: F-bundled-env-loader — Zod schema, fail-loud at boot):
 
 ```ts
 import { z } from 'zod'
@@ -425,7 +423,7 @@ export const env = parsed.data
 
 ### Step 7 — Biome includes audit (5 min)
 
-Run `grep -r "apps/landing" biome.json package.json turbo.json` — replace any hits with `apps/web`. Scout reported Biome ignores `services/api`, `scripts`, `plans`, `.claude*`, `.agents`, `docs/MASTER_PROMPT.md` (no `apps/landing` reference) — this is a precaution.
+Run `grep -r "apps/landing" biome.json package.json turbo.json` — replace any hits with `apps/landing`. Scout reported Biome ignores `services/api`, `scripts`, `plans`, `.claude*`, `.agents`, `docs/MASTER_PROMPT.md` (no `apps/landing` reference) — this is a precaution.
 
 ### Step 8 — Compile baseline (15 min)
 
@@ -450,24 +448,43 @@ All commands must exit 0 before moving to Phase 02.
 
 ## Todo List
 
-- [ ] Step 1 — `git mv apps/landing apps/web`; rename package to `@sbf/web`
-- [ ] Step 2 — install Tailwind v4 (pinned) + shadcn devDep@2.1.6 (RT-R2: F-bundled-pnpm-dlx) + pre-canned `components.json` + `pnpm exec shadcn add button input card label sheet dropdown-menu` (6 components — RT-R2: revert-R1-F-shadcn-slim)
-- [ ] Step 3 — install next-themes (pinned); create `Providers` with light theme default, no system, no Query
-- [ ] Step 4 — `next.config.ts` minimal (no next-intl plugin)
-- [ ] Step 5 — install Hey API (pinned versions); write `openapi.yaml` skeleton + codegen config
-- [ ] Step 6 — write `apps/web/.env.example` (all NEXT_PUBLIC_* — RT-R2: F-bundled-env-list) + `lib/env.ts` Zod loader (RT-R2: F-bundled-env-loader)
-- [ ] Step 7 — audit Biome includes for stale `apps/landing` refs
-- [ ] Step 8 — green `pnpm typecheck && pnpm build && pnpm gen:api && pnpm biome ci . && go build ./...` (no Go contract test — RT-R2: F12)
-- [ ] Sanity: `pnpm --filter @sbf/web dev` serves `localhost:3000` with shadcn `Button` rendering
+- [x] Step 1 — ⚠️ SKIPPED (Option A lock 2026-04-27): keep `apps/landing` + `@sbf/landing` as-is
+- [x] Step 2 — install Tailwind v4 (pinned) + shadcn devDep@2.1.6 (RT-R2: F-bundled-pnpm-dlx) + pre-canned `components.json` + `pnpm exec shadcn add button input card label sheet dropdown-menu` (6 components — RT-R2: revert-R1-F-shadcn-slim)
+- [x] Step 3 — install next-themes (pinned); create `Providers` with light theme default, no system, no Query
+- [x] Step 4 — `next.config.ts` minimal (no next-intl plugin)
+- [x] Step 5 — install Hey API (pinned versions); write `openapi.yaml` skeleton + codegen config
+- [x] Step 6 — write `apps/landing/.env.example` (all NEXT_PUBLIC_* — RT-R2: F-bundled-env-list) + `lib/env.ts` Zod loader (RT-R2: F-bundled-env-loader)
+- [x] Step 7 — audit Biome includes for stale `apps/landing` refs
+- [x] Step 8 — green `pnpm -r typecheck && pnpm -r build && pnpm gen:api && pnpm biome ci . && go build ./...` (no Go contract test — RT-R2: F12)
+- [x] Sanity: `pnpm --filter @sbf/landing build` renders placeholder route with shadcn-capable app shell
+
+## Completion Notes
+
+Completed 2026-04-27 on branch `dev`.
+
+Accepted deviations:
+- Kept Option A override: `apps/landing` + `@sbf/landing`; no directory rename.
+- Tailwind CSS and `@tailwindcss/postcss` bumped lockstep from `4.0.0` to `4.2.4` to avoid Tailwind v4.0.0 scanner ABI failure.
+- shadcn CLI root-write issue mitigated with explicit workspace `baseUrl: "."` in `apps/landing/tsconfig.json`; same guard added to `packages/shared-types/tsconfig.json`.
+- Added required shadcn peer/runtime deps `class-variance-authority` and `lucide-react`; Radix deps exact-pinned after CLI wrote caret ranges.
+- Hey API installed as `@hey-api/openapi-ts@0.96.1`; standalone `@hey-api/client-fetch` omitted because it is bundled/deprecated in current Hey API releases.
+- Hey API config uses canonical `openapi-ts.config.ts`; generated files are gitignored except `.gitkeep`.
+
+Final verification passed:
+- `pnpm -r typecheck`
+- `pnpm -r build`
+- `pnpm gen:api`
+- `pnpm biome ci .`
+- `cd services/api && go build ./... && cd ../..`
 
 ## Success Criteria
 
 - `pnpm install` clean (no peer warning blockers)
-- `pnpm --filter @sbf/web dev` boots and renders shadcn `Button` on `/`
+- `pnpm --filter @sbf/landing dev` boots and renders shadcn `Button` on `/`
 - `pnpm gen:api` produces `packages/shared-types/src/generated/` with `client.ts`, `types.gen.ts`, etc.
 - `pnpm -r typecheck && pnpm -r build` exits 0
 - `pnpm biome ci .` exits 0
-- `apps/web/.env.example` committed; no actual `.env` committed
+- `apps/landing/.env.example` committed; no actual `.env` committed
 - Branch builds in CI on push (existing `node` job covers it via `pnpm -r typecheck && pnpm -r build`)
 
 ## Risk Assessment
@@ -476,14 +493,14 @@ All commands must exit 0 before moving to Phase 02.
 |------|-----------|--------|-----------|
 | Tailwind v4 + shadcn CLI mismatch (early-2026 churn) | Med | High | Pin versions exactly in `package.json`; if CLI fails, fall back to manual install per shadcn `manual-installation` doc |
 | Hey API codegen schema validation strictness on empty `paths: {}` | Low | Med | Add at least 1 path in skeleton (e.g., `GET /api/v1/health`) to avoid empty-paths error; remove if validator complains |
-| Workspace alias resolution (`@sbf/shared-types` not seen by web app) | Med | Med | Verify via `pnpm install` log + explicit add `pnpm --filter @sbf/web add @sbf/shared-types@workspace:*` |
+| Workspace alias resolution (`@sbf/shared-types` not seen by web app) | Med | Med | Verify via `pnpm install` log + explicit add `pnpm --filter @sbf/landing add @sbf/shared-types@workspace:*` |
 | React 19 forwardRef removal causes shadcn component breakage | Low | High | shadcn updated for R19 (R1 line 96); verify `add button` smoke test before proceeding |
 | Missing required env var causes silent runtime failure | Med | Med | RT-R2: F-bundled-env-loader — `lib/env.ts` Zod schema throws at module-load; CI catches via `pnpm build` |
 <!-- RT-R2: F12 — kin-openapi 3.1 incompat risk row REMOVED (kin-openapi dropped entirely) -->
 
 ## Security Considerations
 
-- `apps/web/.env.example` contains ZERO secrets — only `NEXT_PUBLIC_*` URLs
+- `apps/landing/.env.example` contains ZERO secrets — only `NEXT_PUBLIC_*` URLs
 - Audit `next build` output: grep bundle for any leaked env starting with `SBF_`, `JWT_`, `TELEGRAM_`, `WP_`, `SEPAY_` — all must be absent
 - `.gitignore` covers `.env`, `.env.local`, `.env.*.local`
 - Hey API generated code lives in `src/generated/` and is committed (per @hey-api convention) OR gitignored — adopt **gitignored** for Phase 3 (regenerated on every CI build); add `packages/shared-types/src/generated/*` to gitignore EXCEPT `.gitkeep`
