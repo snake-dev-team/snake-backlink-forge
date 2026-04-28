@@ -1,3 +1,9 @@
+## [1.0.0-beta.9](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.8...v1.0.0-beta.9) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **landing:** allow required inline scripts in csp ([276e62e](https://github.com/snake-dev-team/snake-backlink-forge/commit/276e62e17c41798f9bce8c0f97520f47755e561a))
+
 ## [1.0.0-beta.8](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.7...v1.0.0-beta.8) (2026-04-28)
 
 ### 🐞 Bug Fixes
