@@ -8,13 +8,11 @@
 
 // Determine the current branch
 // GitHub Actions provides: GITHUB_REF_NAME (just the branch name)
-const currentBranch = process.env.GITHUB_REF_NAME ||
-                     process.env.GIT_BRANCH ||
-                     (process.env.GITHUB_REF && process.env.GITHUB_REF.replace('refs/heads/', '')) ||
-                     require('child_process')
-                       .execSync('git rev-parse --abbrev-ref HEAD')
-                       .toString()
-                       .trim();
+const currentBranch =
+  process.env.GITHUB_REF_NAME ||
+  process.env.GIT_BRANCH ||
+  process.env.GITHUB_REF?.replace("refs/heads/", "") ||
+  require("node:child_process").execSync("git rev-parse --abbrev-ref HEAD").toString().trim();
 
 console.error(`[semantic-release config] Branch: ${currentBranch}`);
 
@@ -22,166 +20,168 @@ console.error(`[semantic-release config] Branch: ${currentBranch}`);
 // NOTE: semantic-release requires at least one non-prerelease branch
 const betaConfig = {
   branches: [
-    'main',  // Regular release branch (required even in beta config)
+    "main", // Regular release branch (required even in beta config)
     {
-      name: 'dev',
-      prerelease: 'beta'
-    }
+      name: "dev",
+      prerelease: "beta",
+    },
   ],
   plugins: [
     [
-      '@semantic-release/commit-analyzer',
+      "@semantic-release/commit-analyzer",
       {
-        preset: 'conventionalcommits',
+        preset: "conventionalcommits",
         releaseRules: [
-          { type: 'feat', release: 'minor' },
-          { type: 'fix', release: 'patch' },
-          { type: 'hotfix', release: 'patch' },
-          { type: 'perf', release: 'patch' },
-          { type: 'docs', scope: 'README', release: 'patch' },
-          { type: 'refactor', release: 'patch' },
-          { type: 'style', release: 'patch' }
-        ]
-      }
+          { type: "feat", release: "minor" },
+          { type: "fix", release: "patch" },
+          { type: "hotfix", release: "patch" },
+          { type: "perf", release: "patch" },
+          { type: "docs", scope: "README", release: "patch" },
+          { type: "refactor", release: "patch" },
+          { type: "style", release: "patch" },
+        ],
+      },
     ],
     [
-      '@semantic-release/release-notes-generator',
+      "@semantic-release/release-notes-generator",
       {
-        preset: 'conventionalcommits',
+        preset: "conventionalcommits",
         presetConfig: {
           types: [
-            { type: 'feat', section: '🚀 Features' },
-            { type: 'hotfix', section: '🔥 Hotfixes' },
-            { type: 'fix', section: '🐞 Bug Fixes' },
-            { type: 'docs', section: '📚 Documentation' },
-            { type: 'style', section: '💄 Styles' },
-            { type: 'refactor', section: '♻️ Code Refactoring' },
-            { type: 'perf', section: '⚡ Performance Improvements' },
-            { type: 'test', section: '✅ Tests' },
-            { type: 'build', section: '🏗️ Build System' },
-            { type: 'ci', section: '👷 CI' }
-          ]
-        }
-      }
+            { type: "feat", section: "🚀 Features" },
+            { type: "hotfix", section: "🔥 Hotfixes" },
+            { type: "fix", section: "🐞 Bug Fixes" },
+            { type: "docs", section: "📚 Documentation" },
+            { type: "style", section: "💄 Styles" },
+            { type: "refactor", section: "♻️ Code Refactoring" },
+            { type: "perf", section: "⚡ Performance Improvements" },
+            { type: "test", section: "✅ Tests" },
+            { type: "build", section: "🏗️ Build System" },
+            { type: "ci", section: "👷 CI" },
+          ],
+        },
+      },
     ],
     [
-      '@semantic-release/changelog',
+      "@semantic-release/changelog",
       {
-        changelogFile: 'CHANGELOG.md'
-      }
+        changelogFile: "CHANGELOG.md",
+      },
     ],
     [
-      '@semantic-release/npm',
+      "@semantic-release/npm",
       {
-        npmPublish: false
-      }
+        npmPublish: false,
+      },
     ],
     [
-      '@semantic-release/exec',
+      "@semantic-release/exec",
       {
-        prepareCmd: 'node scripts/prepare-release-assets.cjs ${nextRelease.version}'
-      }
+        prepareCmd: "node scripts/prepare-release-assets.cjs ${nextRelease.version}",
+      },
     ],
     [
-      '@semantic-release/github',
+      "@semantic-release/github",
       {
         assets: [
-          { path: 'CHANGELOG.md', label: 'Changelog' },
-          { path: 'dist/claudekit-engineer.zip', label: 'ClaudeKit Engineer Package (Beta)' }
+          { path: "CHANGELOG.md", label: "Changelog" },
+          { path: "dist/claudekit-engineer.zip", label: "ClaudeKit Engineer Package (Beta)" },
         ],
-        prerelease: true
-      }
+        prerelease: true,
+      },
     ],
     [
-      '@semantic-release/git',
+      "@semantic-release/git",
       {
-        assets: ['CHANGELOG.md', 'package.json', 'package-lock.json', '.claude/metadata.json'],
-        message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}'
-      }
-    ]
-  ]
+        assets: ["CHANGELOG.md", "package.json", "package-lock.json", ".claude/metadata.json"],
+        message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
+      },
+    ],
+  ],
 };
 
 // Production release configuration
 const productionConfig = {
-  branches: ['main'],
+  branches: ["main"],
   plugins: [
     [
-      '@semantic-release/commit-analyzer',
+      "@semantic-release/commit-analyzer",
       {
-        preset: 'conventionalcommits',
+        preset: "conventionalcommits",
         releaseRules: [
-          { type: 'feat', release: 'minor' },
-          { type: 'fix', release: 'patch' },
-          { type: 'hotfix', release: 'patch' },
-          { type: 'perf', release: 'patch' },
-          { type: 'docs', scope: 'README', release: 'patch' },
-          { type: 'refactor', release: 'patch' },
-          { type: 'style', release: 'patch' }
-        ]
-      }
+          { type: "feat", release: "minor" },
+          { type: "fix", release: "patch" },
+          { type: "hotfix", release: "patch" },
+          { type: "perf", release: "patch" },
+          { type: "docs", scope: "README", release: "patch" },
+          { type: "refactor", release: "patch" },
+          { type: "style", release: "patch" },
+        ],
+      },
     ],
     [
-      '@semantic-release/release-notes-generator',
+      "@semantic-release/release-notes-generator",
       {
-        preset: 'conventionalcommits',
+        preset: "conventionalcommits",
         presetConfig: {
           types: [
-            { type: 'feat', section: '🚀 Features' },
-            { type: 'hotfix', section: '🔥 Hotfixes' },
-            { type: 'fix', section: '🐞 Bug Fixes' },
-            { type: 'docs', section: '📚 Documentation' },
-            { type: 'style', section: '💄 Styles' },
-            { type: 'refactor', section: '♻️ Code Refactoring' },
-            { type: 'perf', section: '⚡ Performance Improvements' },
-            { type: 'test', section: '✅ Tests' },
-            { type: 'build', section: '🏗️ Build System' },
-            { type: 'ci', section: '👷 CI' }
-          ]
-        }
-      }
+            { type: "feat", section: "🚀 Features" },
+            { type: "hotfix", section: "🔥 Hotfixes" },
+            { type: "fix", section: "🐞 Bug Fixes" },
+            { type: "docs", section: "📚 Documentation" },
+            { type: "style", section: "💄 Styles" },
+            { type: "refactor", section: "♻️ Code Refactoring" },
+            { type: "perf", section: "⚡ Performance Improvements" },
+            { type: "test", section: "✅ Tests" },
+            { type: "build", section: "🏗️ Build System" },
+            { type: "ci", section: "👷 CI" },
+          ],
+        },
+      },
     ],
     [
-      '@semantic-release/changelog',
+      "@semantic-release/changelog",
       {
-        changelogFile: 'CHANGELOG.md'
-      }
+        changelogFile: "CHANGELOG.md",
+      },
     ],
     [
-      '@semantic-release/npm',
+      "@semantic-release/npm",
       {
-        npmPublish: false
-      }
+        npmPublish: false,
+      },
     ],
     [
-      '@semantic-release/exec',
+      "@semantic-release/exec",
       {
-        prepareCmd: 'node scripts/prepare-release-assets.cjs ${nextRelease.version}'
-      }
+        prepareCmd: "node scripts/prepare-release-assets.cjs ${nextRelease.version}",
+      },
     ],
     [
-      '@semantic-release/github',
+      "@semantic-release/github",
       {
         assets: [
-          { path: 'CHANGELOG.md', label: 'Changelog' },
-          { path: 'dist/claudekit-engineer.zip', label: 'ClaudeKit Engineer Package' }
-        ]
-      }
+          { path: "CHANGELOG.md", label: "Changelog" },
+          { path: "dist/claudekit-engineer.zip", label: "ClaudeKit Engineer Package" },
+        ],
+      },
     ],
     [
-      '@semantic-release/git',
+      "@semantic-release/git",
       {
-        assets: ['CHANGELOG.md', 'package.json', 'package-lock.json', '.claude/metadata.json'],
-        message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}'
-      }
-    ]
-  ]
+        assets: ["CHANGELOG.md", "package.json", "package-lock.json", ".claude/metadata.json"],
+        message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
+      },
+    ],
+  ],
 };
 
 // Select and export the appropriate configuration
-const config = currentBranch === 'dev' ? betaConfig : productionConfig;
+const config = currentBranch === "dev" ? betaConfig : productionConfig;
 
-console.error(`[semantic-release config] Using ${currentBranch === 'dev' ? 'BETA' : 'PRODUCTION'} config`);
+console.error(
+  `[semantic-release config] Using ${currentBranch === "dev" ? "BETA" : "PRODUCTION"} config`,
+);
 console.error(`[semantic-release config] Branches: ${JSON.stringify(config.branches)}`);
 
 module.exports = config;

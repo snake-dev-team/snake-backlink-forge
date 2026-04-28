@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"os"
 	"os/signal"
@@ -45,6 +46,16 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { _ = log.Sync() }()
+
+	if cfg.WPEncKey != "" {
+		raw, decodeErr := hex.DecodeString(cfg.WPEncKey)
+		if decodeErr != nil {
+			log.Fatal("WP_ENC_KEY must be 32 bytes hex", zap.Error(decodeErr))
+		}
+		if len(raw) != 32 {
+			log.Fatal("WP_ENC_KEY decoded length wrong", zap.Int("got_bytes", len(raw)), zap.Int("want_bytes", 32))
+		}
+	}
 
 	// --- Root context — server lifetime; cancel triggers goroutine shutdown. ---
 	rootCtx, rootCancel := context.WithCancel(context.Background())
@@ -110,6 +121,15 @@ func main() {
 	if dbPool != nil {
 		txSvc = service.NewTransactionService(dbPool, sqlcdb.New(dbPool), rdb, cfg, log.Named("tx"))
 		log.Info("transaction service initialized")
+	}
+
+	// --- WpSiteService (Phase 3 web SaaS) ---
+	var wpSiteSvc *service.WpSiteService
+	if dbPool != nil && cfg.WPEncKey != "" {
+		wpSiteSvc = service.NewWpSiteService(dbPool, sqlcdb.New(dbPool), cfg.WPEncKey, log.Named("wp_site_svc"))
+		log.Info("wp site service initialized")
+	} else if dbPool != nil {
+		log.Warn("wp site service disabled — WP_ENC_KEY empty")
 	}
 
 	// --- SupportService + ReferralService (Phase 07) ---
@@ -201,6 +221,22 @@ func main() {
 
 	// --- HTTP Server ---
 	app := api.New(cfg, log, dbPool, rdb)
+	apiDeps := &handlers.ApiHandlerDeps{
+		Pool:      dbPool,
+		Rdb:       rdb,
+		KeySvc:    keySvc,
+		UserSvc:   userSvc,
+		WalletSvc: walletSvc,
+		TxSvc:     txSvc,
+		AuditSvc:  auditSvc,
+		WpSiteSvc: wpSiteSvc,
+		Log:       log.Named("api_v1"),
+	}
+	if dbPool != nil {
+		apiDeps.Queries = sqlcdb.New(dbPool)
+	}
+	api.RegisterV1(app, apiDeps)
+	log.Info("api v1 routes registered")
 
 	// Register SePay webhook route with deps fully wired. [Phase 06]
 	if webhookSvc != nil {

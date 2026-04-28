@@ -53,6 +53,11 @@ type Config struct {
 	ResendKey           string  `env:"RESEND_KEY"`
 	JWTSecret           string  `env:"JWT_SECRET"`
 	AdminTelegramIDs    []int64 `env:"ADMIN_TELEGRAM_IDS" envSeparator:","`
+
+	// -- Web SaaS API (Phase 3) --
+	CORSOrigins       []string `env:"CORS_ORIGINS"        envSeparator:","`
+	TrustedProxyCIDRs []string `env:"TRUSTED_PROXY_CIDRS" envSeparator:"," envDefault:"fdaa::/16,100.64.0.0/10,127.0.0.1/32"`
+	WPEncKey          string   `env:"WP_ENC_KEY"`
 }
 
 // Load parses environment variables into a Config struct.
@@ -65,6 +70,12 @@ func Load() (*Config, error) {
 
 	// Normalize env value for predictable comparisons downstream.
 	cfg.Env = strings.ToLower(strings.TrimSpace(cfg.Env))
+	cfg.CORSOrigins = normalizeStringSlice(cfg.CORSOrigins)
+	cfg.TrustedProxyCIDRs = normalizeStringSlice(cfg.TrustedProxyCIDRs)
+
+	if err := validateCORSOrigins(cfg.CORSOrigins); err != nil {
+		return nil, fmt.Errorf("config: CORS_ORIGINS: %w", err)
+	}
 
 	// [L3] Validate + deduplicate admin telegram IDs after env.Parse populates the slice.
 	validated, err := validateAdminTelegramIDs(cfg.AdminTelegramIDs)
@@ -81,6 +92,26 @@ func Load() (*Config, error) {
 //   - Non-positive values → error (fail boot)
 //   - Duplicate values → warn to stderr (keep first occurrence)
 //   - Result is sorted ascending for deterministic iteration
+func normalizeStringSlice(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func validateCORSOrigins(origins []string) error {
+	for _, origin := range origins {
+		if strings.ContainsAny(origin, "*()[]{}") {
+			return fmt.Errorf("wildcards or regex-like chars are banned with credentials: %q", origin)
+		}
+	}
+	return nil
+}
+
 func validateAdminTelegramIDs(ids []int64) ([]int64, error) {
 	seen := make(map[int64]struct{}, len(ids))
 	out := make([]int64, 0, len(ids))

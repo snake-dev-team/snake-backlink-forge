@@ -27,6 +27,14 @@ jobs:
       - run: pnpm exec biome ci .
       - run: pnpm -r typecheck
       - run: pnpm -r build
+      - name: Guard against TanStack Query in landing source
+        run: |
+          if grep -R "@tanstack/react-query" apps/landing/src; then
+            echo "TanStack Query is intentionally excluded from Phase 3"
+            exit 1
+          fi
+      - run: pnpm --filter '@sbf/landing' exec playwright install chromium
+      - run: pnpm --filter '@sbf/landing' test:e2e
 
   go:
     name: Go (services/api) vet+lint+test

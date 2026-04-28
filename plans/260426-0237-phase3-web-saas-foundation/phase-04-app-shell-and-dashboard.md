@@ -3,9 +3,9 @@ name: "Phase 04 — App Shell + Dashboard"
 phase: 4
 priority: P0
 effort: 4.5h
-status: pending
+status: implementation complete; local route smoke passed; happy-path dashboard E2E needs safe real API key
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-04-28
 ---
 
 <!-- RT-R1: F13 (drop TanStack Query claim — pure RSC), F-balance-dup (drop BalancePill from TopBar), F-skeletons (drop per-card skeleton files; inline shadcn Skeleton), F-shadcn-slim (drop Sheet/Dialog/DropdownMenu — native HTML alternatives) -->
@@ -23,7 +23,7 @@ updated: 2026-04-26
 ## Overview
 
 - **Priority:** P0 (first user-facing app surface after login)
-- **Status:** pending
+- **Status:** implementation complete; local route smoke passed; happy-path dashboard E2E needs safe real API key
 - **Brief:** Build App Router groups: `(public)/`, `(auth)/login/`, `(app)/dashboard|sites/`. App shell: persistent sidebar nav (mobile via shadcn `Sheet` — RT-R2: revert-R1-F-shadcn-slim/F6), top bar with brand + theme toggle button + UserMenu (shadcn `DropdownMenu` — RT-R2: F13; absorbs masked API key, regen-key link, logout — RT-R2: F11; no balance pill — RT-R1: F-balance-dup). `/dashboard`: 3 cards — balance, recent transactions, quick actions. All cards pure RSC fetch (NO TanStack Query — RT-R1: F13); updates via `router.refresh()`. Shared `fetchMeServer` wrapped in React `cache()` to dedupe layout `<UserMenuShell>` + dashboard `<BalanceCard>` `/me` calls (RT-R2: F-bundled-cache-dedup). NO `/settings` page (RT-R2: F11 — absorbed into UserMenu dropdown). Suspense fallback uses inline `<Skeleton />` (RT-R1: F-skeletons).
 
 ## Key Insights
@@ -75,7 +75,7 @@ updated: 2026-04-26
 ### Route tree
 
 ```
-apps/web/src/app/
+apps/landing/src/app/
 ├── (public)/
 │   └── (none for Phase 3)        ← landing at root page.tsx (Phase 06)
 ├── (auth)/
@@ -142,31 +142,31 @@ sequenceDiagram
 <!-- RT-R1: F-skeletons — per-card skeleton files dropped; F13 — lib/queries/* dropped -->
 <!-- RT-R2: revert-R1-F-shadcn-slim/F6/F13 — Sheet + DropdownMenu via shadcn (proper a11y); F11 — /settings/page.tsx + logout-button.tsx DROPPED -->
 
-- `apps/web/src/app/(app)/layout.tsx`
-- `apps/web/src/app/(app)/dashboard/page.tsx`
-- `apps/web/src/app/(app)/campaigns/page.tsx` ("Coming soon" placeholder)
-- `apps/web/src/components/layout/sidebar-nav.tsx`
-- `apps/web/src/components/layout/mobile-nav.tsx` (Client `'use client'` — shadcn `<Sheet>` — RT-R2: F6)
-- `apps/web/src/components/layout/top-bar.tsx` (brand + theme button + user menu only)
-- `apps/web/src/components/layout/user-menu.tsx` (Client `'use client'` — shadcn `<DropdownMenu>` — RT-R2: F13/F11)
-- `apps/web/src/components/theme-toggle.tsx` (`'use client'`, single button light↔dark cycle)
-- `apps/web/src/components/dashboard/balance-card.tsx`
-- `apps/web/src/components/dashboard/recent-tx-card.tsx`
-- `apps/web/src/components/dashboard/quick-actions-card.tsx`
-- `apps/web/src/lib/api/server-fetch.ts` (server-side fetch helper with cookie injection + `React.cache()` wrap — RT-R2: F-bundled-cache-dedup)
-- `apps/web/src/lib/format/currency.ts` (VND format helper)
-- `apps/web/src/lib/format/date.ts` (locale date helper)
-- `apps/web/src/components/ui/skeleton.tsx` (shadcn skeleton primitive — installed via `pnpm exec shadcn add skeleton`)
+- `apps/landing/src/app/(app)/layout.tsx`
+- `apps/landing/src/app/(app)/dashboard/page.tsx`
+- `apps/landing/src/app/(app)/campaigns/page.tsx` ("Coming soon" placeholder)
+- `apps/landing/src/components/layout/sidebar-nav.tsx`
+- `apps/landing/src/components/layout/mobile-nav.tsx` (Client `'use client'` — shadcn `<Sheet>` — RT-R2: F6)
+- `apps/landing/src/components/layout/top-bar.tsx` (brand + theme button + user menu only)
+- `apps/landing/src/components/layout/user-menu.tsx` (Client `'use client'` — shadcn `<DropdownMenu>` — RT-R2: F13/F11)
+- `apps/landing/src/components/theme-toggle.tsx` (`'use client'`, single button light↔dark cycle)
+- `apps/landing/src/components/dashboard/balance-card.tsx`
+- `apps/landing/src/components/dashboard/recent-tx-card.tsx`
+- `apps/landing/src/components/dashboard/quick-actions-card.tsx`
+- `apps/landing/src/lib/api/server-fetch.ts` (server-side fetch helper with cookie injection + `React.cache()` wrap — RT-R2: F-bundled-cache-dedup)
+- `apps/landing/src/lib/format/currency.ts` (VND format helper)
+- `apps/landing/src/lib/format/date.ts` (locale date helper)
+- `apps/landing/src/components/ui/skeleton.tsx` (shadcn skeleton primitive — installed via `pnpm exec shadcn add skeleton`)
 
 <!-- RT-R2: F11 — DROPPED:
-  - apps/web/src/app/(app)/settings/page.tsx
-  - apps/web/src/app/(app)/settings/logout-button.tsx
+  - apps/landing/src/app/(app)/settings/page.tsx
+  - apps/landing/src/app/(app)/settings/logout-button.tsx
 UserMenu dropdown absorbs the responsibilities. -->
 
 ### Modify
 
-- `apps/web/.env.example` — add `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=SnakeBacklinkForgeBot` (already done in Phase 1 — RT-R2: F-bundled-env-list)
-- `apps/web/src/app/layout.tsx` — already wraps `<Providers>` (Phase 01)
+- `apps/landing/.env.example` — add `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=SnakeBacklinkForgeBot` (already done in Phase 1 — RT-R2: F-bundled-env-list)
+- `apps/landing/src/app/layout.tsx` — already wraps `<Providers>` (Phase 01)
 - `services/api/internal/api/handlers/v1_me.go` — extend response with `key_last4_hash` (last 4 hex chars of `sha256(plaintext)`) for masked display
 
 ### Delete
@@ -179,7 +179,7 @@ UserMenu dropdown absorbs the responsibilities. -->
 
 <!-- RT-R2: F6 — `<MobileNav>` uses shadcn `<Sheet>` (proper a11y); RT-R1: F-balance-dup — TopBar no balance pill -->
 
-`apps/web/src/app/(app)/layout.tsx`:
+`apps/landing/src/app/(app)/layout.tsx`:
 
 ```tsx
 import { ReactNode } from 'react'
@@ -210,7 +210,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
 <!-- RT-R2: revert-R1-F-shadcn-slim/F6 — replaced native <details> with shadcn Sheet. Sheet auto-closes on Esc, click-outside, route navigation. Standard React handlers, no inline scripts (CSP-friendly). -->
 
-`apps/web/src/components/layout/sidebar-nav.tsx`:
+`apps/landing/src/components/layout/sidebar-nav.tsx`:
 
 ```tsx
 import Link from 'next/link'
@@ -278,7 +278,7 @@ Sheet handles Esc, click-outside dismiss automatically. Route-change close via `
 <!-- RT-R1: F-balance-dup — drop BalancePill; balance lives only on dashboard BalanceCard. TopBar = brand area + theme + user menu only. -->
 <!-- RT-R2: F-bundled-cache-dedup — `fetchMeServer` deduped via React.cache(); BalanceCard's call shares the same fetch as UserMenuShell's. -->
 
-`apps/web/src/components/layout/top-bar.tsx`:
+`apps/landing/src/components/layout/top-bar.tsx`:
 
 ```tsx
 import { Suspense } from 'react'
@@ -307,7 +307,7 @@ async function UserMenuShell() {
 
 <!-- RT-R2: F-bundled-cache-dedup — wrap fetchMeServer in React.cache() to dedupe layout + dashboard calls within single render pass. Without this, /me hits backend twice per dashboard load. -->
 
-`apps/web/src/lib/api/server-fetch.ts`:
+`apps/landing/src/lib/api/server-fetch.ts`:
 
 ```ts
 import 'server-only'
@@ -354,7 +354,7 @@ type WpSite = { id: string; base_url: string; label: string; status: string; las
 
 <!-- RT-R1: F-skeletons — inline Skeleton from shadcn/ui, NO per-card skeleton files -->
 
-`apps/web/src/app/(app)/dashboard/page.tsx`:
+`apps/landing/src/app/(app)/dashboard/page.tsx`:
 
 ```tsx
 import { Suspense } from 'react'
@@ -593,7 +593,7 @@ pnpm --filter @sbf/web dev
 
 ## Next Steps
 
-- **Depends on:** Phase 01 (apps/web infra incl. Sheet + DropdownMenu install — RT-R2: revert-R1-F-shadcn-slim), Phase 02 (`/me` `/transactions` endpoints), Phase 03 (cookie + proxy)
+- **Depends on:** Phase 01 (apps/landing infra incl. Sheet + DropdownMenu install — RT-R2: revert-R1-F-shadcn-slim), Phase 02 (`/me` `/transactions` endpoints), Phase 03 (cookie + proxy)
 - **Unblocks:** Phase 05 (sites list reuses sidebar layout), Phase 06 (landing fits into root page.tsx), Phase 08 (Playwright `dashboard-load.spec.ts`)
 - **Follow-up:** Phase 4 (AI articles) adds `/articles` nav item; Phase 7 (campaigns) replaces "Coming soon" placeholder
 

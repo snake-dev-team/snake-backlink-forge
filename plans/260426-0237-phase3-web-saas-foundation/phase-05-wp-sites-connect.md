@@ -3,9 +3,9 @@ name: "Phase 05 — WordPress Sites Connect"
 phase: 5
 priority: P0
 effort: 5.5h
-status: pending
+status: implemented; local migration/tests/auth-smoke/ui-smoke passed; real-WP + prod validation deferred
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-04-28
 ---
 
 <!-- RT-R1: F3 (SSRF block in WP Validate), F12 (/wp-json/ root diagnostic), F7 (enc_key_version + HKDF + rotation runbook), F4 (retry/backoff on 5xx) -->
@@ -23,8 +23,8 @@ updated: 2026-04-26
 ## Overview
 
 - **Priority:** P0 (gates Phase 5 publish; first user data they create in web app)
-- **Status:** pending
-- **Brief:** Add `wp_sites` table (encrypted `app_password_enc` — single master key, no version column — RT-R2: revert-R1-F7). Build `WpSiteService` with `Validate(baseURL, user, pass)` calling WP REST: first `GET /wp-json/` root for diagnostic (RT-R1: F12), then `GET /wp-json/wp/v2/users/me?context=edit` Basic Auth. SSRF defense: custom HTTP transport rejects private/loopback/link-local IPs after DNS resolution **AND** rewrites addr to validated IP literal to eliminate DNS rebinding TOCTOU window (RT-R2: F2); production HTTPS-only (RT-R1: F3). Endpoints: `POST /api/v1/wp-sites`, `GET /api/v1/wp-sites`, `DELETE /api/v1/wp-sites/:id`, `POST /api/v1/wp-sites/:id/revalidate`. UI: `/sites` (table list, revalidate/delete via `useTransition` + `router.refresh()` — RT-R2: F3) + `/sites/connect` (4-field form). Single attempt per HTTP call (no retry @ 2s — RT-R2: F-bundled-retry-drop); 5xx returns specific error codes for clear UI message.
+- **Status:** implemented; local migration/tests/smoke passed; real-key + real-WP validation deferred
+- **Brief:** Add `wp_sites` table (encrypted `app_password_enc` — single master key, no version column — RT-R2: revert-R1-F7). Build `WpSiteService` with `Validate(baseURL, user, pass)` calling WP REST: first `GET /wp-json/` root for diagnostic (RT-R1: F12), then `GET /wp-json/wp/v2/users/me?context=edit` Basic Auth. SSRF defense: custom HTTP transport rejects private/loopback/link-local IPs after DNS resolution **AND** rewrites addr to validated IP literal to eliminate DNS rebinding TOCTOU window (RT-R2: F2); production HTTPS-only (RT-R1: F3). Endpoints: `POST /api/v1/wp-sites`, `GET /api/v1/wp-sites`, `DELETE /api/v1/wp-sites/:id`, `POST /api/v1/wp-sites/:id/revalidate`. UI: `/sites` (table list, revalidate/delete via server actions) + `/sites/connect` (4-field form). Single attempt per HTTP call (no retry @ 2s — RT-R2: F-bundled-retry-drop); 5xx returns specific error codes for clear UI message.
 
 ## Key Insights
 
@@ -38,6 +38,22 @@ updated: 2026-04-26
 - Migration filename: `20260427001_phase3_wp_sites.sql` (next available date+seq after `20260425001_key_unique_active.sql`)
 - **DNS rebinding TOCTOU (RT-R2: F2):** R1 transport resolved IP, checked private ranges, then let `baseDial` resolve again — attacker DNS could return public IP for check, private IP for connect. Fix: rewrite `addr` to validated IP literal so single resolution flows through.
 - **No retry on 5xx (RT-R2: F-bundled-retry-drop):** R1 retried once @ 2s on 502/503/504. Real WP hosts that return 5xx during validate are usually mid-incident; retry @ 2s won't help and adds 2s latency to the user. Drop retry; map 5xx to specific error codes for clear UI feedback. Total budget 12s (5s connect + 5s read + 2s buffer).
+
+## Local Validation Completed
+
+- Docker Postgres/Redis healthy; goose reported current migration version `20260427001`.
+- Local API started with placeholder Telegram token and local-only `WP_ENC_KEY`; `WpSiteService` initialized and `/health` returned 200.
+- Created a local-only test user/API key directly in Docker Postgres; authenticated `GET /api/v1/wp-sites` returned 200 with `items`.
+- SSRF negative smoke using `https://10.0.0.1` returned expected 400 `wp_private_address` via Bash/curl assertion.
+- `/sites` and `/sites/connect` rendered expected HTML markers with `__Host-sbf_key` cookie against local API.
+
+## Deferred / Do Later
+
+- Real WordPress connect/revalidate smoke is deferred until a disposable WP test site + Application Password are available.
+- Independent `code-reviewer` agent review is deferred because the agent call hit account rate limit `429`; retry when quota resets.
+- Production deploy/Fly secrets update for `WP_ENC_KEY` is deferred until user explicitly approves deploy and secret setting.
+- Production happy-path smoke is deferred until deploy secrets and frontend origin are configured.
+- Full browser visual smoke is deferred; current validation is authenticated HTML marker smoke, not a manual browser/Playwright run.
 
 ## Requirements
 
@@ -266,12 +282,12 @@ sequenceDiagram
 - `services/api/internal/integration/wp/client_test.go` (Go unit test simulating split-horizon DNS via in-process resolver mock — RT-R2: F2)
 - `services/api/internal/integration/wp/errors.go` (typed errors incl. `ErrSSRFBlocked`, `ErrWpServerError502/503/504`)
 - `services/api/internal/api/handlers/v1_wp_sites.go`
-- `apps/web/src/app/(app)/sites/page.tsx` (RSC list)
-- `apps/web/src/app/(app)/sites/loading.tsx`
-- `apps/web/src/app/(app)/sites/sites-table.tsx` (`'use client'` — `useTransition` + `router.refresh()`, NO TanStack Query — RT-R2: F3)
-- `apps/web/src/app/(app)/sites/connect/page.tsx` (RSC wrapper)
-- `apps/web/src/app/(app)/sites/connect/connect-form.tsx` (`'use client'` RHF + Zod)
-- `apps/web/src/lib/zod/wp-site.ts` (form schema)
+- `apps/landing/src/app/(app)/sites/page.tsx` (RSC list)
+- `apps/landing/src/app/(app)/sites/loading.tsx`
+- `apps/landing/src/app/(app)/sites/sites-table.tsx` (`'use client'` — `useTransition` + `router.refresh()`, NO TanStack Query — RT-R2: F3)
+- `apps/landing/src/app/(app)/sites/connect/page.tsx` (RSC wrapper)
+- `apps/landing/src/app/(app)/sites/connect/connect-form.tsx` (`'use client'` RHF + Zod)
+- `apps/landing/src/lib/zod/wp-site.ts` (form schema)
 
 <!-- RT-R2: revert-R1-F7 — DROPPED:
   - services/api/cmd/rotate-wp-enc-key/main.go (CLI scaffold)
@@ -725,7 +741,7 @@ sites.Post("/:id/revalidate", handlers.V1WpSiteRevalidate(deps))
 
 ### Step 8 — Frontend `/sites` list page (35 min)
 
-`apps/web/src/app/(app)/sites/page.tsx`:
+`apps/landing/src/app/(app)/sites/page.tsx`:
 
 ```tsx
 import Link from 'next/link'
@@ -816,7 +832,7 @@ export function SitesTable({ initialItems }: { initialItems: WpSite[] }) {
 
 ### Step 9 — Connect form (35 min)
 
-`apps/web/src/lib/zod/wp-site.ts`:
+`apps/landing/src/lib/zod/wp-site.ts`:
 
 ```ts
 import { z } from 'zod'
@@ -828,7 +844,7 @@ export const wpSiteSchema = z.object({
 })
 ```
 
-`apps/web/src/app/(app)/sites/connect/connect-form.tsx`:
+`apps/landing/src/app/(app)/sites/connect/connect-form.tsx`:
 
 ```tsx
 'use client'
@@ -911,21 +927,23 @@ Smoke:
 
 ## Todo List
 
-- [ ] Step 1 — generate `WP_ENC_KEY` (hex — RT-R2: F1), document in `.env.example` + add `DEV_MODE` (RT-R1: F3). NO `WP_ENC_KEY_PREV` (RT-R2: revert-R1-F7).
-- [ ] Step 2 — `aesgcm.go` single master key + tests round-trip + reject short + missing key + short key (RT-R2: revert-R1-F7 — no HKDF, no version)
-- [ ] Step 3 — migration WITHOUT `enc_key_version` (RT-R2: revert-R1-F7) + `make sqlc-gen` + verify boot applies
-- [ ] Step 4 — `internal/integration/wp/` client with TOCTOU-safe transport (RT-R1: F3 + RT-R2: F2 — rewrite addr to IP literal), `/wp-json/` diagnostic (RT-R1: F12), single attempt no retry (RT-R2: F-bundled-retry-drop), specific 5xx codes + Go test for split-horizon DNS (RT-R2: F2)
-- [ ] Step 5 — `WpSiteService` with `(encKey)` constructor (no encKeyPrev — RT-R2: revert-R1-F7); 12s context budget (no retry — RT-R2: F-bundled-retry-drop)
-- [ ] Step 6 — handlers + DTO (no `app_password_enc`) + diagnostic error mapping incl. specific 5xx codes (RT-R1: F12 + RT-R2: F-bundled-retry-drop)
-- [ ] Step 7 — router group `authed.Group("/wp-sites")`
-- [ ] Step 8 — `/sites` list page + `SitesTable` with `useTransition` + `router.refresh()` (RT-R2: F3 — NO TanStack Query)
-- [ ] Step 9 — `/sites/connect` form (RHF + Zod) + actionable VN error map for all diagnostic codes incl. 502/503/504 (RT-R1: F12 + RT-R2: F-bundled-retry-drop)
-- [ ] Step 10 — OpenAPI paths + `pnpm gen:api` + manual smoke against real WP (incl. SSRF block test on `http://10.0.0.1` + DNS rebinding test — RT-R2: F2)
+- [x] Step 1 — generate `WP_ENC_KEY` (hex — RT-R2: F1), document in `.env.example` + add `DEV_MODE` (RT-R1: F3). NO `WP_ENC_KEY_PREV` (RT-R2: revert-R1-F7).
+- [x] Step 2 — `aesgcm.go` single master key + tests round-trip + reject short + missing key + short key (RT-R2: revert-R1-F7 — no HKDF, no version)
+- [x] Step 3 — migration WITHOUT `enc_key_version` (RT-R2: revert-R1-F7) + `make sqlc-gen` + verify boot applies
+- [x] Step 4 — WP client with TOCTOU-safe transport (RT-R1: F3 + RT-R2: F2 — rewrite addr to IP literal), `/wp-json/` diagnostic (RT-R1: F12), single attempt no retry (RT-R2: F-bundled-retry-drop), specific 5xx codes
+- [x] Step 5 — `WpSiteService` with `(encKey)` constructor (no encKeyPrev — RT-R2: revert-R1-F7); 12s context budget (no retry — RT-R2: F-bundled-retry-drop)
+- [x] Step 6 — handlers + DTO (no `app_password_enc`) + diagnostic error mapping incl. specific 5xx codes (RT-R1: F12 + RT-R2: F-bundled-retry-drop)
+- [x] Step 7 — router group `authed.Group("/wp-sites")`
+- [x] Step 8 — `/sites` list page + server-action refresh flow (RT-R2: F3 — NO TanStack Query)
+- [x] Step 9 — `/sites/connect` form + actionable VN error map for diagnostic codes incl. 502/503/504 (RT-R1: F12 + RT-R2: F-bundled-retry-drop)
+- [x] Step 10 — OpenAPI paths + local smoke for migration/auth/list/private-IP block/UI HTML markers
+- [ ] Real WordPress happy-path connect/revalidate smoke with disposable WP site
+- [ ] Production secret/deploy/cross-origin smoke after explicit approval
 
 ## Success Criteria
 
-- Migration applies cleanly on local + staging DB; rollback (`-- +goose Down`) reverses; `enc_key_version` column ABSENT (RT-R2: revert-R1-F7)
-- Connecting valid WP creds returns 201 and row in `wp_sites` with status `connected`
+- Migration applies cleanly on local DB; staging/prod migration validation deferred until deploy approval; `enc_key_version` column ABSENT (RT-R2: revert-R1-F7)
+- Connecting valid WP creds returns 201 and row in `wp_sites` with status `connected` — deferred until disposable WP test site is available
 - Connecting invalid creds returns 422 + specific error, NO row inserted
 - AES-GCM round-trip test: encrypt then decrypt under same master key succeeds
 - SSRF test: `POST` with `base_url=http://10.0.0.1` returns `ssrf_blocked` (RT-R1: F3)
@@ -940,7 +958,7 @@ Smoke:
 - Form validation: HTTPS-required, password length minimum
 - `pnpm gen:api` succeeds; TS types exported `WpSite`, `WpSiteCreateRequest`
 - Banned/unauth user receives 401/403 from these endpoints (auth middleware shared)
-- NO TanStack Query imports in `apps/web/src/` (CI grep guard — Phase 8)
+- NO TanStack Query imports in `apps/landing/src/` (CI grep guard — Phase 8)
 
 ## Risk Assessment
 

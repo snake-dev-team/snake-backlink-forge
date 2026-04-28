@@ -3,9 +3,9 @@ name: "Phase 07 — Deploy + Observability (Vercel + Sentry FE + Plausible)"
 phase: 7
 priority: P0
 effort: 2.5h
-status: pending
+status: local observability code implemented; typecheck/build passed; external deploy/secrets deferred
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-04-28
 ---
 
 <!-- RT-R1: F1 (drop CORS *.vercel.app wildcard), F11 + F-sentry-defer (Sentry FE-only with hardening, BE deferred to Phase 4), Phase 0 prereq link -->
@@ -28,8 +28,8 @@ updated: 2026-04-26
 ## Overview
 
 - **Priority:** P0 (without deploy, no production launch)
-- **Status:** pending
-- **Brief:** Set up Vercel Pro project `sbf-web` linked to GitHub `apps/web/`. Configure env vars (production + preview). Wire Cloudflare DNS: `snakebacklink.com` + `www.snakebacklink.com` CNAME `cname.vercel-dns.com` (DNS-only / gray cloud). Add Sentry `@sentry/nextjs` to FE only (RT-R1: F11 + F-sentry-defer; BE Sentry deferred to Phase 4 when AI generation introduces async failures benefiting from stack traces). Sentry FE hardening: `beforeSend` + `beforeBreadcrumb` redact auth headers + sbf_live_* substrings; replay maskAllInputs, blockAllMedia; tracesSampler returns 0 for `/login`+`/api/auth/verify`; sourcemaps deleted after upload (RT-R1: F11). Add Plausible analytics script (cookieless) in root layout. CORS_ORIGINS strict prod allowlist NO `*.vercel.app` wildcard (RT-R1: F1). Verify cross-origin smoke.
+- **Status:** local observability code implemented; typecheck/build passed; external deploy/secrets deferred
+- **Brief:** Set up Vercel deployment + Sentry FE + Plausible. Local code now includes Sentry Next.js scaffold, hardened client redaction, request/global error hooks, CSP/security headers, and Plausible wrapper. External dashboard work, secrets, Fly secret update, production deploy, DNS, real Plausible/Sentry verification, and cross-origin smoke remain deferred until user explicitly approves and required accounts/secrets are ready.
 
 ## Key Insights
 
@@ -47,7 +47,7 @@ updated: 2026-04-26
 
 ### Functional
 
-- Vercel project `sbf-web` linked to git repo, deploys `apps/web/` from main branch
+- Vercel project `sbf-web` linked to git repo, deploys `apps/landing/` from main branch
 - Production domain: `snakebacklink.com` + `www.snakebacklink.com` (canonical: non-www OR www, choose **non-www** for shorter brand)
 - Vercel env vars (set via dashboard, NOT committed):
   - Production: `NEXT_PUBLIC_API_BASE_URL=https://snake-backlink-api.fly.dev`, `NEXT_PUBLIC_APP_URL=https://snakebacklink.com`, `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=SnakeBacklinkForgeBot`, `NEXT_PUBLIC_PLAUSIBLE_DOMAIN=snakebacklink.com`, `NEXT_PUBLIC_SENTRY_DSN=<dsn>`, `SENTRY_AUTH_TOKEN=<token>` (server-only), `SENTRY_ORG`, `SENTRY_PROJECT`
@@ -85,7 +85,7 @@ graph LR
 
 | Service | DSN | SDK | Source Maps |
 |---------|-----|-----|-------------|
-| `apps/web` | `NEXT_PUBLIC_SENTRY_DSN` | `@sentry/nextjs` | uploaded on Vercel build, deleted from runtime per RT-R1: F11 (`deleteSourcemapsAfterUpload: true`) |
+| `apps/landing` | `NEXT_PUBLIC_SENTRY_DSN` | `@sentry/nextjs` | uploaded on Vercel build, deleted from runtime per RT-R1: F11 (`deleteSourcemapsAfterUpload: true`) |
 | `services/api` | DEFERRED to Phase 4 | DEFERRED | N/A — async stack traces for AI gen jobs benefit most |
 
 Two separate Sentry projects scaffolded in Phase 0 (org/project ready). FE active Phase 3. BE activates Phase 4.
@@ -111,12 +111,12 @@ base-uri 'self';
 <!-- RT-R1: F-sentry-defer — server/edge config files scaffolded as empty stubs for Phase 4 BE Sentry; client config active -->
 <!-- RT-R1: F11 — sentry.client.config.ts has hardened beforeSend, beforeBreadcrumb, replay configs, tracesSampler -->
 
-- `apps/web/sentry.client.config.ts` (RT-R1: F11 — full hardening)
-- `apps/web/sentry.server.config.ts` (SCAFFOLD empty Sentry.init — activated Phase 4)
-- `apps/web/sentry.edge.config.ts` (SCAFFOLD empty Sentry.init — activated Phase 4)
-- `apps/web/instrumentation.ts`
-- `apps/web/src/lib/analytics/plausible.tsx` (Script component wrapper)
-- `apps/web/vercel.json` (optional — only if explicit headers/redirects beyond what Next provides)
+- `apps/landing/sentry.client.config.ts` (RT-R1: F11 — full hardening)
+- `apps/landing/sentry.server.config.ts` (SCAFFOLD empty Sentry.init — activated Phase 4)
+- `apps/landing/sentry.edge.config.ts` (SCAFFOLD empty Sentry.init — activated Phase 4)
+- `apps/landing/instrumentation.ts`
+- `apps/landing/src/lib/analytics/plausible.tsx` (Script component wrapper)
+- `apps/landing/vercel.json` (optional — only if explicit headers/redirects beyond what Next provides)
 - `docs/deployment-guide.md` (NEW or extend if exists — runbook for Vercel + DNS + secrets)
 <!-- BE Sentry files (services/api/internal/util/sentry.go, services/api/internal/middleware/sentry_capture.go) DEFERRED to Phase 4 — RT-R1: F-sentry-defer -->
 
@@ -124,9 +124,9 @@ base-uri 'self';
 
 <!-- RT-R1: F-sentry-defer — BE main.go + server.go modifications DEFERRED to Phase 4. -->
 
-- `apps/web/next.config.ts` — wrap with `withSentryConfig(...)` (RT-R1: F11 — `widenClientFileUpload: false`, `deleteSourcemapsAfterUpload: true`); add CSP headers via `async headers()`
-- `apps/web/src/app/layout.tsx` — add `<PlausibleScript />` in `<head>`
-- `apps/web/.env.example` — add `NEXT_PUBLIC_SENTRY_DSN=`, `SENTRY_AUTH_TOKEN=`, `NEXT_PUBLIC_PLAUSIBLE_DOMAIN=`
+- `apps/landing/next.config.ts` — wrap with `withSentryConfig(...)` (RT-R1: F11 — `widenClientFileUpload: false`, `deleteSourcemapsAfterUpload: true`); add CSP headers via `async headers()`
+- `apps/landing/src/app/layout.tsx` — add `<PlausibleScript />` in `<head>`
+- `apps/landing/.env.example` — add `NEXT_PUBLIC_SENTRY_DSN=`, `SENTRY_AUTH_TOKEN=`, `NEXT_PUBLIC_PLAUSIBLE_DOMAIN=`
 - `services/api/internal/config/config.go` — config-time assert: panic on boot if any `CORS_ORIGINS` entry contains `*` or regex metacharacters AND credentials enabled (RT-R1: F1)
 
 ### Delete
@@ -138,7 +138,7 @@ base-uri 'self';
 ### Step 1 — Vercel project + GitHub link (15 min)
 
 1. Vercel dashboard → "Add New Project" → Import GitHub repo
-2. Root directory: `apps/web`
+2. Root directory: `apps/landing`
 3. Framework preset: Next.js (auto-detected)
 4. Build command: `pnpm --filter @sbf/web build` (or default `pnpm build` with workspace setup)
 5. Install command: `pnpm install --frozen-lockfile`
@@ -180,7 +180,7 @@ base-uri 'self';
 ### Step 3 — Sentry FE setup (40 min)
 
 ```bash
-cd apps/web
+cd apps/landing
 pnpm add @sentry/nextjs
 # Sentry CLI wizard — creates DSN, configs, instrumentation.ts
 pnpm dlx @sentry/wizard@latest -i nextjs --saas
@@ -315,7 +315,7 @@ const cspHeaders = [{ source: '/(.*)', headers: [{ key: 'Content-Security-Policy
 
 ### Step 4 — Plausible script (10 min)
 
-`apps/web/src/lib/analytics/plausible.tsx`:
+`apps/landing/src/lib/analytics/plausible.tsx`:
 
 ```tsx
 import Script from 'next/script'
@@ -327,7 +327,7 @@ export function PlausibleScript() {
 }
 ```
 
-In `apps/web/src/app/layout.tsx`:
+In `apps/landing/src/app/layout.tsx`:
 
 ```tsx
 import { PlausibleScript } from '@/lib/analytics/plausible'
@@ -421,19 +421,19 @@ Update or create `docs/deployment-guide.md`:
 
 ## Todo List
 
-- [ ] Phase 0 prereqs verified (domain, Cloudflare, Vercel Pro, Sentry org, Plausible, GitHub secrets)
+- [ ] Phase 0 prereqs verified (Vercel/Sentry/Plausible accounts, GitHub secrets, deploy target)
 - [ ] Step 1 — Vercel project created, env vars set, first deploy green on `snake-backlink-forge.vercel.app`
-- [ ] Step 2 — Cloudflare CNAME apex + www → `cname.vercel-dns.com` (gray cloud); Vercel domain added
-- [ ] Step 3 — Sentry FE: hardened `sentry.client.config.ts` (beforeSend + beforeBreadcrumb redact + replay maskAllInputs + tracesSampler 0 for /login + sourcemap secure delete) — RT-R1: F11
-- [ ] Step 3b — `sentry.server.config.ts` + `sentry.edge.config.ts` SCAFFOLD only (RT-R1: F-sentry-defer — Phase 4 activates)
-- [ ] Step 4 — Plausible script in root layout (cookieless)
-- [ ] Step 5 — (DEFERRED) BE Sentry — RT-R1: F-sentry-defer
-- [ ] Step 6 — Fly secret `CORS_ORIGINS=https://snakebacklink.com,https://www.snakebacklink.com` (NO `*.vercel.app` — RT-R1: F1) + config Validate panics on wildcard
-- [ ] Step 7 — Backend redeployed with strict CORS; logs confirm clean boot
-- [ ] Step 8 — Cross-origin smoke: `/api/proxy/api/v1/health` returns 200 from prod
-- [ ] Step 8b — Sourcemap verification: `curl -I https://.../*.js.map` → 404 (RT-R1: F11)
-- [ ] Step 9 — Plausible records first visit (real-time view)
-- [ ] Step 10 — `docs/deployment-guide.md` written/updated (incl. RT-R1 hardening notes)
+- [ ] Step 2 — Custom-domain DNS deferred to Phase 11 per pivot; no Cloudflare CNAME work in this pass
+- [x] Step 3 — Sentry FE dependency + hardened client instrumentation (`instrumentation-client.ts`) with beforeSend/beforeBreadcrumb redaction, replay input masking, auth-path sampling guard, router transition hook
+- [x] Step 3b — `sentry.server.config.ts` + `sentry.edge.config.ts` scaffolded disabled; `instrumentation.ts` request-error hook added
+- [x] Step 4 — Plausible script wrapper in root layout (cookieless, env-gated)
+- [x] Step 5 — BE Sentry remains deferred — RT-R1: F-sentry-defer
+- [x] Step 6 — Config Validate already panics on CORS wildcard/regex-like chars
+- [ ] Step 7 — Backend Fly secret/deploy deferred until explicit approval
+- [ ] Step 8 — Cross-origin smoke deferred until Vercel deploy exists
+- [ ] Step 8b — Sourcemap verification deferred until Vercel deploy exists
+- [ ] Step 9 — Plausible real-time verification deferred until Plausible account/domain exists
+- [ ] Step 10 — Deployment guide deferred until external deployment choices are final; no docs claim before actual deploy
 
 ## Success Criteria
 
@@ -475,10 +475,18 @@ Update or create `docs/deployment-guide.md`:
 
 <!-- RT-R1: F11 — full hardened Sentry config moved to Step 3 above; section removed to avoid duplication -->
 
+## Deferred / Do Later
+
+- Vercel project creation, dashboard env vars, and first deployment require external account access and explicit approval.
+- Fly `CORS_ORIGINS` secret update + backend redeploy are shared production actions; defer until user explicitly approves.
+- Sentry/Plausible real-event verification requires real DSN/token/domain configured outside repo.
+- Production cross-origin smoke and sourcemap 404 verification require a deployed frontend URL.
+- Deployment guide should be written after external deployment choices are final, not before.
+
 ## Next Steps
 
-- **Depends on:** Phase 02 (CORS env var), Phase 03 (cookie secure flag), Phase 06 (sitemap + robots ready for SEO)
-- **Unblocks:** Phase 08 (Lighthouse CI runs against deployed URL)
+- **Depends on:** Phase 02 (CORS env var), Phase 03 (cookie secure flag), Phase 06 (landing ready)
+- **Unblocks partially:** Phase 08 can add CI/tests against local build; production smoke still waits on Vercel deploy.
 - **Follow-up:** Phase 9 — Sentry release tracking via semantic-release tag; Phase 10 — soak test against prod URL
 
 ## Resolved unresolved questions (from R2)

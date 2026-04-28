@@ -1,13 +1,13 @@
 ---
 title: "Phase 3 Web App SaaS Foundation"
 description: "Pivot from Chrome extension to Next.js web SaaS — login via API key paste, dashboard, WP sites connect, landing revamp"
-status: pending
+status: in_progress
 priority: P0
 effort: 30h + Phase 0 prereq waiting
 branch: dev
 tags: [phase3, web, nextjs, saas, foundation]
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-04-28
 blockedBy: []
 blocks: [phase-4-ai-content, phase-5-wp-publish]
 ---
@@ -20,7 +20,7 @@ Bootstrap web SaaS foundation: rename `apps/landing/` → `apps/web/`, install N
 
 - **Auth UX:** Paste `sbf_live_*` API key in `/login` → `__Host-sbf_key` cookie. No deep-link round-trip, no Telegram WebApp embed.
 - **Identity:** Telegram-only. `user_id = tg_id` source of truth. No `email` column added.
-- **App path:** `apps/landing/` → `apps/web/`. Package name `@sbf/web`.
+- **App path:** keep `apps/landing/` + package `@sbf/landing` for Phase 3. Original `apps/web` rename is overridden because Vercel is already configured to `apps/landing`.
 - **Stack FE:** Next.js 15.5 + React 19 + Tailwind v4 (CSS-first OKLCH) + shadcn/ui 6 components (Button/Input/Card/Label/Sheet/DropdownMenu — RT-R2: revert-R1-F-shadcn-slim). Sheet + DropdownMenu chosen over native `<details>` for proper a11y + CSP-friendly (no inline scripts). No next-intl in Phase 3 (RT-R1: F8 — deferred Phase 9). No TanStack Query (RT-R1: F13 — pure RSC; RT-R2: F3 enforced via CI grep guard). React.cache() dedupes `/me` between layout+dashboard (RT-R2: F-bundled-cache-dedup).
 - **Type contract:** Hand-written OpenAPI 3.1 at `packages/shared-types/openapi.yaml` + Hey API codegen → TS in `packages/shared-types/src/generated/`. NO Go contract test (RT-R2: F12 — kin-openapi dropped; Playwright E2E + Hey API codegen catches drift).
 - **Backend:** New `services/api/internal/middleware/auth_apikey.go` (SHA-256 hash, NO Redis cache — RT-R1: F5). `/api/v1/*` Fiber sub-router. Public routes outside group. CORS env-driven strict allowlist (RT-R1: F1 — no wildcards). Trusted proxies tightened to Fly CIDR with `EnableTrustedProxyCheck: true` (RT-R1: F-X-F-F). Rate limit `/auth/verify` 5/min/IP (RT-R1: F2). WP_ENC_KEY hex format validated at boot (RT-R2: F1).
@@ -36,14 +36,14 @@ Bootstrap web SaaS foundation: rename `apps/landing/` → `apps/web/`, install N
 | # | File | Owner files | Effort | Status |
 |---|------|-------------|--------|--------|
 | 00 | [phase-00-prerequisites.md](phase-00-prerequisites.md) | (none — manual procurement + waiting) | ~2h click-ops + 24-48h DNS wait | pending |
-| 01 | [phase-01-setup-and-deps.md](phase-01-setup-and-deps.md) | `apps/web/*`, `packages/shared-types/openapi.yaml`, `biome.json`, root `package.json` | 3h | pending |
-| 02 | [phase-02-backend-auth-and-cors.md](phase-02-backend-auth-and-cors.md) | `services/api/internal/middleware/auth_apikey.go`, `rate_limit_auth.go`, `internal/api/router.go`, `handlers/v1_*.go`, `service/key_service.go`, `cmd/api/main.go` (WP_ENC_KEY hex boot validation) | 4.5h | pending |
-| 03 | [phase-03-frontend-auth-flow.md](phase-03-frontend-auth-flow.md) | `apps/web/src/app/login/`, `apps/web/src/app/api/auth/`, `apps/web/src/app/api/proxy/` (1MB cap), `apps/web/src/lib/auth/`, `apps/web/middleware.ts` | 5h | pending |
-| 04 | [phase-04-app-shell-and-dashboard.md](phase-04-app-shell-and-dashboard.md) | `apps/web/src/app/(app)/**` (NO settings/), `apps/web/src/components/**` (Sheet+DropdownMenu+UserMenu absorbs settings) | 4.5h | pending |
-| 05 | [phase-05-wp-sites-connect.md](phase-05-wp-sites-connect.md) | `services/api/internal/migrations/20260427001_phase3_wp_sites.sql` (no enc_key_version), `service/wp_site_service.go`, `integration/wp/*` (TOCTOU-safe), `apps/web/src/app/(app)/sites/**` (useTransition) | 5.5h | pending |
-| 06 | [phase-06-landing-revamp.md](phase-06-landing-revamp.md) | `apps/web/src/app/page.tsx`, `apps/web/src/components/landing/**` (VN-only, no i18n) | 2h | pending |
-| 07 | [phase-07-deploy-and-observability.md](phase-07-deploy-and-observability.md) | `apps/web/sentry.*.config.ts`, `apps/web/instrumentation.ts`, ops docs | 2.5h | pending |
-| 08 | [phase-08-testing-and-ci.md](phase-08-testing-and-ci.md) | `apps/web/e2e/**` (5 specs), `.github/workflows/ci.yml` (grep guard) | 3h | pending |
+| 01 | [phase-01-setup-and-deps.md](phase-01-setup-and-deps.md) | `apps/landing/*`, `packages/shared-types/openapi.yaml`, `biome.json`, root `package.json` | 3h | completed; gen/typecheck/build audit passed |
+| 02 | [phase-02-backend-auth-and-cors.md](phase-02-backend-auth-and-cors.md) | `services/api/internal/middleware/auth_apikey.go`, `rate_limit_auth.go`, `internal/api/router.go`, `handlers/v1_*.go`, `service/key_service.go`, `cmd/api/main.go` (WP_ENC_KEY hex boot validation) | 4.5h | deployed; production smoke passed |
+| 03 | [phase-03-frontend-auth-flow.md](phase-03-frontend-auth-flow.md) | `apps/landing/src/app/login/`, `apps/landing/src/app/api/auth/`, `apps/landing/src/app/api/proxy/` (1MB cap), `apps/landing/src/lib/auth/`, `apps/landing/src/middleware.ts` | 5h | implementation complete; local route + deployed-backend auth smoke passed |
+| 04 | [phase-04-app-shell-and-dashboard.md](phase-04-app-shell-and-dashboard.md) | `apps/landing/src/app/(app)/**` (NO settings/), `apps/landing/src/components/**` (Sheet+DropdownMenu+UserMenu absorbs settings) | 4.5h | implementation complete; local route smoke passed; happy-path dashboard E2E needs safe real API key |
+| 05 | [phase-05-wp-sites-connect.md](phase-05-wp-sites-connect.md) | `services/api/internal/migrations/20260427001_phase3_wp_sites.sql` (no enc_key_version), `service/wp_site_service.go`, `integration/wp/*` (TOCTOU-safe), `apps/landing/src/app/(app)/sites/**` (useTransition) | 5.5h | implemented + local validated; real-WP/prod validation deferred |
+| 06 | [phase-06-landing-revamp.md](phase-06-landing-revamp.md) | `apps/landing/src/app/page.tsx`, `apps/landing/src/components/landing/**` (VN-only, no i18n) | 2h | implemented; typecheck/build/local smoke passed; reviewer deferred by 429 |
+| 07 | [phase-07-deploy-and-observability.md](phase-07-deploy-and-observability.md) | `apps/landing/sentry.*.config.ts`, `apps/landing/instrumentation.ts`, ops docs | 2.5h | local observability code implemented; typecheck/build passed; external deploy/secrets deferred |
+| 08 | [phase-08-testing-and-ci.md](phase-08-testing-and-ci.md) | `apps/landing/e2e/**` (5 specs), `.github/workflows/ci.yml` (grep guard) | 3h | implemented; local typecheck/biome/e2e passed; remote CI pending |
 
 **Total effort:** ~30h code work + Phase 0 prereq waiting. Calendar: **8-10 working days realistic for solo founder** (RT-R2: F15 honest estimate). Floor 7 days (no blockers, all happy path), ceiling 12 days (Windows pnpm issues + WP host quirks during testing).
 

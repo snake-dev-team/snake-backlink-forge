@@ -15,10 +15,12 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -29,10 +31,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrKeyRaceContention is returned when concurrent Issue calls for the same user
-// both reach the insert step and the retry budget is exhausted.
-// Callers should surface this as a transient "system busy" error to the user.
-var ErrKeyRaceContention = errors.New("key issue race contention — max retries exceeded")
+var (
+	// ErrKeyRaceContention is returned when concurrent Issue calls for the same user
+	// both reach the insert step and the retry budget is exhausted.
+	// Callers should surface this as a transient "system busy" error to the user.
+	ErrKeyRaceContention = errors.New("key issue race contention — max retries exceeded")
+	ErrInvalidKey        = errors.New("invalid api key")
+)
 
 // KeyService issues and manages API keys.
 // Implements KeyIssuer (Issue method) — bot.Deps.KeyService accepts *KeyService directly
@@ -138,6 +143,28 @@ func (s *KeyService) issueOnce(ctx context.Context, userID uuid.UUID) (string, s
 	}
 
 	return plaintext, prefix, newKey.ID, nil
+}
+
+func (s *KeyService) ValidatePlaintext(ctx context.Context, plaintext string) (uuid.UUID, bool, string, error) {
+	if !strings.HasPrefix(plaintext, "sbf_live_") || len(plaintext) < 16 {
+		return uuid.Nil, false, "", ErrInvalidKey
+	}
+
+	sum := sha256.Sum256([]byte(plaintext))
+	row, err := s.q.GetKeyByHash(ctx, sum[:])
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, false, "", ErrInvalidKey
+		}
+		return uuid.Nil, false, "", fmt.Errorf("key_service.ValidatePlaintext: key lookup: %w", err)
+	}
+
+	user, err := s.q.GetUserByID(ctx, row.UserID)
+	if err != nil {
+		return uuid.Nil, false, "", fmt.Errorf("key_service.ValidatePlaintext: user lookup: %w", err)
+	}
+
+	return row.UserID, user.IsBanned, row.KeyPrefix, nil
 }
 
 // GetActiveMasked returns a display-safe masked representation of the user's active key.

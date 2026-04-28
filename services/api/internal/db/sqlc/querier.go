@@ -50,6 +50,7 @@ type Querier interface {
 	// Webhook lookup: find a transaction by its SePay order code (provider_ref).
 	GetTxByProviderRef(ctx context.Context, providerRef *string) (Transaction, error)
 	GetTxByUserPage(ctx context.Context, arg GetTxByUserPageParams) ([]Transaction, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByKeyPrefix(ctx context.Context, keyPrefix string) (User, error)
 	GetUserByPhone(ctx context.Context, phoneE164 *string) (User, error)
 	// Queries for the users table.
@@ -60,6 +61,7 @@ type Querier interface {
 	GetUserByTelegramID(ctx context.Context, telegramID int64) (User, error)
 	// Queries for the wallets table. Phase 04: balance fetch + VND spend bump.
 	GetWalletByUser(ctx context.Context, userID uuid.UUID) (Wallet, error)
+	GetWpSiteByID(ctx context.Context, arg GetWpSiteByIDParams) (WpSite, error)
 	IncrementReferralCount(ctx context.Context, userID uuid.UUID) error
 	// Queries for the audit_log table. Phase 08: real event insert + lookup queries.
 	// ip_hash stores sha256(ip) — raw IP is never persisted.
@@ -72,6 +74,9 @@ type Querier interface {
 	InsertReferral(ctx context.Context, arg InsertReferralParams) (Referral, error)
 	// Queries for support_tickets table. Phase 07: ticket insert + open-count cap.
 	InsertSupportTicket(ctx context.Context, arg InsertSupportTicketParams) (SupportTicket, error)
+	// Queries for connected WordPress sites.
+	InsertWpSite(ctx context.Context, arg InsertWpSiteParams) (WpSite, error)
+	ListWpSitesByUser(ctx context.Context, userID uuid.UUID) ([]ListWpSitesByUserRow, error)
 	// Queries for the campaigns table.
 	// Phase 2+ will add real queries here (create, list, pause, resume, archive).
 	// trg_campaign_limit trigger enforces max 3 running campaigns at DB layer.
@@ -89,8 +94,10 @@ type Querier interface {
 	RevokeActiveKeysForUser(ctx context.Context, userID uuid.UUID) error
 	SetLanguage(ctx context.Context, arg SetLanguageParams) error
 	SetPhoneAndVerify(ctx context.Context, arg SetPhoneAndVerifyParams) (User, error)
+	SoftDeleteWpSite(ctx context.Context, arg SoftDeleteWpSiteParams) error
 	TxStats24h(ctx context.Context) (TxStats24hRow, error)
 	UnbanUser(ctx context.Context, telegramID int64) error
+	UpdateWpSiteStatus(ctx context.Context, arg UpdateWpSiteStatusParams) error
 	UpsertUserStub(ctx context.Context, arg UpsertUserStubParams) (User, error)
 }
 

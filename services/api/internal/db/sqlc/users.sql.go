@@ -20,6 +20,30 @@ func (q *Queries) EnsureWallet(ctx context.Context, userID uuid.UUID) error {
 	return err
 }
 
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, telegram_id, telegram_username, phone_e164, is_verified, is_banned, trial_used, language, referred_by, created_at, updated_at, last_active_at FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.TelegramID,
+		&i.TelegramUsername,
+		&i.PhoneE164,
+		&i.IsVerified,
+		&i.IsBanned,
+		&i.TrialUsed,
+		&i.Language,
+		&i.ReferredBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastActiveAt,
+	)
+	return i, err
+}
+
 const getUserByTelegramID = `-- name: GetUserByTelegramID :one
 
 SELECT id, telegram_id, telegram_username, phone_e164, is_verified, is_banned, trial_used, language, referred_by, created_at, updated_at, last_active_at FROM users WHERE telegram_id = $1

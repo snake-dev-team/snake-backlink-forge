@@ -7,6 +7,9 @@
 -- name: GetUserByTelegramID :one
 SELECT * FROM users WHERE telegram_id = $1;
 
+-- name: GetUserByID :one
+SELECT * FROM users WHERE id = $1;
+
 -- name: UpsertUserStub :one
 INSERT INTO users (telegram_id, telegram_username, language)
 VALUES ($1, $2, 'vi')

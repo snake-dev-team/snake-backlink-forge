@@ -3,9 +3,9 @@ name: "Phase 03 — Frontend Auth Flow (Login + Cookie + Proxy)"
 phase: 3
 priority: P0
 effort: 5h
-status: pending
+status: implementation complete; local route + deployed-backend auth smoke passed
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-04-28
 ---
 
 <!-- RT-R1: F9 (sanitizeNext at consumer), F10 (cookie hardening — __Host- prefix, SameSite=Strict on /verify, Origin check) -->
@@ -23,7 +23,7 @@ updated: 2026-04-26
 ## Overview
 
 - **Priority:** P0 (gates dashboard access)
-- **Status:** pending
+- **Status:** implementation complete; local route + deployed-backend auth smoke passed
 - **Brief:** Build the only auth UX: paste `sbf_live_*` key in `/login`, validate via `/api/v1/auth/verify`, set httpOnly cookie, redirect to `/dashboard`. Add `middleware.ts` redirect gate (unauth → `/login`, authed-on-`/login` → `/dashboard`). Add `/api/proxy/[...path]` Route Handler that injects `Authorization: Bearer <cookie>` for all dashboard data fetches. Handle invalid key, banned, network errors with shadcn toasts.
 
 ## Key Insights
@@ -121,22 +121,22 @@ Set-Cookie: __Host-sbf_key=sbf_live_<base58>;
 
 <!-- RT-R1: F9 — redirect-safe.ts moved to consumer-side use; F10 — cookies.ts hardened with __Host- prefix -->
 
-- `apps/web/src/app/(auth)/login/page.tsx` (RSC wrapper, renders client form)
-- `apps/web/src/app/(auth)/login/login-form.tsx` (`"use client"`, RHF + zod, calls `sanitizeNext`)
-- `apps/web/src/app/(auth)/login/layout.tsx` (auth layout — minimal centered card)
-- `apps/web/src/app/api/auth/verify/route.ts` (Route Handler with Origin check + Strict cookie set — RT-R1: F10)
-- `apps/web/src/app/api/auth/logout/route.ts` (Route Handler)
-- `apps/web/src/app/api/proxy/[...path]/route.ts` (catch-all forward)
-- `apps/web/middleware.ts` (root file — Next reads this; auth-only, no intl)
-- `apps/web/src/lib/auth/cookies.ts` (helper: `getApiKeyCookie`, `setApiKeyCookie`, `clearApiKeyCookie` — RT-R1: F10 `__Host-` prefix, `secure: NODE_ENV !== 'development'`, optional `strict: true` for verify)
-- `apps/web/src/lib/auth/redirect-safe.ts` (helper: `sanitizeNext` deep checks — RT-R1: F9; loops, API paths, encoded escapes; tested in Phase 8)
-- `apps/web/src/lib/api/client.ts` (configured Hey API client pointing to `/api/proxy/api/v1`)
+- `apps/landing/src/app/(auth)/login/page.tsx` (RSC wrapper, renders client form)
+- `apps/landing/src/app/(auth)/login/login-form.tsx` (`"use client"`, RHF + zod, calls `sanitizeNext`)
+- `apps/landing/src/app/(auth)/login/layout.tsx` (auth layout — minimal centered card)
+- `apps/landing/src/app/api/auth/verify/route.ts` (Route Handler with Origin check + Strict cookie set — RT-R1: F10)
+- `apps/landing/src/app/api/auth/logout/route.ts` (Route Handler)
+- `apps/landing/src/app/api/proxy/[...path]/route.ts` (catch-all forward)
+- `apps/landing/middleware.ts` (root file — Next reads this; auth-only, no intl)
+- `apps/landing/src/lib/auth/cookies.ts` (helper: `getApiKeyCookie`, `setApiKeyCookie`, `clearApiKeyCookie` — RT-R1: F10 `__Host-` prefix, `secure: NODE_ENV !== 'development'`, optional `strict: true` for verify)
+- `apps/landing/src/lib/auth/redirect-safe.ts` (helper: `sanitizeNext` deep checks — RT-R1: F9; loops, API paths, encoded escapes; tested in Phase 8)
+- `apps/landing/src/lib/api/client.ts` (configured Hey API client pointing to `/api/proxy/api/v1`)
 
 ### Modify
 
-- `apps/web/src/app/layout.tsx` (add `<Toaster />` from sonner for toast root)
-- `apps/web/src/app/providers.tsx` (already wraps children — no change needed)
-- `apps/web/.env.example` (already has `NEXT_PUBLIC_API_BASE_URL`)
+- `apps/landing/src/app/layout.tsx` (add `<Toaster />` from sonner for toast root)
+- `apps/landing/src/app/providers.tsx` (already wraps children — no change needed)
+- `apps/landing/.env.example` (already has `NEXT_PUBLIC_API_BASE_URL`)
 
 ### Delete
 
@@ -148,7 +148,7 @@ Set-Cookie: __Host-sbf_key=sbf_live_<base58>;
 
 <!-- RT-R1: F10 — `__Host-` prefix forces Path=/, no Domain attribute, Secure → strongest cookie envelope. Browser refuses to set if any constraint violated. -->
 
-`apps/web/src/lib/auth/cookies.ts`:
+`apps/landing/src/lib/auth/cookies.ts`:
 
 ```ts
 import 'server-only'
@@ -199,7 +199,7 @@ export async function clearApiKeyCookie() {
 
 <!-- RT-R1: F10 — verify endpoint MUST validate Origin header to prevent cross-site form abuse. SameSite=Lax allows top-level cross-site GET, which combined with form actions could be exploited. Origin check + Strict cookie on /verify closes the gap. -->
 
-`apps/web/src/app/api/auth/verify/route.ts`:
+`apps/landing/src/app/api/auth/verify/route.ts`:
 
 ```ts
 import { NextResponse } from 'next/server'
@@ -254,7 +254,7 @@ export async function POST(req: Request) {
 
 ### Step 3 — Logout Route Handler (5 min)
 
-`apps/web/src/app/api/auth/logout/route.ts`:
+`apps/landing/src/app/api/auth/logout/route.ts`:
 
 ```ts
 import { NextResponse } from 'next/server'
@@ -267,7 +267,7 @@ export async function POST() {
 
 ### Step 4 — Proxy catch-all Route Handler (40 min)
 
-`apps/web/src/app/api/proxy/[...path]/route.ts`:
+`apps/landing/src/app/api/proxy/[...path]/route.ts`:
 
 ```ts
 import { NextRequest, NextResponse } from 'next/server'
@@ -332,7 +332,7 @@ export const DELETE = forward
 
 <!-- RT-R1: F8 — Phase 6 dropped next-intl; middleware is auth-only, no intl combination. -->
 
-`apps/web/middleware.ts`:
+`apps/landing/middleware.ts`:
 
 ```ts
 import { NextRequest, NextResponse } from 'next/server'
@@ -374,7 +374,7 @@ export const config = {
 
 ### Step 6 — Login page + form (45 min)
 
-`apps/web/src/app/(auth)/login/page.tsx` (RSC):
+`apps/landing/src/app/(auth)/login/page.tsx` (RSC):
 
 ```tsx
 import { LoginForm } from './login-form'
@@ -387,7 +387,7 @@ export default function LoginPage() {
 }
 ```
 
-`apps/web/src/lib/auth/redirect-safe.ts` (NEW — RT-R1: F9 deep sanitizer used at login consumer):
+`apps/landing/src/lib/auth/redirect-safe.ts` (NEW — RT-R1: F9 deep sanitizer used at login consumer):
 
 ```ts
 // RT-R1: F9 — middleware regex is broad; consumer must reject loops, API paths, encoded escapes.
@@ -410,7 +410,7 @@ export function sanitizeNext(raw: string | null | undefined): string {
 }
 ```
 
-`apps/web/src/app/(auth)/login/login-form.tsx` (Client):
+`apps/landing/src/app/(auth)/login/login-form.tsx` (Client):
 
 ```tsx
 'use client'
@@ -486,7 +486,7 @@ Add `<Toaster richColors position="top-right" />` to root layout from `sonner`.
 
 ### Step 7 — Hey API client wrapper (15 min)
 
-`apps/web/src/lib/api/client.ts`:
+`apps/landing/src/lib/api/client.ts`:
 
 ```ts
 import { client } from '@sbf/shared-types'
@@ -534,7 +534,7 @@ pnpm --filter @sbf/web dev
 - Logout: `POST /api/auth/logout` clears cookie; subsequent `/dashboard` redirects to login
 - Open-redirect attempts ALL fall back to `/dashboard` (RT-R1: F9): `?next=https://evil.com`, `?next=//evil.com`, `?next=/login`, `?next=/api/proxy/x`, `?next=/dashboard%2F..%2Fadmin`
 - POST `/api/auth/verify` with `Origin: https://evil.com` returns 403 `forbidden_origin` (RT-R1: F10)
-- No plaintext key in `document.cookie`, no `sbf_live_` substring in any client bundle (run `grep -r sbf_live apps/web/.next/static/`)
+- No plaintext key in `document.cookie`, no `sbf_live_` substring in any client bundle (run `grep -r sbf_live apps/landing/.next/static/`)
 
 ## Risk Assessment
 
@@ -563,7 +563,7 @@ pnpm --filter @sbf/web dev
 
 ## Next Steps
 
-- **Depends on:** Phase 01 (apps/web infra), Phase 02 (`/api/v1/auth/verify` exists)
+- **Depends on:** Phase 01 (apps/landing infra), Phase 02 (`/api/v1/auth/verify` exists)
 - **Unblocks:** Phase 04 (dashboard data fetches all flow through `/api/proxy`), Phase 05 (WP sites endpoints same proxy path)
 - **Follow-up:** Phase 07 adds Sentry capture for proxy 5xx; Phase 08 adds Playwright login flow E2E
 

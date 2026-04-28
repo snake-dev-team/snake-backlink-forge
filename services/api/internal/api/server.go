@@ -27,17 +27,12 @@ func New(cfg *config.Config, log *zap.Logger, pool *pgxpool.Pool, rdb *goredis.C
 		BodyLimit: 64 * 1024,
 
 		// Generous but bounded timeouts to prevent resource exhaustion.
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-
-		// [M2] Fly-Client-IP is populated by Fly.io's load balancer on every inbound request.
-		// Without this, c.IP() returns the Fly LB IP — rate-limit key collapses to one
-		// global bucket instead of per-client. TrustedProxies open for now; tighten to
-		// Fly subnet in Phase 10 deploy checklist.
+		ReadTimeout:             15 * time.Second,
+		WriteTimeout:            15 * time.Second,
+		IdleTimeout:             60 * time.Second,
 		ProxyHeader:             fiber.HeaderXForwardedFor,
 		EnableTrustedProxyCheck: true,
-		TrustedProxies:          []string{"0.0.0.0/0"},
+		TrustedProxies:          cfg.TrustedProxyCIDRs,
 
 		// Return structured JSON on unhandled errors.
 		ErrorHandler: jsonErrorHandler,
@@ -46,6 +41,7 @@ func New(cfg *config.Config, log *zap.Logger, pool *pgxpool.Pool, rdb *goredis.C
 	// Middleware: recover before logger so panics are captured in the same request log.
 	app.Use(middleware.NewRecover(log, cfg))
 	app.Use(middleware.NewLogger(log))
+	app.Use(middleware.NewCORS(cfg.CORSOrigins))
 
 	// Routes.
 	Register(app, pool, rdb)

@@ -17,6 +17,22 @@ func Register(app *fiber.App, pool *pgxpool.Pool, rdb *goredis.Client) {
 	app.Get("/ready", handlers.Ready(pool, rdb))
 }
 
+func RegisterV1(app *fiber.App, deps *handlers.ApiHandlerDeps) {
+	v1 := app.Group("/api/v1")
+	v1.Get("/health", handlers.Health)
+	v1.Post("/auth/verify", middleware.NewAuthVerifyRateLimit(deps.Rdb, deps.Log), handlers.V1AuthVerify(deps))
+
+	authed := v1.Group("", middleware.AuthAPIKey(deps.KeySvc, deps.AuditSvc, deps.Log))
+	authed.Get("/me", handlers.V1Me(deps))
+	authed.Get("/balance", handlers.V1Balance(deps))
+	authed.Get("/transactions", handlers.V1Transactions(deps))
+	authed.Get("/ledger", handlers.V1Ledger(deps))
+	authed.Get("/wp-sites", handlers.V1WpSitesList(deps))
+	authed.Post("/wp-sites", handlers.V1WpSitesCreate(deps))
+	authed.Delete("/wp-sites/:id", handlers.V1WpSitesDelete(deps))
+	authed.Post("/wp-sites/:id/revalidate", handlers.V1WpSitesRevalidate(deps))
+}
+
 // RegisterWebhook mounts the SePay webhook route with its middleware chain.
 // Called from server.go after WebhookDeps are fully wired in main.go.
 //

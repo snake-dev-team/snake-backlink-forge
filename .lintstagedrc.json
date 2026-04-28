@@ -1,8 +1,4 @@
 {
-  "apps/**/*.{ts,tsx,json,jsx}": [
-    "biome check --write --no-errors-on-unmatched"
-  ],
-  "packages/**/*.{ts,tsx,json}": [
-    "biome check --write --no-errors-on-unmatched"
-  ]
+  "apps/**/*.{ts,tsx,json,jsx}": ["biome check --write --no-errors-on-unmatched"],
+  "packages/**/*.{ts,tsx,json}": ["biome check --write --no-errors-on-unmatched"]
 }

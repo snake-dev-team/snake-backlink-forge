@@ -329,6 +329,49 @@ func (ns NullTransactionStatus) Value() (driver.Value, error) {
 	return string(ns.TransactionStatus), nil
 }
 
+type WpSiteStatus string
+
+const (
+	WpSiteStatusPending   WpSiteStatus = "pending"
+	WpSiteStatusConnected WpSiteStatus = "connected"
+	WpSiteStatusError     WpSiteStatus = "error"
+)
+
+func (e *WpSiteStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WpSiteStatus(s)
+	case string:
+		*e = WpSiteStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WpSiteStatus: %T", src)
+	}
+	return nil
+}
+
+type NullWpSiteStatus struct {
+	WpSiteStatus WpSiteStatus `json:"wp_site_status"`
+	Valid        bool         `json:"valid"` // Valid is true if WpSiteStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWpSiteStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.WpSiteStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WpSiteStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWpSiteStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WpSiteStatus), nil
+}
+
 type ApiKey struct {
 	ID         uuid.UUID          `json:"id"`
 	UserID     uuid.UUID          `json:"user_id"`
@@ -524,4 +567,19 @@ type Wallet struct {
 	TotalStandardSpent int32     `json:"total_standard_spent"`
 	TotalVndSpent      int64     `json:"total_vnd_spent"`
 	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+type WpSite struct {
+	ID              uuid.UUID          `json:"id"`
+	UserID          uuid.UUID          `json:"user_id"`
+	BaseUrl         string             `json:"base_url"`
+	AppUsername     string             `json:"app_username"`
+	AppPasswordEnc  []byte             `json:"app_password_enc"`
+	Label           string             `json:"label"`
+	Status          WpSiteStatus       `json:"status"`
+	LastValidatedAt pgtype.Timestamptz `json:"last_validated_at"`
+	LastError       *string            `json:"last_error"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
 }

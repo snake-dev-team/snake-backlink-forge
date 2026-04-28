@@ -18,6 +18,8 @@
       "!**/pnpm-lock.yaml",
       "!**/.turbo",
       "!**/coverage",
+      "!**/src/generated",
+      "!apps/landing/src/app/globals.css",
       "!plans",
       "!docs/MASTER_PROMPT.md",
       "!.claude",
@@ -62,11 +64,26 @@
       "semicolons": "always"
     }
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "overrides": [
     {
       "includes": ["**/*.svelte"],
       "linter": { "enabled": false },
       "formatter": { "enabled": false }
+    },
+    {
+      "includes": [".releaserc.cjs", ".releaserc.*.json", ".releaserc.*.cjs"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
     }
   ]
 }

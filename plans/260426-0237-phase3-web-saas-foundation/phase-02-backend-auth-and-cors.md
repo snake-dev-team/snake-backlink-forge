@@ -3,9 +3,9 @@ name: "Phase 02 — Backend Auth Middleware + CORS + /api/v1"
 phase: 2
 priority: P0
 effort: 4.5h
-status: pending
+status: deployed; production smoke passed
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-04-28
 ---
 
 <!-- RT-R1: F5 (drop Redis cache), F2 (rate limit auth/verify), F-X-F-F (EnableTrustedProxyCheck + audit log connection IP) -->
@@ -22,8 +22,8 @@ updated: 2026-04-26
 ## Overview
 
 - **Priority:** P0 (blocks all FE auth flow + dashboard data fetches)
-- **Status:** pending
-- **Brief:** Add `/api/v1/*` Fiber sub-router. Build `auth_apikey` middleware: SHA-256 hash incoming Bearer, lookup via `GetKeyByHash` (pure DB, NO cache — RT-R1: F5), attach `ApiUser{userID, isBanned}` to ctx. Add CORS env-driven allowlist. Tighten trusted proxies to Fly internal CIDR with `EnableTrustedProxyCheck: true`. Implement `KeyService.ValidatePlaintext`. Ship endpoints: `POST /api/v1/auth/verify` (rate-limited 5/min/IP, 20/hr, 200/day — RT-R1: F2), `GET /api/v1/me`, `GET /api/v1/balance`, `GET /api/v1/transactions`, `GET /api/v1/ledger`. Audit-log `auth.web.login` + `auth.web.fail` + `auth.web.ratelimit` (with both forwarded IP and connection IP — RT-R1: F-X-F-F).
+- **Status:** deployed; production smoke passed (`/health`, `/ready`, `/api/v1/health` 200; protected v1/auth invalid paths 401, not 404)
+- **Brief:** Add `/api/v1/*` Fiber sub-router. Build `auth_apikey` middleware: SHA-256 hash incoming Bearer, lookup via `GetKeyByHash` (pure DB, NO cache — RT-R1: F5), attach `ApiUser{userID, isBanned}` to ctx. Add CORS env-driven allowlist. Tighten trusted proxies to Fly internal CIDR with `EnableTrustedProxyCheck: true`. Implement `KeyService.ValidatePlaintext`. Ship endpoints: `POST /api/v1/auth/verify` (rate-limited 5/min/IP, 20/hr, 200/day — RT-R1: F2), `GET /api/v1/me`, `GET /api/v1/balance`, `GET /api/v1/transactions`, `GET /api/v1/ledger`. Audit-log `auth.web.login` + `auth.web.fail` with both forwarded IP and connection IP; `auth.web.ratelimit` helper deferred until audit service has a typed helper.
 
 ## Key Insights
 
@@ -73,7 +73,7 @@ updated: 2026-04-26
 ```mermaid
 sequenceDiagram
   participant FE as Browser
-  participant Vercel as apps/web Route Handler
+  participant Vercel as apps/landing Route Handler
   participant Fiber as Go Fiber API
   participant PG as Postgres
 
@@ -567,17 +567,19 @@ curl -i -H "Authorization: Bearer $SBF_TEST_KEY" http://localhost:8080/api/v1/me
 
 ## Todo List
 
-- [ ] Step 1 — Add `KeyService.ValidatePlaintext`
-- [ ] Step 2 — Build `middleware/auth_apikey.go` (NO cache — RT-R1: F5)
-- [ ] Step 3 — CORS middleware env-driven (rejects `*` with credentials)
-- [ ] Step 4 — Tighten trusted proxies + `EnableTrustedProxyCheck: true` (RT-R1: F-X-F-F) + config field
-- [ ] Step 4.5 — `middleware/rate_limit_auth.go` for `/auth/verify` (RT-R1: F2; 5/min, 20/hr, 200/day per IP)
-- [ ] Step 5 — V1 handlers (auth, me, balance, transactions, ledger, health) using `LogWebLoginMeta`
-- [ ] Step 6 — Wire `ApiHandlerDeps` + `RegisterV1` in `main.go` + WP_ENC_KEY hex boot validation (RT-R2: F1)
-- [ ] Step 7 — Populate `openapi.yaml` paths + run `pnpm gen:api`
-- [ ] Step 8 — `go build`, manual curl smoke (incl. 429 trigger via 6 rapid requests)
-- [ ] Audit log helpers `LogWebLoginMeta`/`LogWebLoginFailMeta` added (structured `meta JSONB`)
-- [ ] `services/api/.env.example` updated with `CORS_ORIGINS`, `TRUSTED_PROXY_CIDRS`
+- [x] Step 1 — Add `KeyService.ValidatePlaintext`
+- [x] Step 2 — Build `middleware/auth_apikey.go` (NO cache — RT-R1: F5)
+- [x] Step 3 — CORS middleware env-driven (rejects `*` with credentials)
+- [x] Step 4 — Tighten trusted proxies + `EnableTrustedProxyCheck: true` (RT-R1: F-X-F-F) + config field
+- [x] Step 4.5 — `middleware/rate_limit_auth.go` for `/auth/verify` (RT-R1: F2; 5/min, 20/hr, 200/day per IP)
+- [x] Step 5 — V1 handlers (auth, me, balance, transactions, ledger, health) using existing `AuditService.Log`
+- [x] Step 6 — Wire `ApiHandlerDeps` + `RegisterV1` in `main.go` + WP_ENC_KEY hex boot validation (RT-R2: F1)
+- [x] Step 7 — Populate `openapi.yaml` paths + run `pnpm gen:api`
+- [x] Step 8 — `go test ./...`, `go build ./...`, `pnpm -r typecheck`, `pnpm biome ci .`
+- [x] Manual curl smoke basic local API: `/api/v1/health` 200, invalid bearer `/api/v1/me` 401, CORS preflight allowlist headers OK
+- [ ] Manual curl smoke with real key + live DB (incl. 429 trigger via 6 rapid requests)
+- [ ] `auth.web.ratelimit` audit helper (deferred; current limiter returns 429 without audit row)
+- [x] `services/api/.env.example` updated with `CORS_ORIGINS`, `TRUSTED_PROXY_CIDRS`, `WP_ENC_KEY`
 
 ## Success Criteria
 

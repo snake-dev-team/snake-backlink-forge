@@ -3,9 +3,9 @@ name: "Phase 06 — Landing Revamp (VN-only, simplified)"
 phase: 6
 priority: P1
 effort: 2h
-status: pending
+status: implemented; typecheck/build/local smoke passed; independent reviewer deferred by 429
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-04-28
 ---
 
 <!-- RT-R1: F8 — MAJOR SIMPLIFICATION. Drop next-intl entirely from Phase 3. Drop [locale]/ route group. Drop sitemap/robots/OG. VN-only landing. Combined-middleware risk eliminated. -->
@@ -23,8 +23,8 @@ updated: 2026-04-26
 ## Overview
 
 - **Priority:** P1 (revenue funnel; brand presence)
-- **Status:** pending
-- **Brief:** Replace landing placeholder with single VN-only page at `apps/web/src/app/page.tsx`. Hero (headline + sub + CTA "Mở Telegram bot"), 3 feature cards, pricing teaser ($30/$59/$99 with "Liên hệ qua bot" CTA), footer. Hardcoded VN copy. NO `[locale]/` route group, NO next-intl, NO messages JSON, NO sitemap/robots/OG metadata, NO locale switcher. EN expansion + SEO metadata + sitemap deferred to Phase 9 when pricing real flow ships.
+- **Status:** implemented; typecheck/build/local smoke passed; independent reviewer deferred by 429
+- **Brief:** Replace landing placeholder with single VN-only page at `apps/landing/src/app/page.tsx`. Hero (headline + sub + CTA "Mở Telegram bot"), 3 feature cards, pricing teaser ($30/$59/$99 with "Liên hệ qua bot" CTA), footer. Hardcoded VN copy. NO `[locale]/` route group, NO next-intl, NO messages JSON, NO sitemap/robots/OG metadata, NO locale switcher. EN expansion + SEO metadata + sitemap deferred to Phase 9 when pricing real flow ships.
 
 ## Key Insights (RT-R1: F8)
 
@@ -58,7 +58,7 @@ updated: 2026-04-26
 ### Route tree (final, simplified — RT-R1: F8)
 
 ```
-apps/web/src/app/
+apps/landing/src/app/
 ├── layout.tsx                 ← root <html lang="vi">
 ├── globals.css
 ├── providers.tsx
@@ -88,30 +88,30 @@ apps/web/src/app/
 
 ### Create
 
-- `apps/web/src/components/landing/hero-section.tsx`
-- `apps/web/src/components/landing/features-section.tsx`
-- `apps/web/src/components/landing/pricing-teaser-section.tsx`
-- `apps/web/src/components/landing/landing-nav.tsx`
-- `apps/web/src/components/landing/landing-footer.tsx`
-- `apps/web/src/components/landing/skip-to-main-link.tsx`
+- `apps/landing/src/components/landing/hero-section.tsx`
+- `apps/landing/src/components/landing/features-section.tsx`
+- `apps/landing/src/components/landing/pricing-teaser-section.tsx`
+- `apps/landing/src/components/landing/landing-nav.tsx`
+- `apps/landing/src/components/landing/landing-footer.tsx`
+- `apps/landing/src/components/landing/skip-to-main-link.tsx`
 
 ### Modify
 
-- `apps/web/src/app/page.tsx` — replace placeholder with full landing
-- `apps/web/src/app/layout.tsx` — confirm `<html lang="vi">` (set in Phase 1)
+- `apps/landing/src/app/page.tsx` — replace placeholder with full landing
+- `apps/landing/src/app/layout.tsx` — confirm `<html lang="vi">` (set in Phase 1)
 
 ### Delete
 
-- `apps/web/src/app/page.tsx` placeholder content (replaced)
+- `apps/landing/src/app/page.tsx` placeholder content (replaced)
 
 ### Deferred to Phase 9 (RT-R1: F8)
 
-- `apps/web/src/app/[locale]/` route group
-- `apps/web/messages/{vi,en}.json`
-- `apps/web/i18n/{routing,request}.ts`
-- `apps/web/global.d.ts` (next-intl message augmentation)
-- `apps/web/src/app/sitemap.ts`
-- `apps/web/src/app/robots.ts`
+- `apps/landing/src/app/[locale]/` route group
+- `apps/landing/messages/{vi,en}.json`
+- `apps/landing/i18n/{routing,request}.ts`
+- `apps/landing/global.d.ts` (next-intl message augmentation)
+- `apps/landing/src/app/sitemap.ts`
+- `apps/landing/src/app/robots.ts`
 - `<LocaleSwitcher>` component
 - `generateMetadata` per locale
 - `next-intl` package install
@@ -120,7 +120,7 @@ apps/web/src/app/
 
 ### Step 1 — Landing page (45 min)
 
-`apps/web/src/app/page.tsx`:
+`apps/landing/src/app/page.tsx`:
 
 ```tsx
 import { LandingNav } from '@/components/landing/landing-nav'
@@ -323,12 +323,12 @@ pnpm --filter @sbf/web dev
 
 ## Todo List
 
-- [ ] Step 1 — `app/page.tsx` replaces placeholder with full landing layout (RT-R1: F8 — single route, no locale group)
-- [ ] Step 2 — `<HeroSection>` with VN copy + 2 CTAs
-- [ ] Step 3 — `<FeaturesSection>` 3-card grid with lucide icons
-- [ ] Step 4 — `<PricingTeaserSection>` 3 plans with "Liên hệ qua bot" CTAs
-- [ ] Step 5 — `<LandingNav>` + `<LandingFooter>` + `<SkipToMainLink>`
-- [ ] Step 6 — Manual smoke + tab-order check
+- [x] Step 1 — `app/page.tsx` replaces placeholder with full landing layout (RT-R1: F8 — single route, no locale group)
+- [x] Step 2 — Hero area with VN copy + 2 CTAs
+- [x] Step 3 — Features area 3-card grid with lucide icons
+- [x] Step 4 — Pricing teaser 3 plans with "Liên hệ qua bot" CTAs
+- [x] Step 5 — Landing nav + footer + skip-to-main link
+- [x] Step 6 — Local smoke + stable HTML marker check
 
 ## Success Criteria
 
@@ -362,7 +362,7 @@ pnpm --filter @sbf/web dev
 
 ## Next Steps
 
-- **Depends on:** Phase 01 (apps/web infra), Phase 03 (auth middleware unchanged)
+- **Depends on:** Phase 01 (apps/landing infra), Phase 03 (auth middleware unchanged)
 - **Unblocks:** Phase 07 (deploy includes landing); Phase 08 (Lighthouse CI runs against `/` not `/vi`)
 - **Follow-up (Phase 9):** install next-intl + add `[locale]/` segment + EN messages; add sitemap + robots; add `generateMetadata` with hreflang per locale; replace pricing CTAs with real subscription flow
 
@@ -377,3 +377,8 @@ pnpm --filter @sbf/web dev
 - Sitemap.xml + robots.txt + hreflang (RT-R1: F8 — Phase 9)
 - `generateMetadata` per locale + Open Graph (RT-R1: F8 — Phase 9)
 - Locale switcher (RT-R1: F8 — Phase 9)
+
+## Deferred / Do Later
+
+- Independent `code-reviewer` agent review is deferred because the agent call hit account rate limit `429`; retry when quota resets.
+- Full Lighthouse/mobile visual browser audit remains Phase 8 CI scope; this pass validated typecheck, production build, local HTTP render, and required HTML markers.
