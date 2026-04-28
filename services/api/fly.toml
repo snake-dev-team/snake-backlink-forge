@@ -18,6 +18,7 @@ primary_region = "sin"
   LOG_LEVEL = "info"
   TELEGRAM_BOT_USERNAME = "SnakeBacklinkForgeBot"
   SEPAY_BANK_CODE = "MBBank"
+  CORS_ORIGINS = "https://snake-backlink-forge.vercel.app"
 
 [http_service]
   internal_port = 8080
