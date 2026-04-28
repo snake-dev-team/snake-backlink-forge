@@ -1,3 +1,9 @@
+## [1.0.0-beta.5](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.4...v1.0.0-beta.5) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **ci:** remove legacy golangci config keys ([3055a92](https://github.com/snake-dev-team/snake-backlink-forge/commit/3055a92057b6e0718c210c2c5ef6b6033b0b590a))
+
 ## [1.0.0-beta.4](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.3...v1.0.0-beta.4) (2026-04-28)
 
 ### 🐞 Bug Fixes
