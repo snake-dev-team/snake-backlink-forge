@@ -21,6 +21,10 @@ const ctxKeyApiUser = "api_user"
 
 func AuthAPIKey(keySvc *service.KeyService, audit *service.AuditService, log *zap.Logger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if c.Method() == fiber.MethodOptions {
+			return c.Next()
+		}
+
 		auth := c.Get(fiber.HeaderAuthorization)
 		if !strings.HasPrefix(auth, "Bearer ") {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
