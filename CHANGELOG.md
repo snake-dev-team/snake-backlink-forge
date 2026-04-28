@@ -1,3 +1,9 @@
+## [1.0.0-beta.4](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.3...v1.0.0-beta.4) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **ci:** migrate api lint to golangci v2 ([1616f60](https://github.com/snake-dev-team/snake-backlink-forge/commit/1616f605e27a9ea0fd139fc6b700e6f17b268e2b))
+
 ## [1.0.0-beta.3](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.2...v1.0.0-beta.3) (2026-04-28)
 
 ### 🐞 Bug Fixes
