@@ -1,3 +1,9 @@
+## [1.0.0-beta.11](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.10...v1.0.0-beta.11) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **landing:** allow production login origin ([c0ad058](https://github.com/snake-dev-team/snake-backlink-forge/commit/c0ad05851ff42e6a424d31cf27d406247c999d26))
+
 ## [1.0.0-beta.10](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.9...v1.0.0-beta.10) (2026-04-28)
 
 ### 🐞 Bug Fixes
