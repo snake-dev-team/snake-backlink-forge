@@ -75,25 +75,16 @@ const betaConfig = {
       },
     ],
     [
-      "@semantic-release/exec",
-      {
-        prepareCmd: "node scripts/prepare-release-assets.cjs ${nextRelease.version}",
-      },
-    ],
-    [
       "@semantic-release/github",
       {
-        assets: [
-          { path: "CHANGELOG.md", label: "Changelog" },
-          { path: "dist/claudekit-engineer.zip", label: "ClaudeKit Engineer Package (Beta)" },
-        ],
+        assets: [{ path: "CHANGELOG.md", label: "Changelog" }],
         prerelease: true,
       },
     ],
     [
       "@semantic-release/git",
       {
-        assets: ["CHANGELOG.md", "package.json", "package-lock.json", ".claude/metadata.json"],
+        assets: ["CHANGELOG.md", "package.json", "pnpm-lock.yaml"],
         message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
       },
     ],
@@ -152,24 +143,15 @@ const productionConfig = {
       },
     ],
     [
-      "@semantic-release/exec",
-      {
-        prepareCmd: "node scripts/prepare-release-assets.cjs ${nextRelease.version}",
-      },
-    ],
-    [
       "@semantic-release/github",
       {
-        assets: [
-          { path: "CHANGELOG.md", label: "Changelog" },
-          { path: "dist/claudekit-engineer.zip", label: "ClaudeKit Engineer Package" },
-        ],
+        assets: [{ path: "CHANGELOG.md", label: "Changelog" }],
       },
     ],
     [
       "@semantic-release/git",
       {
-        assets: ["CHANGELOG.md", "package.json", "package-lock.json", ".claude/metadata.json"],
+        assets: ["CHANGELOG.md", "package.json", "pnpm-lock.yaml"],
         message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
       },
     ],
