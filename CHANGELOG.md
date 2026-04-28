@@ -1,3 +1,9 @@
+## [1.0.0-beta.6](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.5...v1.0.0-beta.6) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **api:** allow cors preflight before auth ([e90b2cd](https://github.com/snake-dev-team/snake-backlink-forge/commit/e90b2cd2819fab17a02bad1ce8be4df14b9d42bf))
+
 ## [1.0.0-beta.5](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.4...v1.0.0-beta.5) (2026-04-28)
 
 ### 🐞 Bug Fixes
