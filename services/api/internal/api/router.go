@@ -20,6 +20,7 @@ func Register(app *fiber.App, pool *pgxpool.Pool, rdb *goredis.Client) {
 func RegisterV1(app *fiber.App, deps *handlers.ApiHandlerDeps) {
 	v1 := app.Group("/api/v1")
 	v1.Get("/health", handlers.Health)
+	v1.Options("/*", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
 	v1.Post("/auth/verify", middleware.NewAuthVerifyRateLimit(deps.Rdb, deps.Log), handlers.V1AuthVerify(deps))
 
 	authed := v1.Group("", middleware.AuthAPIKey(deps.KeySvc, deps.AuditSvc, deps.Log))
