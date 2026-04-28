@@ -1,3 +1,9 @@
+## [1.0.0-beta.3](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.2...v1.0.0-beta.3) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **ci:** pin existing golangci-lint v1 release ([a533565](https://github.com/snake-dev-team/snake-backlink-forge/commit/a5335655c80ba5512a2e2c699e87dda655aff0ca))
+
 ## [1.0.0-beta.2](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.1...v1.0.0-beta.2) (2026-04-28)
 
 ### 🐞 Bug Fixes
