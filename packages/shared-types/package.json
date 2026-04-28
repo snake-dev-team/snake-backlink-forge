@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "gen:api": "openapi-ts",
+    "pretypecheck": "pnpm gen:api",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
