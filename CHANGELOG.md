@@ -1,3 +1,9 @@
+## [1.0.0-beta.2](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.1...v1.0.0-beta.2) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **ci:** unblock go lint and release notifications ([6d0d8e6](https://github.com/snake-dev-team/snake-backlink-forge/commit/6d0d8e69d86a79476e5bfc47bcba780fe7499831))
+
 ## 1.0.0-beta.1 (2026-04-28)
 
 ### 🚀 Features
