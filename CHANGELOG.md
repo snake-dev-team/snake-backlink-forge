@@ -1,3 +1,9 @@
+## [1.0.0-beta.8](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.7...v1.0.0-beta.8) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **deploy:** configure production cors origin ([9b2c855](https://github.com/snake-dev-team/snake-backlink-forge/commit/9b2c855e859f8ecbe4e8f5e7517f2ec7119cebd3))
+
 ## [1.0.0-beta.7](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.6...v1.0.0-beta.7) (2026-04-28)
 
 ### 🐞 Bug Fixes
