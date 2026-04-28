@@ -1,3 +1,9 @@
+## [1.0.0-beta.12](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.11...v1.0.0-beta.12) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **landing:** configure production auth backend ([1472fa7](https://github.com/snake-dev-team/snake-backlink-forge/commit/1472fa77fbe93e4b8e7e37ead0c04253e062c81f))
+
 ## [1.0.0-beta.11](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.10...v1.0.0-beta.11) (2026-04-28)
 
 ### 🐞 Bug Fixes
