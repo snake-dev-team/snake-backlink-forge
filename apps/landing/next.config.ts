@@ -13,6 +13,7 @@ const cspValue = [
   "img-src 'self' data: https:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
+  "frame-src https://vercel.live",
   "frame-ancestors 'none'",
   "form-action 'self'",
   "base-uri 'self'",
