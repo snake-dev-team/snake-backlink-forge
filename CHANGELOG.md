@@ -1,3 +1,9 @@
+## [1.0.0-beta.10](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.9...v1.0.0-beta.10) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **landing:** allow vercel live feedback frame ([a96d59a](https://github.com/snake-dev-team/snake-backlink-forge/commit/a96d59a9e8cec7a752f68b1333d1fd8a8b1e4516))
+
 ## [1.0.0-beta.9](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.8...v1.0.0-beta.9) (2026-04-28)
 
 ### 🐞 Bug Fixes
