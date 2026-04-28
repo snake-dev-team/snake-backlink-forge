@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { COOKIE_NAME } from "@/lib/auth/cookies";
 
-const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL;
+const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://snake-backlink-api.fly.dev";
 const VERIFY_TIMEOUT_MS = 5_000;
 const E2E_AUTH_MOCK = process.env.E2E_AUTH_MOCK === "1";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;

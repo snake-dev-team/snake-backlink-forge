@@ -3,13 +3,13 @@ import type { NextConfig } from "next";
 
 const scriptSrc =
   process.env.NODE_ENV === "development"
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://plausible.io https://vercel.live"
-    : "script-src 'self' 'unsafe-inline' https://plausible.io https://vercel.live";
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://plausible.io https://vercel.live https://*.vercel-scripts.com"
+    : "script-src 'self' 'unsafe-inline' https://plausible.io https://vercel.live https://*.vercel-scripts.com";
 
 const cspValue = [
   "default-src 'self'",
   scriptSrc,
-  "connect-src 'self' https://plausible.io https://*.sentry.io https://snake-backlink-api.fly.dev",
+  "connect-src 'self' https://plausible.io https://*.sentry.io https://snake-backlink-api.fly.dev https://*.pusher.com wss://*.pusher.com",
   "img-src 'self' data: https:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
