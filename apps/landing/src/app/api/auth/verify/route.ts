@@ -19,8 +19,12 @@ function verifiedResponse(key: string, user: unknown) {
   return response;
 }
 
-function allowedOrigins(): string[] {
+function allowedOrigins(req: Request): string[] {
   const origins = new Set<string>();
+  const host = req.headers.get("host");
+  if (host) {
+    origins.add(`https://${host}`);
+  }
   if (process.env.NEXT_PUBLIC_APP_URL) {
     origins.add(process.env.NEXT_PUBLIC_APP_URL);
   }
@@ -36,7 +40,7 @@ function allowedOrigins(): string[] {
 
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
-  if (!origin || !allowedOrigins().includes(origin)) {
+  if (!origin || !allowedOrigins(req).includes(origin)) {
     return NextResponse.json({ error: "forbidden_origin" }, { status: 403 });
   }
 

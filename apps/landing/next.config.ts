@@ -3,8 +3,8 @@ import type { NextConfig } from "next";
 
 const scriptSrc =
   process.env.NODE_ENV === "development"
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://plausible.io"
-    : "script-src 'self' 'unsafe-inline' https://plausible.io";
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://plausible.io https://vercel.live"
+    : "script-src 'self' 'unsafe-inline' https://plausible.io https://vercel.live";
 
 const cspValue = [
   "default-src 'self'",
