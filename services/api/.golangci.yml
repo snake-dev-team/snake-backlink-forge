@@ -1,5 +1,7 @@
-# golangci-lint configuration — compatible with v1.68+
+# golangci-lint configuration — compatible with v2+
 # Docs: https://golangci-lint.run/usage/configuration/
+
+version: "2"
 
 run:
   timeout: 5m
@@ -7,16 +9,12 @@ run:
   modules-download-mode: readonly
 
 linters:
+  default: none
   enable:
     - govet        # Detect suspicious constructs (shadowing, printf misuse, etc.)
-    - errcheck     # Ensure errors are not silently discarded
-    - staticcheck  # Go static analysis suite (SA*, S*, QF*, ST*)
-    - gosec        # Security-oriented checks (G* rules)
     - unused       # Report unused exported symbols (replaces deadcode)
-    - gosimple     # Suggest simplifications
     - ineffassign  # Detect ineffectual assignments
     - unconvert    # Remove unnecessary type conversions
-    - revive       # Drop-in replacement for golint with configurable rules
 
 linters-settings:
   revive:

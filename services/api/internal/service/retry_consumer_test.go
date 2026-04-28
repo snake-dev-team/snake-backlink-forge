@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/integration/sepay"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/notify"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
@@ -254,7 +253,3 @@ func TestRetryQueueConsumer_BacklogAlert(t *testing.T) {
 	}
 }
 
-// testCfg returns a minimal *config.Config for service construction in retry tests.
-func testCfg() *config.Config {
-	return &config.Config{SepayBankCode: "MBBank", SepayBankAccount: "123456789"}
-}
