@@ -7,7 +7,12 @@ import { DeleteSiteButton, RevalidateSiteButton } from "./site-action-buttons";
 
 export const dynamic = "force-dynamic";
 
-export default async function SitesPage() {
+type SitesPageProps = {
+  searchParams?: Promise<{ status?: string }>;
+};
+
+export default async function SitesPage({ searchParams }: SitesPageProps) {
+  const status = (await searchParams)?.status;
   let items: WpSite[] | null = null;
   try {
     items = (await fetchWpSitesServer()).items;
@@ -28,6 +33,8 @@ export default async function SitesPage() {
         </Button>
       </div>
 
+      <SiteStatusMessage status={status} />
+
       {items === null ? (
         <SitesUnavailableCard />
       ) : items.length === 0 ? (
@@ -35,6 +42,25 @@ export default async function SitesPage() {
       ) : (
         <SitesTable items={items} />
       )}
+    </div>
+  );
+}
+
+function SiteStatusMessage({ status }: { status?: string }) {
+  const message =
+    status === "revalidated"
+      ? "Đã revalidate WordPress site thành công."
+      : status === "deleted"
+        ? "Đã xoá WordPress site."
+        : null;
+
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+      {message}
     </div>
   );
 }

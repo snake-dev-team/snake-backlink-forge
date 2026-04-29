@@ -47,6 +47,7 @@ export async function deleteWpSiteAction(formData: FormData) {
   }
   await deleteProxyServer(`/wp-sites/${id}`);
   revalidatePath("/sites");
+  redirect("/sites?status=deleted");
 }
 
 export async function revalidateWpSiteAction(formData: FormData) {
@@ -56,6 +57,7 @@ export async function revalidateWpSiteAction(formData: FormData) {
   }
   await postProxyServer(`/wp-sites/${id}/revalidate`);
   revalidatePath("/sites");
+  redirect("/sites?status=revalidated");
 }
 
 function wpSiteErrorMessage(code: string) {
