@@ -1,3 +1,9 @@
+## [1.0.0-beta.13](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.12...v1.0.0-beta.13) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** use production origins for server fetches ([9fbc1be](https://github.com/snake-dev-team/snake-backlink-forge/commit/9fbc1be247d4b06382f3b94313e5781079c011f7))
+
 ## [1.0.0-beta.12](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.11...v1.0.0-beta.12) (2026-04-28)
 
 ### 🐞 Bug Fixes
