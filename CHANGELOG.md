@@ -1,3 +1,9 @@
+## [1.0.0-beta.16](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.15...v1.0.0-beta.16) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** prevent sites and logout failures ([f7c6a20](https://github.com/snake-dev-team/snake-backlink-forge/commit/f7c6a20a1740545330dfe93df25c1a0ed59432ef))
+
 ## [1.0.0-beta.15](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.14...v1.0.0-beta.15) (2026-04-29)
 
 ### 🐞 Bug Fixes
