@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchWpSitesServer, type WpSite } from "@/lib/api/server-fetch";
 import { deleteWpSiteAction, revalidateWpSiteAction } from "./actions";
+import { DeleteSiteButton, RevalidateSiteButton } from "./site-action-buttons";
 
 export const dynamic = "force-dynamic";
 
@@ -110,15 +111,11 @@ function SitesTable({ items }: { items: WpSite[] }) {
                   <div className="flex justify-end gap-2">
                     <form action={revalidateWpSiteAction}>
                       <input name="id" type="hidden" value={site.id} />
-                      <Button size="sm" type="submit" variant="outline">
-                        Revalidate
-                      </Button>
+                      <RevalidateSiteButton />
                     </form>
                     <form action={deleteWpSiteAction}>
                       <input name="id" type="hidden" value={site.id} />
-                      <Button size="sm" type="submit" variant="destructive">
-                        Delete
-                      </Button>
+                      <DeleteSiteButton />
                     </form>
                   </div>
                 </td>
