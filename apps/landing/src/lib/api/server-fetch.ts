@@ -1,12 +1,7 @@
 import { cache } from "react";
 import { getApiKeyCookie } from "@/lib/auth/cookies";
 
-const APP_ORIGIN =
-  process.env.NEXT_PUBLIC_APP_URL ??
-  (process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "https://snake-backlink-forge.vercel.app");
-const COOKIE_NAME = process.env.NODE_ENV === "development" ? "sbf_key" : "__Host-sbf_key";
+const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://snake-backlink-api.fly.dev";
 const E2E_API_MOCK = process.env.E2E_AUTH_MOCK === "1";
 
 export type MeResponse = {
@@ -48,10 +43,10 @@ async function proxyFetch(path: string, init?: RequestInit): Promise<Response> {
   if (!key) {
     throw new Error("unauthorized");
   }
-  return fetch(`${APP_ORIGIN}/api/proxy/api/v1${path}`, {
+  return fetch(`${BACKEND}/api/v1${path}`, {
     ...init,
     headers: {
-      Cookie: `${COOKIE_NAME}=${encodeURIComponent(key)}`,
+      Authorization: `Bearer ${key}`,
       ...init?.headers,
     },
     cache: "no-store",
