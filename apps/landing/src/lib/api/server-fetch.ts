@@ -1,7 +1,11 @@
 import { cache } from "react";
 import { getApiKeyCookie } from "@/lib/auth/cookies";
 
-const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const APP_ORIGIN =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "https://snake-backlink-forge.vercel.app");
 const COOKIE_NAME = process.env.NODE_ENV === "development" ? "sbf_key" : "__Host-sbf_key";
 const E2E_API_MOCK = process.env.E2E_AUTH_MOCK === "1";
 

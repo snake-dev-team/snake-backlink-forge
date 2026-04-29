@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { clearApiKeyCookie, getApiKeyCookie } from "@/lib/auth/cookies";
 
-const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL;
+const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://snake-backlink-api.fly.dev";
 const MAX_BODY_BYTES = 1024 * 1024;
 
 async function readBodyWithLimit(req: NextRequest): Promise<string | null> {
