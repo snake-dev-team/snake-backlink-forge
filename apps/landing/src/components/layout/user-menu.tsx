@@ -25,6 +25,7 @@ export function UserMenu({ botUsername, keyPrefix, username }: UserMenuProps) {
     await fetch("/api/auth/logout", { method: "POST" });
     router.replace("/login");
     router.refresh();
+    window.location.assign("/login");
   }
 
   return (

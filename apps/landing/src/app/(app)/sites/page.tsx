@@ -7,7 +7,12 @@ import { deleteWpSiteAction, revalidateWpSiteAction } from "./actions";
 export const dynamic = "force-dynamic";
 
 export default async function SitesPage() {
-  const { items } = await fetchWpSitesServer();
+  let items: WpSite[] | null = null;
+  try {
+    items = (await fetchWpSitesServer()).items;
+  } catch {
+    items = null;
+  }
 
   return (
     <div className="space-y-6">
@@ -22,8 +27,32 @@ export default async function SitesPage() {
         </Button>
       </div>
 
-      {items.length === 0 ? <EmptySitesCard /> : <SitesTable items={items} />}
+      {items === null ? (
+        <SitesUnavailableCard />
+      ) : items.length === 0 ? (
+        <EmptySitesCard />
+      ) : (
+        <SitesTable items={items} />
+      )}
     </div>
+  );
+}
+
+function SitesUnavailableCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Chưa tải được WordPress sites</CardTitle>
+        <CardDescription>
+          Backend WordPress service chưa sẵn sàng hoặc phiên đăng nhập cần làm mới.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild variant="outline">
+          <Link href="/sites/connect">Connect WordPress</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

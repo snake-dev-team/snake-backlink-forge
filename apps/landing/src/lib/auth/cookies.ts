@@ -23,7 +23,7 @@ export async function clearApiKeyCookie() {
   (await cookies()).set(COOKIE_NAME, "", {
     httpOnly: true,
     secure: isSecure,
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
     maxAge: 0,
   });
