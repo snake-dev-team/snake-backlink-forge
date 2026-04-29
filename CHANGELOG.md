@@ -1,3 +1,9 @@
+## [1.0.0-beta.17](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.16...v1.0.0-beta.17) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** show wordpress site action progress ([d4edb52](https://github.com/snake-dev-team/snake-backlink-forge/commit/d4edb524a8345761e2141a6d58c4a03dcd11711e))
+
 ## [1.0.0-beta.16](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.15...v1.0.0-beta.16) (2026-04-29)
 
 ### 🐞 Bug Fixes
