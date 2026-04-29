@@ -1,3 +1,9 @@
+## [1.0.0-beta.15](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.14...v1.0.0-beta.15) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** fetch dashboard data from backend directly ([5b052a1](https://github.com/snake-dev-team/snake-backlink-forge/commit/5b052a1aa01fddd5fd1be298849f2cb825b1b1b9))
+
 ## [1.0.0-beta.14](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.13...v1.0.0-beta.14) (2026-04-29)
 
 ### 🐞 Bug Fixes
