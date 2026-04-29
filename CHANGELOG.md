@@ -1,3 +1,9 @@
+## [1.0.0-beta.18](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.17...v1.0.0-beta.18) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** confirm wordpress site actions ([8986302](https://github.com/snake-dev-team/snake-backlink-forge/commit/89863028cab0966e84316bc8224910fd39ebe61c))
+
 ## [1.0.0-beta.17](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.16...v1.0.0-beta.17) (2026-04-29)
 
 ### 🐞 Bug Fixes
