@@ -10,7 +10,12 @@ function cell(value: unknown): string {
 }
 
 export async function RecentTxCard() {
-  const tx = await fetchTransactionsServer(5);
+  let tx: Awaited<ReturnType<typeof fetchTransactionsServer>> | null = null;
+  try {
+    tx = await fetchTransactionsServer(5);
+  } catch {
+    tx = null;
+  }
 
   return (
     <Card>
@@ -19,7 +24,11 @@ export async function RecentTxCard() {
         <CardDescription>5 giao dịch credit mới nhất.</CardDescription>
       </CardHeader>
       <CardContent>
-        {tx.items.length === 0 ? (
+        {!tx ? (
+          <p className="text-sm text-muted-foreground">
+            Chưa tải được giao dịch. Đăng xuất rồi đăng nhập lại nếu lỗi kéo dài.
+          </p>
+        ) : tx.items.length === 0 ? (
           <p className="text-sm text-muted-foreground">Chưa có giao dịch.</p>
         ) : (
           <div className="space-y-3">

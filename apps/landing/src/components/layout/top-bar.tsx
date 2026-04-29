@@ -5,15 +5,20 @@ import { UserMenu } from "./user-menu";
 const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "SnakeBacklinkForgeBot";
 
 export async function TopBar() {
-  const me = await fetchMeServer();
+  let me: Awaited<ReturnType<typeof fetchMeServer>> | null = null;
+  try {
+    me = await fetchMeServer();
+  } catch {
+    me = null;
+  }
 
   return (
     <div className="flex items-center gap-2">
       <ThemeToggle />
       <UserMenu
         botUsername={botUsername}
-        keyPrefix={me.key_prefix}
-        username={me.telegram_username}
+        keyPrefix={me?.key_prefix ?? "sbf_live"}
+        username={me?.telegram_username}
       />
     </div>
   );
