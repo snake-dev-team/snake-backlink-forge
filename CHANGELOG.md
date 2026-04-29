@@ -1,3 +1,9 @@
+## [1.0.0-beta.14](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.13...v1.0.0-beta.14) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** prevent dashboard api errors from crashing ([2652d75](https://github.com/snake-dev-team/snake-backlink-forge/commit/2652d75fda24311ff74dc9a586f895c73fd61a49))
+
 ## [1.0.0-beta.13](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.12...v1.0.0-beta.13) (2026-04-29)
 
 ### 🐞 Bug Fixes
