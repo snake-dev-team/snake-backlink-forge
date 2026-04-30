@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { clearApiKeyCookie, getApiKeyCookie } from "@/lib/auth/cookies";
+import { forbiddenOriginResponse } from "@/lib/auth/origin";
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://snake-backlink-api.fly.dev";
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -14,6 +15,11 @@ type ProxyContext = {
 };
 
 async function forward(req: NextRequest, ctx: ProxyContext) {
+  const forbiddenOrigin = forbiddenOriginResponse(req);
+  if (forbiddenOrigin) {
+    return forbiddenOrigin;
+  }
+
   const contentLength = Number.parseInt(req.headers.get("content-length") ?? "0", 10);
   if (contentLength > MAX_BODY_BYTES) {
     return NextResponse.json(

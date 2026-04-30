@@ -102,8 +102,7 @@ func handleContactShare(ctx context.Context, deps *Deps, bot *tgbotapi.BotAPI, u
 
 	tgID := from.ID
 
-	// Security: reject spoofed contacts (user sharing someone else's number).
-	if contact.UserID != 0 && contact.UserID != tgID {
+	if contact.UserID == 0 || contact.UserID != tgID {
 		replyText(bot, update, renderTplCtx(ctx, deps, tplStartContactRejected, nil))
 		return nil
 	}

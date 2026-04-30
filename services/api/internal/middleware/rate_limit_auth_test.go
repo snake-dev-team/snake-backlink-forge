@@ -21,19 +21,17 @@ func newAuthVerifyRateLimitApp(rdb *redis.Client) *fiber.App {
 	return app
 }
 
-func TestAuthVerifyRateLimit_NilRedis_PassThrough(t *testing.T) {
+func TestAuthVerifyRateLimit_NilRedis_Returns503(t *testing.T) {
 	app := newAuthVerifyRateLimitApp(nil)
 
-	for i := 0; i < 10; i++ {
-		req := httptest.NewRequest("POST", "/auth/verify", nil)
-		resp, err := app.Test(req)
-		if err != nil {
-			t.Fatalf("request %d: %v", i, err)
-		}
-		resp.Body.Close()
-		if resp.StatusCode != fiber.StatusOK {
-			t.Fatalf("request %d: want 200, got %d", i, resp.StatusCode)
-		}
+	req := httptest.NewRequest("POST", "/auth/verify", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != fiber.StatusServiceUnavailable {
+		t.Fatalf("want 503, got %d", resp.StatusCode)
 	}
 }
 

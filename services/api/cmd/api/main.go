@@ -80,6 +80,9 @@ func main() {
 	} else {
 		log.Info("redis connected")
 	}
+	if cfg.IsProduction() && rdb == nil {
+		log.Fatal("redis unavailable — refusing production boot because auth rate limiting cannot be enforced")
+	}
 
 	// --- Auto-migration on boot (Phase 10 production hard-fail policy) ---
 	// Idempotent: applies pending migrations; no-op if up-to-date.

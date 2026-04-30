@@ -14,8 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
+	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	"go.uber.org/zap"
 )
@@ -195,7 +195,7 @@ func TestCancelPendingTransaction_Q2(t *testing.T) {
 	}
 	refBefore := createdTx.ProviderRef
 
-	if err := svc.CancelPendingTransaction(context.Background(), createdTx.ID, "user_clicked_cancel"); err != nil {
+	if err := svc.CancelPendingTransaction(context.Background(), userID, createdTx.ID, "user_clicked_cancel"); err != nil {
 		t.Fatalf("CancelPendingTransaction: %v", err)
 	}
 
@@ -214,6 +214,27 @@ func TestCancelPendingTransaction_Q2(t *testing.T) {
 	}
 }
 
+func TestCancelPendingTransaction_RejectsWrongUser(t *testing.T) {
+	pool := newTestPool(t)
+	svc := newTestTxService(t, pool)
+	ownerID := insertTestUserForTx(t, pool)
+	otherID := insertTestUserForTx(t, pool)
+
+	createdTx, _, err := svc.CreateTopupIntent(context.Background(), ownerID, "combo_p100_s50")
+	if err != nil {
+		t.Fatalf("CreateTopupIntent: %v", err)
+	}
+
+	if err := svc.CancelPendingTransaction(context.Background(), otherID, createdTx.ID, "wrong_user_cancel"); err != nil {
+		t.Fatalf("CancelPendingTransaction: %v", err)
+	}
+
+	row := getTxRow(t, pool, createdTx.ID)
+	if row.Status != sqlcdb.TransactionStatusPending {
+		t.Fatalf("status: got %q, want pending", row.Status)
+	}
+}
+
 func TestCancelledTxRetainsProviderRef(t *testing.T) {
 	pool := newTestPool(t)
 	svc := newTestTxService(t, pool)
@@ -223,7 +244,7 @@ func TestCancelledTxRetainsProviderRef(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first create: %v", err)
 	}
-	if err := svc.CancelPendingTransaction(context.Background(), tx1.ID, "test_cancel"); err != nil {
+	if err := svc.CancelPendingTransaction(context.Background(), userID, tx1.ID, "test_cancel"); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 

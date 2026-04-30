@@ -1,6 +1,6 @@
 # Snake Backlink Forge — local dev infra
 # Usage: docker compose -f ops/docker-compose.yml up -d --wait
-# Credentials match defaults in services/api/.env.example
+# Requires POSTGRES_PASSWORD and REDIS_PASSWORD in the local shell or env file.
 
 services:
   postgres:
@@ -8,10 +8,10 @@ services:
     container_name: sbf_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-sbf}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sbf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_DB: ${POSTGRES_DB:-sbf_dev}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - sbf_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -26,12 +26,12 @@ services:
     image: redis:7-alpine
     container_name: sbf_redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - sbf_redisdata:/data
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    command: ["sh", "-c", "umask 077; printf 'appendonly yes\nappendfsync everysec\nrequirepass %s\n' \"$$REDIS_PASSWORD\" > /tmp/redis.conf; exec redis-server /tmp/redis.conf"]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping"]
       interval: 5s
       timeout: 3s
       retries: 10

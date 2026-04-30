@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { COOKIE_NAME } from "@/lib/auth/cookies";
+import { forbiddenOriginResponse } from "@/lib/auth/origin";
 
 const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://snake-backlink-api.fly.dev";
 const VERIFY_TIMEOUT_MS = 5_000;
@@ -19,29 +20,10 @@ function verifiedResponse(key: string, user: unknown) {
   return response;
 }
 
-function allowedOrigins(req: Request): string[] {
-  const origins = new Set<string>();
-  const host = req.headers.get("host");
-  if (host) {
-    origins.add(`https://${host}`);
-  }
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    origins.add(process.env.NEXT_PUBLIC_APP_URL);
-  }
-  if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
-    origins.add(`https://${process.env.VERCEL_URL}`);
-  }
-  if (process.env.NODE_ENV === "development") {
-    origins.add("http://localhost:3000");
-    origins.add("http://127.0.0.1:3000");
-  }
-  return [...origins];
-}
-
 export async function POST(req: Request) {
-  const origin = req.headers.get("origin");
-  if (!origin || !allowedOrigins(req).includes(origin)) {
-    return NextResponse.json({ error: "forbidden_origin" }, { status: 403 });
+  const forbiddenOrigin = forbiddenOriginResponse(req);
+  if (forbiddenOrigin) {
+    return forbiddenOrigin;
   }
 
   let body: { key?: string };

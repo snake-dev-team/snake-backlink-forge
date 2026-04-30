@@ -145,7 +145,7 @@ func handleTopupCancelCallback(ctx context.Context, deps *Deps, api *tgbotapi.Bo
 	}
 
 	if deps.TxService != nil {
-		if cancelErr := deps.TxService.CancelPendingTransaction(ctx, txID, "user_clicked_cancel"); cancelErr != nil {
+		if cancelErr := deps.TxService.CancelPendingTransaction(ctx, botUser.ID, txID, "user_clicked_cancel"); cancelErr != nil {
 			deps.Log.Warn("handleTopupCancelCallback: cancel failed",
 				zap.String("tx_id", txIDStr), zap.Error(cancelErr))
 			// Non-fatal: still clear FSM and update UI.

@@ -83,15 +83,37 @@ func runRetryConsumerOnce(
 	deadLetterAlerted := make(map[int64]bool) // 5-min bucket dedup for retry_dead_letter alerts
 
 	for {
-		// BRPOP blocks until an item arrives or ctx is cancelled.
-		res, err := rdb.BRPop(ctx, 0, "sepay_retry_queue").Result()
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return false // clean exit — ctx done
+		if ctx.Err() != nil {
+			return false
+		}
+
+		brpopCtx, cancel := context.WithCancel(ctx)
+		resCh := make(chan []string, 1)
+		errCh := make(chan error, 1)
+		go func() {
+			res, err := rdb.BRPop(brpopCtx, time.Second, "sepay_retry_queue").Result()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			resCh <- res
+		}()
+
+		var res []string
+		select {
+		case <-ctx.Done():
+			cancel()
+			return false
+		case err := <-errCh:
+			cancel()
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, goredis.Nil) || ctx.Err() != nil {
+				continue
 			}
 			// Transient Redis error — log and loop (will retry BRPop).
 			log.Warn("retry consumer: BRPOP failed", zap.Error(err))
 			continue
+		case res = <-resCh:
+			cancel()
 		}
 
 		var env RetryEnvelope
@@ -128,12 +150,17 @@ func runRetryConsumerOnce(
 		if orderCode == DeadLetterSentinel {
 			procErr = ErrDeadLetterSentinel
 		} else {
-			_, procErr = svc.ProcessPaidTransaction(ctx, orderCode, env.Payload)
+			replayCtx, replayCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			_, procErr = svc.ProcessPaidTransaction(replayCtx, orderCode, env.Payload)
+			replayCancel()
 		}
 
 		if procErr == nil {
 			log.Info("retry consumer: replay succeeded", zap.String("order_code", orderCode))
 			continue
+		}
+		if ctx.Err() != nil {
+			return false
 		}
 
 		// Failure: increment attempts and branch on max-retries.

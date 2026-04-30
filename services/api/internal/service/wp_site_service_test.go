@@ -13,8 +13,6 @@ func TestNormalizeWPBaseURL(t *testing.T) {
 		want string
 	}{
 		{name: "https", raw: " HTTPS://Example.COM/blog/?a=1#frag ", want: "https://example.com/blog"},
-		{name: "localhost http", raw: "http://localhost:8080/wp/", want: "http://localhost:8080/wp"},
-		{name: "ipv4 local http", raw: "http://127.0.0.1:8080/", want: "http://127.0.0.1:8080"},
 	}
 
 	for _, tt := range tests {
@@ -31,11 +29,22 @@ func TestNormalizeWPBaseURL(t *testing.T) {
 }
 
 func TestNormalizeWPBaseURLRejectsInvalid(t *testing.T) {
-	for _, raw := range []string{"", "example.com", "http://example.com", "ftp://example.com"} {
+	for _, raw := range []string{"", "example.com", "http://example.com", "ftp://example.com", "http://localhost:8080", "http://127.0.0.1:8080"} {
 		t.Run(raw, func(t *testing.T) {
 			_, err := NormalizeWPBaseURL(raw)
 			if !errors.Is(err, ErrWpInvalidURL) {
 				t.Fatalf("err = %v, want ErrWpInvalidURL", err)
+			}
+		})
+	}
+}
+
+func TestNormalizeWPBaseURLRejectsPrivateIPHTTPS(t *testing.T) {
+	for _, raw := range []string{"https://127.0.0.1", "https://10.0.0.1", "https://[::1]"} {
+		t.Run(raw, func(t *testing.T) {
+			_, err := NormalizeWPBaseURL(raw)
+			if !errors.Is(err, ErrWpPrivateAddress) {
+				t.Fatalf("err = %v, want ErrWpPrivateAddress", err)
 			}
 		})
 	}

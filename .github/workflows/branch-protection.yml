@@ -13,22 +13,22 @@ jobs:
 
     steps:
       - name: Check source branch
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref }}
+          TARGET_BRANCH: ${{ github.base_ref }}
         run: |
-          SOURCE_BRANCH="${{ github.head_ref }}"
-          TARGET_BRANCH="${{ github.base_ref }}"
-
           echo "Source branch: $SOURCE_BRANCH"
           echo "Target branch: $TARGET_BRANCH"
 
-          # Allow dev -> main (normal release) and hotfix branches -> main
-          if [[ "$TARGET_BRANCH" == "main" && "$SOURCE_BRANCH" != "dev" && ! "$SOURCE_BRANCH" =~ hotfix ]]; then
-            echo "::error::PRs to 'main' branch are only allowed from 'dev' or hotfix branches."
+          # Allow only dev -> main. Emergency hotfixes must use trusted maintainer approval outside branch names.
+          if [[ "$TARGET_BRANCH" == "main" && "$SOURCE_BRANCH" != "dev" ]]; then
+            echo "::error::PRs to 'main' branch are only allowed from 'dev'."
             echo "::error::Current source branch: $SOURCE_BRANCH"
             echo ""
             echo "Please follow the correct workflow:"
             echo "  1. Create PR from your feature branch to 'dev'"
             echo "  2. After merging to 'dev', create PR from 'dev' to 'main'"
-            echo "  3. For hotfixes: branch name must contain 'hotfix' (e.g., kai/hotfix-issue)"
+            echo "  3. For emergency hotfixes, use trusted maintainer approval outside branch names."
             exit 1
           fi
 

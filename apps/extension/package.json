@@ -6,7 +6,9 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "typecheck": "tsc --noEmit && svelte-check --tsconfig tsconfig.json"
+    "package:check": "npm run build && npm run validate:manifest",
+    "typecheck": "tsc --noEmit && svelte-check --tsconfig tsconfig.json",
+    "validate:manifest": "node scripts/validate-manifest.mjs"
   },
   "dependencies": {
     "svelte": "^5"

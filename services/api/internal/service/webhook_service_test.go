@@ -2,12 +2,13 @@
 // Requires DATABASE_URL env var. Uses live Postgres; tables not truncated (unique users).
 //
 // Covered invariants:
-//   [F1] 3-way amount branch: underpaid / exact / overpaid + bonus + admin alert
-//   [Q2] CAS widened to ('pending','cancelled') — late payment recovery
-//   [F2] Case-insensitive order code normalization
-//   Idempotency: second call → AlreadyProcessed, wallet unchanged
-//   Concurrency: 10 goroutines same orderCode → exactly 1 grant (CAS gate)
-//   UnknownOrder, MixedCaseMemo
+//
+//	[F1] 3-way amount branch: underpaid / exact / overpaid + bonus + admin alert
+//	[Q2] CAS widened to ('pending','cancelled') — late payment recovery
+//	[F2] Case-insensitive order code normalization
+//	Idempotency: second call → AlreadyProcessed, wallet unchanged
+//	Concurrency: 10 goroutines same orderCode → exactly 1 grant (CAS gate)
+//	UnknownOrder, MixedCaseMemo
 package service_test
 
 import (
@@ -20,8 +21,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/config"
+	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/integration/sepay"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/notify"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
@@ -414,7 +415,7 @@ func TestProcessPaidTransaction_Q2_CancelRecovery(t *testing.T) {
 		&config.Config{SepayBankCode: "MBBank", SepayBankAccount: "123456789"},
 		mustLogger(t),
 	)
-	if err := txSvc.CancelPendingTransaction(ctx, txID, "test_cancel"); err != nil {
+	if err := txSvc.CancelPendingTransaction(ctx, userID, txID, "test_cancel"); err != nil {
 		t.Fatalf("CancelPendingTransaction: %v", err)
 	}
 	if st := getTxStatus(t, pool, txID); st != "cancelled" {

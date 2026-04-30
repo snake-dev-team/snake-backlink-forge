@@ -7,6 +7,27 @@ import (
 )
 
 // TestValidateAdminTelegramIDs_NoDupes: clean list passes through sorted, unchanged.
+func TestValidateSePayWebhookConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     Config
+		wantErr bool
+	}{
+		{name: "valid", cfg: Config{SepayWebhookToken: "12345678901234567890123456789012", SepayBankAccount: "123456789"}},
+		{name: "empty token", cfg: Config{SepayBankAccount: "123456789"}, wantErr: true},
+		{name: "short token", cfg: Config{SepayWebhookToken: "short", SepayBankAccount: "123456789"}, wantErr: true},
+		{name: "missing bank account", cfg: Config{SepayWebhookToken: "12345678901234567890123456789012"}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSePayWebhookConfig(&tt.cfg)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestValidateAdminTelegramIDs_NoDupes(t *testing.T) {
 	input := []int64{300, 100, 200}
 	out, err := validateAdminTelegramIDs(input)

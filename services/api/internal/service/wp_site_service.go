@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -112,8 +113,11 @@ func NormalizeWPBaseURL(raw string) (string, error) {
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return "", ErrWpInvalidURL
 	}
-	if u.Scheme != "https" && !isLocalDevHost(u.Hostname()) {
+	if strings.ToLower(u.Scheme) != "https" {
 		return "", ErrWpInvalidURL
+	}
+	if hostIP := net.ParseIP(u.Hostname()); hostIP != nil && !isPublicIP(hostIP) {
+		return "", ErrWpPrivateAddress
 	}
 	u.Scheme = strings.ToLower(u.Scheme)
 	u.Host = strings.ToLower(u.Host)

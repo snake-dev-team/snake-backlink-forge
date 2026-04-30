@@ -155,12 +155,14 @@ func (s *TransactionService) CreateTopupIntent(
 // reason is stored in metadata.cancel_reason for audit trail.
 func (s *TransactionService) CancelPendingTransaction(
 	ctx context.Context,
+	userID uuid.UUID,
 	txID uuid.UUID,
 	reason string,
 ) error {
 	err := s.q.CancelPendingTransaction(ctx, sqlcdb.CancelPendingTransactionParams{
 		ID:      txID,
 		Column2: reason,
+		UserID:  userID,
 	})
 	if err != nil {
 		return fmt.Errorf("CancelPendingTransaction: %w", err)

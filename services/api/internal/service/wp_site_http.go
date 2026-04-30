@@ -13,19 +13,21 @@ import (
 
 func newWPHTTPClient() *http.Client {
 	return &http.Client{
-		Timeout:   10 * time.Second,
-		Transport: newSafeWPTransport(),
+		Timeout:       10 * time.Second,
+		Transport:     newSafeWPTransport(),
+		CheckRedirect: rejectWPRedirect,
 	}
 }
 
 func (s *WpSiteService) Validate(ctx context.Context, baseURL string, username string, password string) error {
-	if _, err := NormalizeWPBaseURL(baseURL); err != nil {
+	normalizedBaseURL, err := NormalizeWPBaseURL(baseURL)
+	if err != nil {
 		return err
 	}
-	if err := s.checkRESTRoot(ctx, baseURL); err != nil {
+	if err := s.checkRESTRoot(ctx, normalizedBaseURL); err != nil {
 		return err
 	}
-	endpoint := strings.TrimRight(baseURL, "/") + "/wp-json/wp/v2/users/me?context=edit"
+	endpoint := strings.TrimRight(normalizedBaseURL, "/") + "/wp-json/wp/v2/users/me?context=edit"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return fmt.Errorf("wp_request: %w", err)
@@ -79,22 +81,24 @@ func newSafeWPTransport() *http.Transport {
 			if err != nil {
 				return nil, err
 			}
+			if len(ips) == 0 {
+				return nil, ErrWpPrivateAddress
+			}
 			for _, resolved := range ips {
-				ip := resolved.IP
-				if isPublicIP(ip) || isLocalDevHost(host) {
-					return dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+				if !isPublicIP(resolved.IP) {
+					return nil, ErrWpPrivateAddress
 				}
 			}
-			return nil, ErrWpPrivateAddress
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
 		},
 		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 	}
 }
 
-func isPublicIP(ip net.IP) bool {
-	return ip != nil && !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsUnspecified() && !ip.IsMulticast()
+func rejectWPRedirect(_ *http.Request, _ []*http.Request) error {
+	return ErrWpPrivateAddress
 }
 
-func isLocalDevHost(host string) bool {
-	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+func isPublicIP(ip net.IP) bool {
+	return ip != nil && !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsUnspecified() && !ip.IsMulticast()
 }

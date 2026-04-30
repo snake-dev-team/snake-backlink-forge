@@ -28,7 +28,7 @@ SET status     = 'cancelled',
                      'cancel_reason', $2::text,
                      'cancelled_at',  to_char(NOW(), 'YYYY-MM-DD"T"HH24:MI:SSOF')
                  )
-WHERE id = $1 AND status = 'pending';
+WHERE id = $1 AND user_id = $3 AND status = 'pending';
 
 -- name: GetTxByUserPage :many
 SELECT * FROM transactions

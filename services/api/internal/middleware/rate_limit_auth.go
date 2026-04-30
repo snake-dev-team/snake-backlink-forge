@@ -33,7 +33,10 @@ func rateLimitIP(c *fiber.Ctx) string {
 func NewAuthVerifyRateLimit(rdb *goredis.Client, log *zap.Logger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if rdb == nil {
-			return c.Next()
+			if log != nil {
+				log.Warn("auth verify rate-limit redis unavailable", zap.String("ip", rateLimitIP(c)))
+			}
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "rate_limit_unavailable"})
 		}
 
 		ip := rateLimitIP(c)
@@ -57,7 +60,7 @@ func NewAuthVerifyRateLimit(rdb *goredis.Client, log *zap.Logger) fiber.Handler 
 				if log != nil {
 					log.Warn("auth verify rate-limit redis error", zap.String("ip", ip), zap.Error(err))
 				}
-				continue
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "rate_limit_unavailable"})
 			}
 			if int(incr.Val()) > window.limit {
 				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "too_many_attempts", "retry_after": int(window.ttl.Seconds())})

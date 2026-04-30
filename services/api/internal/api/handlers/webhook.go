@@ -19,10 +19,19 @@ func ipHashField(c *fiber.Ctx) string { return sepay.HashIP(c.IP()) }
 // deps must be non-nil; individual fields (WebhookSvc, Rdb) may be nil in tests.
 func SePayWebhook(deps *WebhookDeps) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if deps == nil || deps.Cfg == nil || deps.Cfg.SepayWebhookToken == "" {
+			if deps != nil && deps.Log != nil {
+				deps.Log.Error("sepay webhook auth unavailable")
+			}
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "reason": "service_unavailable"})
+		}
+
 		// 1. Apikey authentication — constant-time compare; fail-closed. [Q4 rate-limit already ran]
 		if !sepay.VerifyApikey(c.Get("Authorization"), deps.Cfg.SepayWebhookToken) {
 			// [C2] Hash IP before logging/auditing — never store raw IP (GDPR / PDPD).
-			deps.Log.Warn("sepay webhook auth fail", zap.String("ip_hash", ipHashField(c)))
+			if deps.Log != nil {
+				deps.Log.Warn("sepay webhook auth fail", zap.String("ip_hash", ipHashField(c)))
+			}
 			webhookAuditLog(deps, "sepay_auth_fail", map[string]any{"ip_hash": ipHashField(c)})
 			return ack200(c, false, "invalid_signature")
 		}

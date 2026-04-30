@@ -92,10 +92,36 @@ components:
           type: integer
     Transaction:
       type: object
-      additionalProperties: true
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        amount_credits:
+          type: integer
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
     LedgerEntry:
       type: object
-      additionalProperties: true
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        delta_credits:
+          type: integer
+        balance_after_credits:
+          type: integer
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
     TransactionsPage:
       type: object
       required: [items, limit, offset]
@@ -130,6 +156,11 @@ components:
         base_url:
           type: string
           format: uri
+          pattern: "^https://(?!localhost(?::|/|$))(?!127\\.)(?!10\\.)(?!192\\.168\\.)(?!172\\.(1[6-9]|2[0-9]|3[0-1])\\.)(?!169\\.254\\.)(?!\\[?::1\\]?)(?!0\\.)(?!100\\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\\.)(?!198\\.(1[8-9])\\.)(?!198\\.51\\.100\\.)(?!203\\.0\\.113\\.)(?!224\\.)(?!240\\.)[^\\s]+$"
+          description: >-
+            Normalized public HTTPS WordPress origin URL. Implementations reject
+            loopback, private, link-local, multicast, reserved, documentation/test-net,
+            unspecified, and other non-public IP destinations after DNS resolution.
         app_username:
           type: string
         label:
@@ -160,15 +191,28 @@ components:
             $ref: "#/components/schemas/WpSite"
     WpSiteCreateRequest:
       type: object
+      description: >-
+        Connects a WordPress site after backend validation of its REST API. Validation
+        permits only HTTPS public-internet destinations and fails closed for redirects,
+        DNS answers containing non-public IPs, invalid URLs, or unreachable REST APIs.
       required: [base_url, app_username, app_password]
       properties:
         base_url:
           type: string
           format: uri
+          pattern: "^https://(?!localhost(?::|/|$))(?!127\\.)(?!10\\.)(?!192\\.168\\.)(?!172\\.(1[6-9]|2[0-9]|3[0-1])\\.)(?!169\\.254\\.)(?!\\[?::1\\]?)(?!0\\.)(?!100\\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\\.)(?!198\\.(1[8-9])\\.)(?!198\\.51\\.100\\.)(?!203\\.0\\.113\\.)(?!224\\.)(?!240\\.)[^\\s]+$"
+          description: >-
+            Public HTTPS WordPress site origin. Implementations must reject non-HTTP(S)
+            schemes, plaintext HTTP, localhost names, loopback, private, link-local,
+            multicast, reserved, documentation/test-net, and otherwise non-public
+            destinations for both IPv4 and IPv6 after DNS resolution. Validation must
+            be repeated before outbound requests and redirects must not reach internal
+            destinations.
         app_username:
           type: string
         app_password:
           type: string
+          writeOnly: true
         label:
           type: string
     WpSiteCreateResponse:
@@ -378,7 +422,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/WpSiteCreateResponse"
         "400":
-          description: Invalid URL or REST API unavailable
+          description: >-
+            Invalid WordPress URL, non-public destination rejected, redirect rejected,
+            or REST API unavailable. Error values include wp_invalid_url and
+            wp_private_address.
           content:
             application/json:
               schema:

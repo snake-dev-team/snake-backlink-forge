@@ -19,19 +19,20 @@ SET status     = 'cancelled',
                      'cancel_reason', $2::text,
                      'cancelled_at',  to_char(NOW(), 'YYYY-MM-DD"T"HH24:MI:SSOF')
                  )
-WHERE id = $1 AND status = 'pending'
+WHERE id = $1 AND user_id = $3 AND status = 'pending'
 `
 
 type CancelPendingTransactionParams struct {
 	ID      uuid.UUID `json:"id"`
 	Column2 string    `json:"column_2"`
+	UserID  uuid.UUID `json:"user_id"`
 }
 
 // [Q2] Sets status='cancelled' (NOT 'failed') so provider_ref stays in the
 // idx_tx_provider_ref_active partial index, enabling late-payment recovery in Phase 06.
 // Metadata is augmented (||) rather than replaced to preserve existing fields.
 func (q *Queries) CancelPendingTransaction(ctx context.Context, arg CancelPendingTransactionParams) error {
-	_, err := q.db.Exec(ctx, cancelPendingTransaction, arg.ID, arg.Column2)
+	_, err := q.db.Exec(ctx, cancelPendingTransaction, arg.ID, arg.Column2, arg.UserID)
 	return err
 }
 

@@ -70,11 +70,16 @@ func Load() (*Config, error) {
 
 	// Normalize env value for predictable comparisons downstream.
 	cfg.Env = strings.ToLower(strings.TrimSpace(cfg.Env))
+	cfg.SepayWebhookToken = strings.TrimSpace(cfg.SepayWebhookToken)
+	cfg.SepayBankAccount = strings.TrimSpace(cfg.SepayBankAccount)
 	cfg.CORSOrigins = normalizeStringSlice(cfg.CORSOrigins)
 	cfg.TrustedProxyCIDRs = normalizeStringSlice(cfg.TrustedProxyCIDRs)
 
 	if err := validateCORSOrigins(cfg.CORSOrigins); err != nil {
 		return nil, fmt.Errorf("config: CORS_ORIGINS: %w", err)
+	}
+	if err := validateSePayWebhookConfig(cfg); err != nil {
+		return nil, fmt.Errorf("config: SePay webhook: %w", err)
 	}
 
 	// [L3] Validate + deduplicate admin telegram IDs after env.Parse populates the slice.
@@ -108,6 +113,16 @@ func validateCORSOrigins(origins []string) error {
 		if strings.ContainsAny(origin, "*()[]{}") {
 			return fmt.Errorf("wildcards or regex-like chars are banned with credentials: %q", origin)
 		}
+	}
+	return nil
+}
+
+func validateSePayWebhookConfig(cfg *Config) error {
+	if len(cfg.SepayWebhookToken) < 32 {
+		return fmt.Errorf("SEPAY_WEBHOOK_TOKEN must be at least 32 characters")
+	}
+	if cfg.SepayBankAccount == "" {
+		return fmt.Errorf("SEPAY_BANK_ACCOUNT is required")
 	}
 	return nil
 }

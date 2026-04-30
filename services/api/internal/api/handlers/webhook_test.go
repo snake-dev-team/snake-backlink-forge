@@ -29,7 +29,7 @@ import (
 // the service layer (auth fail, account mismatch, unmatched content, etc.).
 // Full service integration tests live in service/webhook_service_test.go.
 
-const validToken = "test-webhook-secret"
+const validToken = "test-webhook-secret-32-characters"
 
 func newWebhookApp(deps *handlers.WebhookDeps) *fiber.App {
 	app := fiber.New(fiber.Config{
@@ -208,6 +208,17 @@ func TestSePayWebhook_NilWebhookSvc_Returns503(t *testing.T) {
 	resp := doPost(t, app, jsonBody(t, validPayload()), validToken)
 	if resp.StatusCode != fiber.StatusServiceUnavailable {
 		t.Fatalf("want 503 when WebhookSvc nil, got %d", resp.StatusCode)
+	}
+}
+
+func TestSePayWebhook_EmptyConfiguredToken_FailsClosed(t *testing.T) {
+	deps := minimalDeps(t)
+	deps.Cfg.SepayWebhookToken = ""
+	app := newWebhookApp(deps)
+
+	resp := doPost(t, app, jsonBody(t, validPayload()), validToken)
+	if resp.StatusCode != fiber.StatusServiceUnavailable {
+		t.Fatalf("want 503 when configured token is empty, got %d", resp.StatusCode)
 	}
 }
 
