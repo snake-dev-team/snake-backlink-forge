@@ -1,14 +1,14 @@
 # Snake Backlink Forge
 
-> Professional SEO backlink automation platform — SaaS model, distributed via Chrome/Edge browser extension + Telegram bot for key management.
+> Professional SEO backlink automation platform — SaaS model with Telegram billing, API key access, and web dashboard.
 
-**Status:** Phase 1 Foundation complete (2026-04-24) · Phase 2+ per roadmap
+**Status:** Phase 2 production shipped (2026-04-25) · Web app dashboard + WordPress connection on `dev` · Campaign automation remains future scope.
 
 ## What is this?
 
 Snake Backlink Forge is a backlink automation tool for SEO professionals. Users buy credits via
-Telegram bot (@SnakeBacklinkBot), install a browser extension, and configure campaigns that
-drip-feed backlinks to their money sites with anti-abuse safeguards built in.
+Telegram bot (@SnakeBacklinkForgeBot), sign in to the web dashboard with an API key, and connect
+WordPress sites while campaign automation is developed in later phases.
 
 - **Standard pool** (DR 0-39): mass volume, template rewrites, ~1,500-2,000đ/credit
 - **Premium pool** (DR 40+): contextual, AI rewrite via Sonnet 4.6, ~8,000-10,000đ/credit
@@ -22,7 +22,7 @@ See `docs/architecture.md` for the condensed architecture. Full spec in `docs/MA
   Next.js 15 landing (Vercel) ─┐
                                ├─> Fly.io Go API (Fiber + Postgres + Redis)
   Chrome/Edge MV3 extension ────┤     ↓
-  (Svelte 5 + WASM sign)        │   Telegram bot (@SnakeBacklinkBot)
+  (Svelte 5 + WASM sign)        │   Telegram bot (@SnakeBacklinkForgeBot)
                                 │     ↓ SePay webhook
                                 └─> Cloudflare R2 (CRX + installer)
 ```
@@ -32,8 +32,8 @@ See `docs/architecture.md` for the condensed architecture. Full spec in `docs/MA
 | Layer | Stack |
 |---|---|
 | API + bot | Go 1.26.2 + Fiber v2.52.6 + pgx v5.9.1 + go-redis v9 + zap (Fly.io) |
-| Landing | Next.js 15.5 + React 19 + Tailwind 4 (Phase 9) |
-| Extension | Svelte 5 + Vite 5 + @crxjs/vite-plugin + Rust WASM HMAC (Phase 3) |
+| Landing | Next.js 15.5 + React 19 + Tailwind 4 (dashboard + WordPress connection) |
+| Extension | Svelte 5 + Vite 5 + @crxjs/vite-plugin + Rust WASM HMAC (future campaign automation) |
 | DB | PostgreSQL 16 + Redis 7 |
 | Quality | Biome 2.3 + golangci-lint v1.68+ + gitleaks + husky v9 |
 
@@ -58,7 +58,7 @@ curl localhost:8080/ready   # 200 with DB+Redis up, 503 if down
 
 ## Project Status
 
-Tracked in `docs/progress.md`. Current phase: **Phase 1 Foundation** (scaffold complete).
+Tracked in `docs/progress.md`. Current dev scope: **Phase 2 production backend + web dashboard/WordPress connection complete**; campaign automation is still marked future scope.
 
 ## Documentation
 
