@@ -13,9 +13,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release-beta:
-    name: Beta Release
+  validate-beta:
+    name: Validate Beta Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout protected beta release branch
@@ -48,8 +50,40 @@ jobs:
       - name: Run build
         run: pnpm -r build
 
+  release-beta:
+    name: Beta Release
+    runs-on: ubuntu-latest
+    needs: validate-beta
+    environment: beta-release
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout protected beta release branch
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
       - name: Beta Release
-        environment: beta-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
