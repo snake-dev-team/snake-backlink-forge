@@ -1,3 +1,14 @@
+## [1.0.0-beta.21](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.20...v1.0.0-beta.21) (2026-04-30)
+
+### 🐞 Bug Fixes
+
+* update README release status ([9392ca1](https://github.com/snake-dev-team/snake-backlink-forge/commit/9392ca10b9def8eabcc55eb97a43931ff2662cec))
+
+### 👷 CI
+
+* opt into node 24 actions runtime ([712f397](https://github.com/snake-dev-team/snake-backlink-forge/commit/712f3973ce8922a165e0724cb9fe723eea54707b))
+* upgrade github actions runtime ([b9cc448](https://github.com/snake-dev-team/snake-backlink-forge/commit/b9cc448d1dfc9040f1fa571e9631de045d1bd975))
+
 ## [1.0.0-beta.20](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.19...v1.0.0-beta.20) (2026-04-30)
 
 ### 🐞 Bug Fixes
