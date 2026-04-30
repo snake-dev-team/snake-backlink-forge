@@ -1,3 +1,9 @@
+## [1.0.0-beta.20](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.19...v1.0.0-beta.20) (2026-04-30)
+
+### 🐞 Bug Fixes
+
+* stabilize landing e2e startup ([0f1e23e](https://github.com/snake-dev-team/snake-backlink-forge/commit/0f1e23e2438ce6982feb01f082aba3ce604fdc82))
+
 ## [1.0.0-beta.19](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.18...v1.0.0-beta.19) (2026-04-30)
 
 ### 🐞 Bug Fixes
