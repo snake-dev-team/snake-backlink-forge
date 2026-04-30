@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 
-const manifest = JSON.parse(await readFile(new URL("../dist/manifest.json", import.meta.url), "utf8"));
+const manifest = JSON.parse(
+  await readFile(new URL("../dist/manifest.json", import.meta.url), "utf8"),
+);
 const entries = manifest.web_accessible_resources ?? [];
 
 for (const entry of entries) {
