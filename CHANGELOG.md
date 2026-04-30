@@ -1,3 +1,11 @@
+## [1.0.0-beta.19](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.18...v1.0.0-beta.19) (2026-04-30)
+
+### 🐞 Bug Fixes
+
+* format manifest validator ([8a6b5f7](https://github.com/snake-dev-team/snake-backlink-forge/commit/8a6b5f79370305f4403472cd38fba5a7e5de8b20))
+* harden security scan findings ([6153819](https://github.com/snake-dev-team/snake-backlink-forge/commit/6153819a0cecad2dbd138fade399118b4ef3f603))
+* split release validation permissions ([4ce8be4](https://github.com/snake-dev-team/snake-backlink-forge/commit/4ce8be4ded2fd46ead89b2991b4a4e775883de27))
+
 ## [1.0.0-beta.18](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.17...v1.0.0-beta.18) (2026-04-29)
 
 ### 🐞 Bug Fixes
