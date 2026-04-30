@@ -10,6 +10,7 @@ test("proxy rejects request bodies above 1MB", async ({ page, request }) => {
     headers: {
       "content-type": "text/plain",
       cookie: cookieHeader,
+      origin: "http://127.0.0.1:3000",
     },
   });
 
