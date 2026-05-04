@@ -1,3 +1,9 @@
+## [1.0.0-beta.23](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.22...v1.0.0-beta.23) (2026-05-04)
+
+### 🚀 Features
+
+* **dashboard:** sidebar active state + transaction list format ([4b0c0f8](https://github.com/snake-dev-team/snake-backlink-forge/commit/4b0c0f8036a81f31ef3d3bac208bd9fcbd17052c))
+
 ## [1.0.0-beta.22](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.21...v1.0.0-beta.22) (2026-05-04)
 
 ### 🐞 Bug Fixes
