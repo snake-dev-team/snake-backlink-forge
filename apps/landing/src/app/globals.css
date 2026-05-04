@@ -164,42 +164,135 @@
     border-radius: var(--radius);
   }
 
-  /* === Decorative grid pattern === */
+  /* === Decorative grid pattern (mockup: 64px tiles + radial mask, opacity 0.4) ===
+     Mask creates radial fade so grid disappears at edges — keeps focus center. */
   .bg-grid {
     background-image:
-      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-    background-size: 72px 72px;
+      linear-gradient(rgba(139, 92, 246, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(139, 92, 246, 0.06) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse at center, black 0%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 80%);
   }
 
-  /* === Decorative vignette === */
+  /* === Decorative vignette (mockup: ellipse darkens edges, transparent center) === */
   .bg-vignette {
-    background-image:
-      radial-gradient(circle at top left, oklch(0.45 0.18 295 / 0.18), transparent 38%),
-      radial-gradient(circle at top right, oklch(0.65 0.14 215 / 0.12), transparent 32%),
-      radial-gradient(circle at bottom, oklch(0.16 0.03 296 / 0.85), transparent 65%);
+    background-image: radial-gradient(
+      ellipse at center,
+      transparent 30%,
+      rgba(0, 0, 0, 0.4) 100%
+    );
   }
 
-  /* === Brand gradient text (violet → cyan → amber) ===
-     Used by hero h1 (Phase 04). Safari needs -webkit- prefix; @supports
-     fallback paints solid --accent in browsers without background-clip:text.
-     Light mode: deep stops (L≤0.55) for contrast on white bg.
-     Dark mode: light stops (L≥0.72) for contrast on dark bg. */
+  /* === Page ambient mesh — fixed full-viewport behind everything ===
+     Mirrors mockup body radial-gradient stack: violet TL + cyan BR + amber center.
+     Dark only: light mode keeps clean white; reduces busy background.
+     Static (no JS) — works in SSR. */
+  .bg-ambient-mesh {
+    background-image:
+      radial-gradient(at 20% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+      radial-gradient(at 80% 100%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+      radial-gradient(at 50% 50%, rgba(251, 146, 60, 0.08) 0px, transparent 50%);
+  }
+
+  /* === Floating ambient orbs (mockup signature) ===
+     Drift slowly behind content. CSS-only — no JS, no deps.
+     Each orb is a heavily blurred colored disc. */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
+    will-change: transform;
+  }
+  .orb-violet {
+    width: 600px; height: 600px;
+    background: #8b5cf6;
+    top: -100px; right: -100px;
+    opacity: 0.25;
+    animation: orb-drift-1 30s ease-in-out infinite;
+  }
+  .orb-cyan {
+    width: 500px; height: 500px;
+    background: #06b6d4;
+    top: 60%; left: -150px;
+    opacity: 0.20;
+    animation: orb-drift-2 35s ease-in-out infinite;
+  }
+  .orb-amber {
+    width: 400px; height: 400px;
+    background: #fb923c;
+    bottom: -50px; right: 20%;
+    opacity: 0.15;
+    animation: orb-drift-3 40s ease-in-out infinite;
+  }
+  .orb-violet-2 {
+    width: 450px; height: 450px;
+    background: #a855f7;
+    top: 130%; right: -80px;
+    opacity: 0.20;
+    animation: orb-drift-1 32s ease-in-out infinite reverse;
+  }
+
+  @keyframes orb-drift-1 {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-50px, 30px); }
+  }
+  @keyframes orb-drift-2 {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(60px, -40px); }
+  }
+  @keyframes orb-drift-3 {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-30px, -50px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orb { animation: none !important; }
+    .cli-blink-cursor { animation: none !important; opacity: 1; }
+    .pulse-dot { animation: none !important; opacity: 1; }
+  }
+
+  /* === CLI blink cursor (used by hero-cli-snippet.tsx) === */
+  .cli-blink-cursor {
+    animation: cli-blink 1.2s steps(2) infinite;
+    display: inline-block;
+  }
+  @keyframes cli-blink {
+    50% { opacity: 0.3; }
+  }
+
+  /* === Pulse dot (used by hero-dashboard-mockup status pill) === */
+  .pulse-dot {
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* === Brand gradient text — mockup stops 90deg violet → cyan(60%) → amber(100%) ===
+     Mockup: linear-gradient(90deg, #a78bfa 0%, #67e8f9 60%, #fb923c 100%)
+     Cyan dominates middle, amber is just a kiss at the tail. Less rainbow.
+     Light mode: deepened stops (L≤0.50) for WCAG AA on white bg.
+     Dark mode: mockup stops (#a78bfa, #67e8f9, #fb923c).
+     Safari needs -webkit- prefix; @supports fallback uses solid --accent. */
   .gradient-text {
-    background: linear-gradient(135deg,
+    background: linear-gradient(90deg,
       oklch(0.45 0.22 296) 0%,
-      oklch(0.55 0.14 215) 50%,
-      oklch(0.55 0.16 84) 100%);
+      oklch(0.50 0.15 215) 60%,
+      oklch(0.55 0.18 84) 100%);
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
   }
   .dark .gradient-text {
-    background: linear-gradient(135deg,
-      oklch(0.78 0.18 296) 0%,
-      oklch(0.85 0.13 215) 50%,
-      oklch(0.88 0.16 84) 100%);
+    background: linear-gradient(90deg,
+      #a78bfa 0%,
+      #67e8f9 60%,
+      #fb923c 100%);
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;

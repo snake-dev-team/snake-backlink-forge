@@ -1,37 +1,50 @@
-import { ArrowRight, Bot } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { botUrl } from "@/lib/telegram/bot-url";
 
 /**
- * Hero left column: badge chip, gradient headline, subhead, 2 CTAs, ⌘K hint.
+ * Hero left column: NEW-chip badge, 2-line gradient h1, mockup typography, 2 CTAs, ⌘K hint.
+ * Mockup ground truth (E:\ui-b-developer-tool.html lines 215-235):
+ *   - badge: pill with embedded "NEW" mono chip + label + arrow
+ *   - h1: 72px, line-height 1.0, tracking -0.04em, gradient on line 2 only
+ *   - sub: 17px, max-w-480px, leading 1.55
+ *   - margins: 28/24/36 (badge, h1, sub) — generous breathing
  * F6: uses botUrl() helper — no inline t.me template literals.
  * F10: uses .gradient-text CSS class — no Tailwind bg-clip-text utilities.
  */
 export function HeroText() {
   return (
-    <div className="space-y-7">
-      {/* Badge chip — violet chip white text (avoids cyan-on-cyan contrast fail) */}
-      <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/40 bg-violet-500/20 px-3 py-1 text-sm text-white">
-        <Bot className="size-4" aria-hidden="true" />
-        SEO automation stack cho team thích dashboard rõ ràng
+    <div className="flex flex-col">
+      {/* NEW-chip badge — pill with embedded mono chip + label + arrow (mockup signature).
+          Light mode: violet bg/border maintain WCAG AA via violet-700+ text. */}
+      <div className="mb-7 inline-flex w-fit items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 py-1 pl-1.5 pr-3">
+        <span className="rounded-full bg-violet-500/25 px-2 py-0.5 font-mono text-[10px] font-medium text-violet-700 dark:text-violet-200">
+          NEW
+        </span>
+        <span className="text-xs text-foreground/85 dark:text-white/85">
+          AI multi-agent content engine — Claude Opus 4.7 + GPT-5
+        </span>
+        <span className="text-[11px] text-foreground/40 dark:text-white/40" aria-hidden="true">
+          →
+        </span>
       </div>
 
-      {/* Headline + subhead */}
-      <div className="space-y-5">
-        <h1 className="max-w-3xl text-5xl font-semibold tracking-[-0.05em] sm:text-6xl lg:text-[64px] lg:leading-[1.05]">
-          {/* .gradient-text from Phase 01 globals.css — violet→cyan→amber with -webkit- prefix + @supports fallback */}
-          <span className="gradient-text">Tạo, kiểm soát và đăng backlink</span>
-          <span className="text-foreground dark:text-white"> WordPress từ một cockpit.</span>
-        </h1>
-        <p className="max-w-xl text-lg leading-8 text-foreground/90 dark:text-white/85">
-          Snake Backlink Forge gom credit Telegram, AI content và WordPress publishing vào một luồng
-          vận hành gọn cho SEO operator Việt Nam.
-        </p>
-      </div>
+      {/* Headline — 2-line break, gradient ONLY on second line (mockup) */}
+      <h1 className="mb-6 max-w-3xl text-5xl font-bold tracking-[-0.04em] text-foreground dark:text-white sm:text-6xl lg:text-[68px] lg:leading-[1.0] xl:text-[72px]">
+        Tạo và đăng backlink
+        <br />
+        <span className="gradient-text">WordPress từ terminal.</span>
+      </h1>
+
+      {/* Subhead — mockup max-w-480px, 17px, leading 1.55 */}
+      <p className="mb-9 max-w-[480px] text-[17px] leading-[1.55] text-foreground/70 dark:text-white/70">
+        SEO automation cho team kỹ thuật Việt Nam. Type-safe API, OpenAPI spec, webhooks. Stop
+        clicking dashboards — start shipping campaigns from your terminal.
+      </p>
 
       {/* CTAs */}
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="mb-9 flex flex-col gap-3 sm:flex-row">
         <Button
           asChild
           size="lg"
