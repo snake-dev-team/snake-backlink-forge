@@ -1,3 +1,9 @@
+## [1.0.0-beta.30](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.29...v1.0.0-beta.30) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **palette:** aria-describedby + transaction display label consistency ([d083a45](https://github.com/snake-dev-team/snake-backlink-forge/commit/d083a45135b8a0da94cbe2227e2b8b03fa548690))
+
 ## [1.0.0-beta.29](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.28...v1.0.0-beta.29) (2026-05-04)
 
 ### 🚀 Features
