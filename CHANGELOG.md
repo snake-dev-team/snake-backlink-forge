@@ -1,3 +1,9 @@
+## [1.0.0-beta.36](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.35...v1.0.0-beta.36) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **landing:** contrast + secondary button + sparkline consistency ([a078b39](https://github.com/snake-dev-team/snake-backlink-forge/commit/a078b3935e4abee6a1f65227c3d9f6efcd83e872))
+
 ## [1.0.0-beta.35](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.34...v1.0.0-beta.35) (2026-05-04)
 
 ### 🚀 Features
