@@ -2,6 +2,7 @@
 
 import { KeyRound, LogOut, RotateCcw, User } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,12 +21,31 @@ type UserMenuProps = {
 
 export function UserMenu({ botUsername, keyPrefix, username }: UserMenuProps) {
   const router = useRouter();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [logoutPending, setLogoutPending] = useState(false);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
-    window.location.assign("/login");
+    if (logoutPending) {
+      return;
+    }
+
+    setLogoutError(null);
+    setLogoutPending(true);
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) {
+        setLogoutError("Đăng xuất chưa thành công. Thử lại nhé.");
+        return;
+      }
+
+      router.replace("/login");
+      router.refresh();
+      window.location.assign("/login");
+    } catch {
+      setLogoutError("Không thể kết nối để đăng xuất. Thử lại nhé.");
+    } finally {
+      setLogoutPending(false);
+    }
   }
 
   return (
@@ -50,10 +70,11 @@ export function UserMenu({ botUsername, keyPrefix, username }: UserMenuProps) {
           </a>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout}>
+        <DropdownMenuItem disabled={logoutPending} onClick={logout}>
           <LogOut className="h-4 w-4" />
-          Đăng xuất
+          {logoutPending ? "Đang đăng xuất..." : "Đăng xuất"}
         </DropdownMenuItem>
+        {logoutError ? <p className="px-2 py-1 text-xs text-destructive">{logoutError}</p> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -15,6 +15,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_key: "Khóa không hợp lệ — kiểm tra lại",
   account_banned: "Tài khoản bị khóa — liên hệ hỗ trợ",
   too_many_attempts: "Quá nhiều lần thử — đợi 1 phút",
+  request_timeout: "Hết thời gian chờ phản hồi — thử lại sau ít phút",
   backend_error: "Server lỗi — thử lại sau",
   backend_not_configured: "Server chưa được cấu hình",
   forbidden_origin: "Yêu cầu không hợp lệ",
@@ -57,8 +58,8 @@ export function LoginForm() {
       }
 
       setError(ERROR_MESSAGES[data.error as string] ?? "Đã có lỗi");
-    } catch {
-      setError(ERROR_MESSAGES.backend_error);
+    } catch (error) {
+      setError(error instanceof DOMException && error.name === "AbortError" ? ERROR_MESSAGES.request_timeout : ERROR_MESSAGES.backend_error);
     } finally {
       window.clearTimeout(timeout);
       setPending(false);
