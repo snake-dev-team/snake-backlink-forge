@@ -18,7 +18,7 @@ export function CtaSection() {
         <h2 className="gradient-text text-balance text-4xl font-semibold tracking-tight">
           Nâng cấp SEO của bạn ngay
         </h2>
-        <p className="mx-auto max-w-xl text-white/65">
+        <p className="mx-auto max-w-xl text-foreground/70 dark:text-white/65">
           Mở Telegram bot, nạp credit và kết nối WordPress site đầu tiên trong 60 giây.
         </p>
 
@@ -40,7 +40,7 @@ export function CtaSection() {
             asChild
             size="lg"
             variant="outline"
-            className="rounded-full border-white/20 text-white hover:bg-white/10 hover:text-white"
+            className="rounded-full border-foreground/20 text-foreground hover:bg-foreground/10 dark:border-white/20 dark:text-white dark:hover:bg-white/10 dark:hover:text-white"
           >
             <a href={`mailto:${SUPPORT_EMAIL}`}>Liên hệ hỗ trợ</a>
           </Button>

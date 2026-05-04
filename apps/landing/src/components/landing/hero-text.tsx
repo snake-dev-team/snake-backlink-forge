@@ -11,8 +11,8 @@ import { botUrl } from "@/lib/telegram/bot-url";
 export function HeroText() {
   return (
     <div className="space-y-7">
-      {/* Badge chip */}
-      <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-sm text-cyan-100">
+      {/* Badge chip — violet chip white text (avoids cyan-on-cyan contrast fail) */}
+      <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/40 bg-violet-500/20 px-3 py-1 text-sm text-white">
         <Bot className="size-4" aria-hidden="true" />
         SEO automation stack cho team thích dashboard rõ ràng
       </div>
@@ -22,9 +22,9 @@ export function HeroText() {
         <h1 className="max-w-3xl text-5xl font-semibold tracking-[-0.05em] sm:text-6xl lg:text-[64px] lg:leading-[1.05]">
           {/* .gradient-text from Phase 01 globals.css — violet→cyan→amber with -webkit- prefix + @supports fallback */}
           <span className="gradient-text">Tạo, kiểm soát và đăng backlink</span>
-          <span className="text-white"> WordPress từ một cockpit.</span>
+          <span className="text-foreground dark:text-white"> WordPress từ một cockpit.</span>
         </h1>
-        <p className="max-w-xl text-lg leading-8 text-white/70">
+        <p className="max-w-xl text-lg leading-8 text-foreground/75 dark:text-white/70">
           Snake Backlink Forge gom credit Telegram, AI content và WordPress publishing vào một luồng
           vận hành gọn cho SEO operator Việt Nam.
         </p>
@@ -47,16 +47,16 @@ export function HeroText() {
           asChild
           size="lg"
           variant="outline"
-          className="rounded-full border-white/20 text-white hover:bg-white/10"
+          className="rounded-full border-foreground/20 text-foreground hover:bg-foreground/10 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
         >
           <Link href="/login">Xem demo</Link>
         </Button>
       </div>
 
       {/* ⌘K hint chip */}
-      <p className="text-xs text-white/40">
+      <p className="text-xs text-foreground/50 dark:text-white/40">
         Bấm{" "}
-        <kbd className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5 font-mono text-[10px]">
+        <kbd className="rounded border border-foreground/15 bg-foreground/5 px-1.5 py-0.5 font-mono text-[10px] dark:border-white/15 dark:bg-white/5">
           ⌘K
         </kbd>{" "}
         sau khi đăng nhập để mở bảng điều khiển nhanh.

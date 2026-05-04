@@ -35,11 +35,11 @@ export async function ApiShowcase() {
         <h2 className="mx-auto max-w-2xl text-balance text-4xl font-semibold tracking-tight">
           Tích hợp REST API trong vài dòng
         </h2>
-        <p className="mx-auto max-w-xl text-white/60">
+        <p className="mx-auto max-w-xl text-foreground/70 dark:text-white/60">
           Lấy API key từ Telegram bot, gọi endpoints như ví dụ bên dưới. Authentication bằng Bearer
           token.
         </p>
-        <p className="text-xs text-white/40">
+        <p className="text-xs text-foreground/50 dark:text-white/40">
           {"API_BASE_URL = "}
           <code className="font-mono text-cyan-300/80">https://snake-backlink-api.fly.dev</code>
           {" (custom domain sẽ thay thế sau launch)"}
@@ -83,7 +83,9 @@ export async function ApiShowcase() {
                     />
                   </svg>
                 </span>
-                <span className="text-sm leading-6 text-white/75">{item}</span>
+                <span className="text-sm leading-6 text-foreground/80 dark:text-white/75">
+                  {item}
+                </span>
               </li>
             ))}
           </ul>

@@ -123,22 +123,34 @@
 }
 
 @layer components {
-  /* === Subtle glass (default surface) === */
+  /* === Subtle glass (default surface) ===
+     Light mode: opaque 0.85 white surface so text is readable (WCAG AA).
+     Dark mode: 4% white tint over dark bg (glass effect preserved). */
   .glass-card {
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
-    background-color: var(--glass-bg);
-    border: 1px solid var(--glass-border);
+    background-color: oklch(1 0 0 / 0.85);
+    border: 1px solid oklch(0 0 0 / 0.08);
     border-radius: var(--radius);
   }
+  .dark .glass-card {
+    background-color: var(--glass-bg);
+    border-color: var(--glass-border);
+  }
 
-  /* === Elevated glass (hero, large feature cells) === */
+  /* === Elevated glass (hero, large feature cells) ===
+     Light mode: 0.90 white surface for strong elevation + contrast.
+     Dark mode: 8% white tint (glass effect). */
   .glass-card-strong {
     backdrop-filter: blur(var(--glass-blur-strong));
     -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-    background-color: var(--glass-bg-strong);
-    border: 1px solid var(--glass-border-strong);
+    background-color: oklch(1 0 0 / 0.90);
+    border: 1px solid oklch(0 0 0 / 0.08);
     border-radius: var(--radius);
+  }
+  .dark .glass-card-strong {
+    background-color: var(--glass-bg-strong);
+    border-color: var(--glass-border-strong);
   }
 
   /* === Modal glass (palette / dialog only) === */
@@ -168,8 +180,20 @@
 
   /* === Brand gradient text (violet → cyan → amber) ===
      Used by hero h1 (Phase 04). Safari needs -webkit- prefix; @supports
-     fallback paints solid --accent in browsers without background-clip:text. */
+     fallback paints solid --accent in browsers without background-clip:text.
+     Light mode: deep stops (L≤0.55) for contrast on white bg.
+     Dark mode: light stops (L≥0.72) for contrast on dark bg. */
   .gradient-text {
+    background: linear-gradient(135deg,
+      oklch(0.45 0.22 296) 0%,
+      oklch(0.55 0.14 215) 50%,
+      oklch(0.55 0.16 84) 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  .dark .gradient-text {
     background: linear-gradient(135deg,
       oklch(0.78 0.18 296) 0%,
       oklch(0.85 0.13 215) 50%,

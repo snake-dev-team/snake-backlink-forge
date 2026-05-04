@@ -11,7 +11,11 @@ export const dynamic = "force-dynamic";
 // Replace with real `usage_daily` Postgres query in phase 8+.
 // Violet stroke = balance trend; amber = usage trend.
 const BALANCE_TREND = [40, 38, 42, 45, 50, 55, 55];
+// flat placeholder until /me/usage adds history
+const SITES_TREND = [1, 1, 1, 1, 1, 1, 1];
 const USAGE_TREND = [0, 5, 10, 8, 12, 12, 12];
+// zero placeholder until campaigns ship
+const CAMPAIGNS_TREND = [0, 0, 0, 0, 0, 0, 0];
 
 // ─── KPI server components (each wraps fetchUsageServer / fetchMeServer) ──────
 // React.cache() on fetchUsageServer deduplicates the HTTP call — all 3 usage
@@ -39,7 +43,15 @@ async function CreditBalanceCard() {
 async function SitesConnectedCard() {
   try {
     const usage = await fetchUsageServer();
-    return <KpiCard label="Sites kết nối" value={usage.sites_connected} icon={Globe} />;
+    return (
+      <KpiCard
+        label="Sites kết nối"
+        value={usage.sites_connected}
+        icon={Globe}
+        sparklineData={SITES_TREND}
+        sparklineStroke="oklch(0.715 0.143 215.221 / 0.7)"
+      />
+    );
   } catch {
     return <KpiCard label="Sites kết nối" value="—" icon={Globe} />;
   }
@@ -65,7 +77,15 @@ async function CreditsConsumedCard() {
 async function CampaignsRunningCard() {
   try {
     const usage = await fetchUsageServer();
-    return <KpiCard label="Campaigns running" value={usage.campaigns_running} icon={Zap} />;
+    return (
+      <KpiCard
+        label="Campaigns running"
+        value={usage.campaigns_running}
+        icon={Zap}
+        sparklineData={CAMPAIGNS_TREND}
+        sparklineStroke="oklch(0.85 0.12 84 / 0.7)"
+      />
+    );
   } catch {
     return <KpiCard label="Campaigns running" value="—" icon={Zap} />;
   }
