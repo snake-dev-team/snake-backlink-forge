@@ -1,3 +1,9 @@
+## [1.0.0-beta.31](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.30...v1.0.0-beta.31) (2026-05-04)
+
+### 🚀 Features
+
+* **landing:** code window primitive + shiki build-time syntax highlight ([5287e41](https://github.com/snake-dev-team/snake-backlink-forge/commit/5287e412274b6bca0fabcde20cc1021a75886610))
+
 ## [1.0.0-beta.30](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.29...v1.0.0-beta.30) (2026-05-04)
 
 ### 🐞 Bug Fixes
