@@ -1,3 +1,9 @@
+## [1.0.0-beta.27](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.26...v1.0.0-beta.27) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **dashboard:** unify sidebar hover to violet for brand consistency ([98bceea](https://github.com/snake-dev-team/snake-backlink-forge/commit/98bceeaecaf11f5f35b0173e41d977875428effe))
+
 ## [1.0.0-beta.26](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.25...v1.0.0-beta.26) (2026-05-04)
 
 ### 🐞 Bug Fixes
