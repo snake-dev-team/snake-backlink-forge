@@ -1,3 +1,9 @@
+## [1.0.0-beta.26](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.25...v1.0.0-beta.26) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **api:** mutex guard IDOR test capture slice for race-safe errgroup ([83cd3f4](https://github.com/snake-dev-team/snake-backlink-forge/commit/83cd3f480254f7ce1f8014ef592b2b4b0b5eef15))
+
 ## [1.0.0-beta.25](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.24...v1.0.0-beta.25) (2026-05-04)
 
 ### 🚀 Features
