@@ -1,3 +1,9 @@
+## [1.0.0-beta.33](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.32...v1.0.0-beta.33) (2026-05-04)
+
+### 🚀 Features
+
+* **landing:** features bento + api showcase sections ([2d058b8](https://github.com/snake-dev-team/snake-backlink-forge/commit/2d058b8ef36c67c4e4bf2763aacb24ea5f4726ee))
+
 ## [1.0.0-beta.32](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.31...v1.0.0-beta.32) (2026-05-04)
 
 ### 🚀 Features
