@@ -1,3 +1,9 @@
+## [1.0.0-beta.24](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.23...v1.0.0-beta.24) (2026-05-04)
+
+### 🚀 Features
+
+* **theme:** geist fonts + violet/cyan/amber brand tokens ([41af6aa](https://github.com/snake-dev-team/snake-backlink-forge/commit/41af6aaa2b517794c553e32701fdaf03d00c8d2a))
+
 ## [1.0.0-beta.23](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.22...v1.0.0-beta.23) (2026-05-04)
 
 ### 🚀 Features
