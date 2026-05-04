@@ -1,3 +1,9 @@
+## [1.0.0-beta.34](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.33...v1.0.0-beta.34) (2026-05-04)
+
+### 🚀 Features
+
+* **landing:** pricing + cta + footer redesign ([36da961](https://github.com/snake-dev-team/snake-backlink-forge/commit/36da96111c9751e6c1a6f79632c21bf4ce125342))
+
 ## [1.0.0-beta.33](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.32...v1.0.0-beta.33) (2026-05-04)
 
 ### 🚀 Features
