@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -235,24 +236,21 @@ func TestV1Usage_IDORCrossUser_ReturnsOnlyCallerCounts(t *testing.T) {
 	userB := uuid.New()
 
 	// paramCapturingDBTX captures the user_id argument passed to each QueryRow call.
+	// Mutex protects against concurrent appends from errgroup goroutines.
 	type call struct {
 		sql    string
 		userID uuid.UUID
 	}
-	var calls []call
+	var (
+		callsMu sync.Mutex
+		calls   []call
+	)
 
-	type capturingDBTX struct {
-		inner *stubDBTX
-		calls *[]call
-	}
-	capturing := &capturingDBTX{
-		inner: &stubDBTX{queryScanValues: map[string]int64{
-			"wp_sites":   1,
-			"delta_cred": 50,
-			"campaigns":  0,
-		}},
-		calls: &calls,
-	}
+	inner := &stubDBTX{queryScanValues: map[string]int64{
+		"wp_sites":   1,
+		"delta_cred": 50,
+		"campaigns":  0,
+	}}
 
 	// Wrap via a local implementing DBTX.
 	impl := &struct {
@@ -265,13 +263,14 @@ func TestV1Usage_IDORCrossUser_ReturnsOnlyCallerCounts(t *testing.T) {
 		queryRow: func(_ context.Context, sql string, args ...interface{}) pgx.Row {
 			if len(args) > 0 {
 				if uid, ok := args[0].(uuid.UUID); ok {
+					callsMu.Lock()
 					calls = append(calls, call{sql: sql, userID: uid})
+					callsMu.Unlock()
 				}
 			}
-			return capturing.inner.QueryRow(context.Background(), sql, args...)
+			return inner.QueryRow(context.Background(), sql, args...)
 		},
 	}
-	_ = capturing // suppress unused warning
 
 	// Build Queries using a wrapper that satisfies the DBTX interface.
 	wrappedDBTX := &funcDBTX{
@@ -293,6 +292,9 @@ func TestV1Usage_IDORCrossUser_ReturnsOnlyCallerCounts(t *testing.T) {
 	}
 
 	// IDOR verification: every QueryRow call must have been scoped to userA.
+	// Mutex ensures no concurrent reads after errgroup goroutines completed.
+	callsMu.Lock()
+	defer callsMu.Unlock()
 	for _, c := range calls {
 		if c.userID != userA {
 			t.Errorf("IDOR: QueryRow for %q was called with userID=%s, want userA=%s", c.sql, c.userID, userA)
