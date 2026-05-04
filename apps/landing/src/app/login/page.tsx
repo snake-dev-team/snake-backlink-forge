@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Bot, Terminal } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PageShell } from "@/components/layout/page-shell";
@@ -37,6 +37,47 @@ export default function LoginPage() {
         <Suspense fallback={null}>
           <LoginForm />
         </Suspense>
+
+        {/* CLI hint — Developer Tool aesthetic; helps users find their API key */}
+        <div className="mt-6 w-full overflow-hidden rounded-md border border-white/10 bg-card/40 backdrop-blur-md">
+          <div className="flex items-center gap-2 border-b border-white/5 bg-white/[0.02] px-3 py-2">
+            <span className="flex gap-1.5" aria-hidden="true">
+              <span className="size-2.5 rounded-full bg-red-500/70" />
+              <span className="size-2.5 rounded-full bg-yellow-500/70" />
+              <span className="size-2.5 rounded-full bg-green-500/70" />
+            </span>
+            <Terminal className="ml-1 size-3.5 text-muted-foreground" aria-hidden="true" />
+            <span className="font-mono text-[11px] text-muted-foreground">how to get key</span>
+          </div>
+          <div className="space-y-2 px-4 py-3 font-mono text-xs">
+            <div className="flex items-start gap-2">
+              <span className="text-violet-400">$</span>
+              <span className="text-foreground/85">
+                Mở{" "}
+                <a
+                  href="https://t.me/SnakeBacklinkForgeBot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-cyan-300 underline-offset-2 hover:underline"
+                >
+                  <Bot className="size-3" aria-hidden="true" />
+                  @SnakeBacklinkForgeBot
+                </a>
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-violet-400">$</span>
+              <span className="text-foreground/85">
+                Gõ <span className="rounded bg-cyan-300/15 px-1.5 py-0.5 text-cyan-300">/key</span>{" "}
+                → bot trả về <span className="text-amber-300">sbf_live_...</span>
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-violet-400">$</span>
+              <span className="text-foreground/85">Dán key bên trên → đăng nhập</span>
+            </div>
+          </div>
+        </div>
       </div>
     </PageShell>
   );
