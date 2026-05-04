@@ -1,3 +1,9 @@
+## [1.0.0-beta.25](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.24...v1.0.0-beta.25) (2026-05-04)
+
+### 🚀 Features
+
+* **dashboard:** expand kpi grid to 4 cards + usage endpoint ([578b424](https://github.com/snake-dev-team/snake-backlink-forge/commit/578b424fdc6bad1b69ae1f8774c96ae7a4232049))
+
 ## [1.0.0-beta.24](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.23...v1.0.0-beta.24) (2026-05-04)
 
 ### 🚀 Features
