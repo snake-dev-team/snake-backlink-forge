@@ -1,3 +1,13 @@
+## [1.0.0-beta.29](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.28...v1.0.0-beta.29) (2026-05-04)
+
+### 🚀 Features
+
+* **palette:** cmdk command palette with quick actions and tx search ([1c4e8b9](https://github.com/snake-dev-team/snake-backlink-forge/commit/1c4e8b9174362b618d8cd9cf92dd21122f7502a6))
+
+### 🐞 Bug Fixes
+
+* **landing:** regen pnpm-lock without unrelated workspace WIP ([dca8515](https://github.com/snake-dev-team/snake-backlink-forge/commit/dca85157988fab77a3b4bba0d0ecc9a7892e16af))
+
 ## [1.0.0-beta.28](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.27...v1.0.0-beta.28) (2026-05-04)
 
 ### 🚀 Features
