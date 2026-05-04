@@ -19,9 +19,13 @@ type Querier interface {
 	CancelPendingTransaction(ctx context.Context, arg CancelPendingTransactionParams) error
 	CountActiveKeys(ctx context.Context) (int64, error)
 	CountAuditLogByEventSince(ctx context.Context, arg CountAuditLogByEventSinceParams) (int64, error)
+	// Uses Asia/Ho_Chi_Minh timezone for month boundary (VN-only user base).
+	// Avoids UTC drift where VN users see counter reset 7 hours early at month end.
+	CountCreditsConsumedThisMonth(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountLedgerByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountLedgerConsumesByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountOpenTicketsByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountRunningCampaignsByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountTxByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	// Queries for admin dashboard stats. Phase 08: read-only aggregates used by AdminService.Stats.
 	// All queries are point-in-time reads; no writes here.
@@ -29,6 +33,7 @@ type Querier interface {
 	CountUsersBanned(ctx context.Context) (int64, error)
 	CountUsersTrialUsed(ctx context.Context) (int64, error)
 	CountUsersVerified(ctx context.Context) (int64, error)
+	CountWpSitesByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreditsOutstanding(ctx context.Context) (CreditsOutstandingRow, error)
 	EnsureWallet(ctx context.Context, userID uuid.UUID) error
 	// Queries for the api_keys table.

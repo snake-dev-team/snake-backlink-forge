@@ -5,3 +5,6 @@
 
 -- name: PlaceholderCampaignsSelect :one
 SELECT 1 AS dummy;
+
+-- name: CountRunningCampaignsByUser :one
+SELECT COUNT(*) FROM campaigns WHERE user_id = $1 AND status = 'running';

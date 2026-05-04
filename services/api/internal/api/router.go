@@ -25,6 +25,7 @@ func RegisterV1(app *fiber.App, deps *handlers.ApiHandlerDeps) {
 
 	authed := v1.Group("", middleware.AuthAPIKey(deps.KeySvc, deps.AuditSvc, deps.Log))
 	authed.Get("/me", handlers.V1Me(deps))
+	authed.Get("/me/usage", handlers.V1Usage(deps))
 	authed.Get("/balance", handlers.V1Balance(deps))
 	authed.Get("/transactions", handlers.V1Transactions(deps))
 	authed.Get("/ledger", handlers.V1Ledger(deps))

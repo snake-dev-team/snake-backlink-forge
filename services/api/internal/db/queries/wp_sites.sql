@@ -26,3 +26,6 @@ WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL;
 UPDATE wp_sites
 SET status = $1, last_validated_at = NOW(), last_error = $2, updated_at = NOW()
 WHERE id = $3 AND user_id = $4 AND deleted_at IS NULL;
+
+-- name: CountWpSitesByUser :one
+SELECT COUNT(*) FROM wp_sites WHERE user_id = $1 AND deleted_at IS NULL;

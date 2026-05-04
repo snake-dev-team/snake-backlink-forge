@@ -75,6 +75,27 @@ export const fetchMeServer = cache(async (): Promise<MeResponse> => {
   return response.json();
 });
 
+export type MeUsageResponse = {
+  sites_connected: number;
+  credits_consumed_month: number;
+  campaigns_running: number;
+};
+
+export const fetchUsageServer = cache(async (): Promise<MeUsageResponse> => {
+  if (E2E_API_MOCK) {
+    return {
+      sites_connected: 1,
+      credits_consumed_month: 12,
+      campaigns_running: 1,
+    };
+  }
+  const response = await proxyFetch("/me/usage");
+  if (!response.ok) {
+    throw new Error("fetch_usage_failed");
+  }
+  return response.json() as Promise<MeUsageResponse>;
+});
+
 export async function fetchTransactionsServer(limit = 5): Promise<TransactionsPage> {
   if (E2E_API_MOCK) {
     return { items: [], limit, offset: 0 };

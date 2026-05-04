@@ -228,6 +228,22 @@ components:
         status:
           type: string
           enum: [pending, connected, error]
+    MeUsage:
+      type: object
+      required: [sites_connected, credits_consumed_month, campaigns_running]
+      properties:
+        sites_connected:
+          type: integer
+          format: int64
+          description: Total connected WordPress sites (not soft-deleted)
+        credits_consumed_month:
+          type: integer
+          format: int64
+          description: Total credits consumed in current calendar month (Asia/Ho_Chi_Minh tz)
+        campaigns_running:
+          type: integer
+          format: int64
+          description: Count of campaigns with status='running'
 paths:
   /health:
     get:
@@ -301,6 +317,31 @@ paths:
                 $ref: "#/components/schemas/Me"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/me/usage:
+    get:
+      summary: Current month usage statistics
+      operationId: getApiV1MeUsage
+      security:
+        - BearerApiKey: []
+      responses:
+        "200":
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeUsage"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Service unavailable
           content:
             application/json:
               schema:

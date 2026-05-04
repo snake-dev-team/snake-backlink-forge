@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/middleware"
+	"golang.org/x/sync/errgroup"
 )
 
 func V1Me(deps *ApiHandlerDeps) fiber.Handler {
@@ -37,6 +38,59 @@ func V1Me(deps *ApiHandlerDeps) fiber.Handler {
 			"premium_credits":   wallet.PremiumCredits,
 			"standard_credits":  wallet.StandardCredits,
 			"key_prefix":        apiUser.KeyPrefix,
+		})
+	}
+}
+
+// V1Usage returns aggregate usage statistics for the current user.
+// Sites: total connected wp_sites (not soft-deleted).
+// CreditsConsumedMonth: positive int representing credits consumed since
+// start of current calendar month in Asia/Ho_Chi_Minh timezone (VN-only user base).
+// CampaignsRunning: campaigns where status='running'.
+//
+// Three independent COUNT queries run in parallel via errgroup
+// (~10ms total instead of ~30ms serialized).
+//
+// Security: GET endpoint protected by sameSite:strict cookie + Bearer token
+// middleware. Origin guard correctly skips GET (origin.ts:27-29).
+func V1Usage(deps *ApiHandlerDeps) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		apiUser, ok := middleware.ApiUserFromCtx(c)
+		if !ok {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		}
+		if deps.Queries == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "api_unavailable"})
+		}
+
+		ctx := c.Context()
+		var sites, credits, camps int64
+		g, gctx := errgroup.WithContext(ctx)
+
+		g.Go(func() error {
+			var err error
+			sites, err = deps.Queries.CountWpSitesByUser(gctx, apiUser.ID)
+			return err
+		})
+		g.Go(func() error {
+			var err error
+			credits, err = deps.Queries.CountCreditsConsumedThisMonth(gctx, apiUser.ID)
+			return err
+		})
+		g.Go(func() error {
+			var err error
+			camps, err = deps.Queries.CountRunningCampaignsByUser(gctx, apiUser.ID)
+			return err
+		})
+
+		if err := g.Wait(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
+		}
+
+		return c.JSON(fiber.Map{
+			"sites_connected":        sites,
+			"credits_consumed_month": credits,
+			"campaigns_running":      camps,
 		})
 	}
 }

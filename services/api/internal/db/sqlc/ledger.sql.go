@@ -11,6 +11,23 @@ import (
 	"github.com/google/uuid"
 )
 
+const countCreditsConsumedThisMonth = `-- name: CountCreditsConsumedThisMonth :one
+SELECT COALESCE(SUM(-delta_credits)::bigint, 0)::bigint AS consumed
+FROM ledger
+WHERE user_id = $1
+  AND delta_credits < 0
+  AND created_at >= (date_trunc('month', NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')
+`
+
+// Uses Asia/Ho_Chi_Minh timezone for month boundary (VN-only user base).
+// Avoids UTC drift where VN users see counter reset 7 hours early at month end.
+func (q *Queries) CountCreditsConsumedThisMonth(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCreditsConsumedThisMonth, userID)
+	var consumed int64
+	err := row.Scan(&consumed)
+	return consumed, err
+}
+
 const countLedgerByUser = `-- name: CountLedgerByUser :one
 SELECT COUNT(*) FROM ledger WHERE user_id = $1
 `

@@ -7,7 +7,20 @@ package sqlcdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
+
+const countRunningCampaignsByUser = `-- name: CountRunningCampaignsByUser :one
+SELECT COUNT(*) FROM campaigns WHERE user_id = $1 AND status = 'running'
+`
+
+func (q *Queries) CountRunningCampaignsByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countRunningCampaignsByUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const placeholderCampaignsSelect = `-- name: PlaceholderCampaignsSelect :one
 

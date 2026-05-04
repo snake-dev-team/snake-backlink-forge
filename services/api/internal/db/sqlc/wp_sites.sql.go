@@ -13,6 +13,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countWpSitesByUser = `-- name: CountWpSitesByUser :one
+SELECT COUNT(*) FROM wp_sites WHERE user_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) CountWpSitesByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWpSitesByUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getWpSiteByID = `-- name: GetWpSiteByID :one
 SELECT id, user_id, base_url, app_username, app_password_enc, label, status, last_validated_at, last_error, created_at, updated_at, deleted_at
 FROM wp_sites
