@@ -1,3 +1,9 @@
+## [1.0.0-beta.32](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.31...v1.0.0-beta.32) (2026-05-04)
+
+### 🚀 Features
+
+* **landing:** hero redesign with gradient text + CLI snippet ([9fd5447](https://github.com/snake-dev-team/snake-backlink-forge/commit/9fd5447b4bdc4fc0f0d6fbc3c8f001ff63b21e01))
+
 ## [1.0.0-beta.31](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.30...v1.0.0-beta.31) (2026-05-04)
 
 ### 🚀 Features
