@@ -1,3 +1,9 @@
+## [1.0.0-beta.37](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.36...v1.0.0-beta.37) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **landing:** force dark default + kill light-mode glass blur for guaranteed WCAG AA ([89ab940](https://github.com/snake-dev-team/snake-backlink-forge/commit/89ab94090d8e9ba331270b9396db1deade7a399d))
+
 ## [1.0.0-beta.36](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.35...v1.0.0-beta.36) (2026-05-04)
 
 ### 🐞 Bug Fixes
