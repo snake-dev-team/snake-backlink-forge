@@ -1,3 +1,9 @@
+## [1.0.0-beta.35](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.34...v1.0.0-beta.35) (2026-05-04)
+
+### 🚀 Features
+
+* **dashboard:** glass revamp + sparkline placeholders + cmdk trigger button ([642f910](https://github.com/snake-dev-team/snake-backlink-forge/commit/642f9109f3972a4f1b613b45564a810b166a8b18))
+
 ## [1.0.0-beta.34](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.33...v1.0.0-beta.34) (2026-05-04)
 
 ### 🚀 Features
