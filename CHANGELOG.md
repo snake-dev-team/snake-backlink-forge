@@ -1,3 +1,9 @@
+## [1.0.0-beta.28](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.27...v1.0.0-beta.28) (2026-05-04)
+
+### 🚀 Features
+
+* **theme:** glass tokens + grid pattern + vignette overlays ([9d26304](https://github.com/snake-dev-team/snake-backlink-forge/commit/9d263045a0bc8dd93d899eea2c05e5c878a73704))
+
 ## [1.0.0-beta.27](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.26...v1.0.0-beta.27) (2026-05-04)
 
 ### 🐞 Bug Fixes
