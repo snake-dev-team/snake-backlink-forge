@@ -52,7 +52,7 @@ export function PricingTierCard({ tier }: Props) {
         {tier.features.map((f) => (
           <li key={f} className="flex items-start gap-2">
             <Check className="mt-0.5 size-4 shrink-0 text-cyan-300" aria-hidden="true" />
-            <span className="text-white/75">{f}</span>
+            <span className="text-foreground dark:text-white/90">{f}</span>
           </li>
         ))}
       </ul>

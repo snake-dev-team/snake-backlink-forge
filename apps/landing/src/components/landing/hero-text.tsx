@@ -24,7 +24,7 @@ export function HeroText() {
           <span className="gradient-text">Tạo, kiểm soát và đăng backlink</span>
           <span className="text-foreground dark:text-white"> WordPress từ một cockpit.</span>
         </h1>
-        <p className="max-w-xl text-lg leading-8 text-foreground/75 dark:text-white/70">
+        <p className="max-w-xl text-lg leading-8 text-foreground/90 dark:text-white/85">
           Snake Backlink Forge gom credit Telegram, AI content và WordPress publishing vào một luồng
           vận hành gọn cho SEO operator Việt Nam.
         </p>

@@ -76,7 +76,7 @@ export function Footer() {
                       href={link.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-foreground/85 hover:text-primary dark:text-white/70 dark:hover:text-cyan-200"
+                      className="text-foreground/90 hover:text-primary dark:text-white/85 dark:hover:text-cyan-200"
                     >
                       {link.label}
                     </a>
@@ -85,7 +85,7 @@ export function Footer() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-foreground/85 hover:text-primary dark:text-white/70 dark:hover:text-cyan-200"
+                      className="text-foreground/90 hover:text-primary dark:text-white/85 dark:hover:text-cyan-200"
                     >
                       {link.label}
                     </Link>

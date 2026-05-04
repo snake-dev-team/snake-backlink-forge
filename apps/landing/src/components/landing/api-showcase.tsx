@@ -35,7 +35,7 @@ export async function ApiShowcase() {
         <h2 className="mx-auto max-w-2xl text-balance text-4xl font-semibold tracking-tight">
           Tích hợp REST API trong vài dòng
         </h2>
-        <p className="mx-auto max-w-xl text-foreground/70 dark:text-white/60">
+        <p className="mx-auto max-w-xl text-foreground/85 dark:text-white/80">
           Lấy API key từ Telegram bot, gọi endpoints như ví dụ bên dưới. Authentication bằng Bearer
           token.
         </p>
@@ -83,9 +83,7 @@ export async function ApiShowcase() {
                     />
                   </svg>
                 </span>
-                <span className="text-sm leading-6 text-foreground/80 dark:text-white/75">
-                  {item}
-                </span>
+                <span className="text-sm leading-6 text-foreground dark:text-white/90">{item}</span>
               </li>
             ))}
           </ul>

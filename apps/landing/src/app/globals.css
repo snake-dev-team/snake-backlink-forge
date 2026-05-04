@@ -124,33 +124,35 @@
 
 @layer components {
   /* === Subtle glass (default surface) ===
-     Light mode: opaque 0.85 white surface so text is readable (WCAG AA).
-     Dark mode: 4% white tint over dark bg (glass effect preserved). */
+     Light mode: solid card token (NO blur) — guarantees WCAG AA.
+     Dark mode: 4% white tint glass effect over dark bg. */
   .glass-card {
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    background-color: oklch(1 0 0 / 0.85);
-    border: 1px solid oklch(0 0 0 / 0.08);
+    background-color: var(--card);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
   }
   .dark .glass-card {
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
     background-color: var(--glass-bg);
     border-color: var(--glass-border);
   }
 
-  /* === Elevated glass (hero, large feature cells) ===
-     Light mode: 0.90 white surface for strong elevation + contrast.
-     Dark mode: 8% white tint (glass effect). */
+  /* === Elevated glass ===
+     Light mode: solid card with stronger border for elevation.
+     Dark mode: 8% white tint glass. */
   .glass-card-strong {
-    backdrop-filter: blur(var(--glass-blur-strong));
-    -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-    background-color: oklch(1 0 0 / 0.90);
-    border: 1px solid oklch(0 0 0 / 0.08);
+    background-color: var(--card);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.06);
   }
   .dark .glass-card-strong {
+    backdrop-filter: blur(var(--glass-blur-strong));
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong));
     background-color: var(--glass-bg-strong);
     border-color: var(--glass-border-strong);
+    box-shadow: none;
   }
 
   /* === Modal glass (palette / dialog only) === */

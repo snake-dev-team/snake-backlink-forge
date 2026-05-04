@@ -15,14 +15,14 @@ export function LandingNav() {
         </span>
         Snake Backlink Forge
       </Link>
-      <div className="hidden items-center gap-6 text-sm text-white/70 md:flex">
-        <a href="#features" className="hover:text-cyan-200">
+      <div className="hidden items-center gap-6 text-sm text-foreground/85 dark:text-white/85 md:flex">
+        <a href="#features" className="hover:text-primary dark:hover:text-cyan-200">
           Tính năng
         </a>
-        <a href="#pricing" className="hover:text-cyan-200">
+        <a href="#pricing" className="hover:text-primary dark:hover:text-cyan-200">
           Giá
         </a>
-        <a href="#contact" className="hover:text-cyan-200">
+        <a href="#contact" className="hover:text-primary dark:hover:text-cyan-200">
           Liên hệ
         </a>
       </div>

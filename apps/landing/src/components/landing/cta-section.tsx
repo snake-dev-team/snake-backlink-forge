@@ -18,7 +18,7 @@ export function CtaSection() {
         <h2 className="gradient-text text-balance text-4xl font-semibold tracking-tight">
           Nâng cấp SEO của bạn ngay
         </h2>
-        <p className="mx-auto max-w-xl text-foreground/70 dark:text-white/65">
+        <p className="mx-auto max-w-xl text-foreground/90 dark:text-white/85">
           Mở Telegram bot, nạp credit và kết nối WordPress site đầu tiên trong 60 giây.
         </p>
 

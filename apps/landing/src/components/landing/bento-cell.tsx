@@ -21,7 +21,7 @@ export async function BentoCell({ cell }: BentoCellProps) {
         </span>
         <h3 className="text-lg font-semibold tracking-tight">{cell.title}</h3>
       </div>
-      <p className="text-sm leading-6 text-foreground/75 dark:text-white/65">{cell.description}</p>
+      <p className="text-sm leading-6 text-foreground dark:text-white/85">{cell.description}</p>
       {cell.snippet && (
         <CodeWindow
           title={cell.snippet.title}

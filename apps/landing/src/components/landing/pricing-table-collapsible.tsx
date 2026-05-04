@@ -37,27 +37,18 @@ export function PricingTableCollapsible() {
         <table className="w-full border-collapse text-sm">
           <thead className="border-b border-foreground/10 bg-foreground/[0.03] text-left dark:border-white/10 dark:bg-white/[0.03]">
             <tr>
-              <th
-                scope="col"
-                className="px-4 py-3 font-medium text-foreground/70 dark:text-white/70"
-              >
+              <th scope="col" className="px-4 py-3 font-medium text-foreground dark:text-white/85">
                 Mã gói
               </th>
-              <th
-                scope="col"
-                className="px-4 py-3 font-medium text-foreground/70 dark:text-white/70"
-              >
+              <th scope="col" className="px-4 py-3 font-medium text-foreground dark:text-white/85">
                 Pool
               </th>
-              <th
-                scope="col"
-                className="px-4 py-3 font-medium text-foreground/70 dark:text-white/70"
-              >
+              <th scope="col" className="px-4 py-3 font-medium text-foreground dark:text-white/85">
                 Mô tả
               </th>
               <th
                 scope="col"
-                className="px-4 py-3 text-right font-medium text-foreground/70 dark:text-white/70"
+                className="px-4 py-3 text-right font-medium text-foreground dark:text-white/85"
               >
                 Giá VND
               </th>
@@ -66,13 +57,13 @@ export function PricingTableCollapsible() {
           <tbody className="divide-y divide-foreground/5 dark:divide-white/5">
             {LANDING_PACKAGES.map((p) => (
               <tr key={p.code} className="hover:bg-foreground/[0.02] dark:hover:bg-white/[0.02]">
-                <td className="px-4 py-3 font-mono text-xs text-foreground/60 dark:text-white/60">
+                <td className="px-4 py-3 font-mono text-xs text-foreground/80 dark:text-white/70">
                   {p.code}
                 </td>
-                <td className="px-4 py-3 text-foreground dark:text-white/75">
+                <td className="px-4 py-3 text-foreground dark:text-white/90">
                   {POOL_LABEL[p.pool] ?? p.pool}
                 </td>
-                <td className="px-4 py-3 text-foreground dark:text-white/75">{p.label}</td>
+                <td className="px-4 py-3 text-foreground dark:text-white/90">{p.label}</td>
                 <td className="px-4 py-3 text-right font-mono tabular-nums text-foreground dark:text-white/85">
                   {formatVnd(p.priceVnd)}
                 </td>
