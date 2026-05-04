@@ -47,7 +47,7 @@ export function SidebarNav({ className, onNavigate }: SidebarNavProps) {
               "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors duration-150 border-l-2",
               isActive
                 ? "bg-primary/10 border-l-primary text-foreground"
-                : "border-l-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                : "border-l-transparent text-muted-foreground hover:bg-primary/5 hover:text-foreground",
             )}
           >
             <Icon className="h-4 w-4" />
