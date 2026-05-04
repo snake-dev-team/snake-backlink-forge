@@ -59,7 +59,11 @@ export function LoginForm() {
 
       setError(ERROR_MESSAGES[data.error as string] ?? "Đã có lỗi");
     } catch (error) {
-      setError(error instanceof DOMException && error.name === "AbortError" ? ERROR_MESSAGES.request_timeout : ERROR_MESSAGES.backend_error);
+      setError(
+        error instanceof DOMException && error.name === "AbortError"
+          ? ERROR_MESSAGES.request_timeout
+          : ERROR_MESSAGES.backend_error,
+      );
     } finally {
       window.clearTimeout(timeout);
       setPending(false);
