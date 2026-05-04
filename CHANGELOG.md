@@ -1,3 +1,9 @@
+## [1.0.0-beta.40](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.39...v1.0.0-beta.40) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **auth:** pump glass-card-strong dark glow + add CLI hint box on login ([5600c37](https://github.com/snake-dev-team/snake-backlink-forge/commit/5600c37503b40a3a9a5c190de39da64ff67630b6))
+
 ## [1.0.0-beta.39](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.38...v1.0.0-beta.39) (2026-05-04)
 
 ### 🐞 Bug Fixes
