@@ -11,9 +11,10 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { STATIC_ACTIONS } from "@/lib/command-palette/actions";
 import { useTransactionsCache } from "@/lib/command-palette/use-transactions-cache";
+import { packageLabel } from "@/lib/constants/packages";
 import { formatVnd } from "@/lib/format/currency";
 
 /**
@@ -88,8 +89,11 @@ export function CommandPalette() {
         className="glass-card-modal w-full max-w-2xl p-0 shadow-2xl shadow-violet-950/40"
         showCloseButton={false}
       >
-        {/* Visually hidden title satisfies Radix Dialog accessibility requirement */}
+        {/* sr-only title + description satisfy Radix Dialog WCAG 2.1 AA */}
         <DialogTitle className="sr-only">Command palette</DialogTitle>
+        <DialogDescription className="sr-only">
+          Tìm và mở nhanh trang, hành động hoặc giao dịch gần đây bằng bàn phím.
+        </DialogDescription>
         <Command>
           <CommandInput placeholder="Tìm trang, hành động hoặc giao dịch..." autoFocus />
           <CommandList>
@@ -127,22 +131,23 @@ export function CommandPalette() {
               <>
                 <CommandSeparator />
                 <CommandGroup heading="Giao dịch gần đây">
-                  {txs.slice(0, 10).map((tx) => (
-                    <CommandItem
-                      key={tx.id}
-                      value={`${tx.package_code ?? ""} ${tx.id} ${formatVnd(tx.amount_vnd)}`}
-                      onSelect={() => {
-                        setOpen(false);
-                        router.push(`/dashboard?tx=${tx.id}`);
-                      }}
-                    >
-                      <span className="mr-2 font-mono text-xs text-muted-foreground">
-                        {tx.package_code ?? "—"}
-                      </span>
-                      <span className="flex-1">{formatVnd(tx.amount_vnd)}</span>
-                      <span className="text-xs text-muted-foreground">{tx.status}</span>
-                    </CommandItem>
-                  ))}
+                  {txs.slice(0, 10).map((tx) => {
+                    const label = packageLabel(tx.package_code);
+                    return (
+                      <CommandItem
+                        key={tx.id}
+                        value={`${label} ${tx.package_code ?? ""} ${tx.id} ${formatVnd(tx.amount_vnd)}`}
+                        onSelect={() => {
+                          setOpen(false);
+                          router.push(`/dashboard?tx=${tx.id}`);
+                        }}
+                      >
+                        <span className="mr-2 flex-1 truncate text-sm">{label}</span>
+                        <span className="font-mono text-xs">{formatVnd(tx.amount_vnd)}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{tx.status}</span>
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
               </>
             )}
