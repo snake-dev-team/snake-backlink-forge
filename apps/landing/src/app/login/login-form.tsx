@@ -71,9 +71,9 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md border-border/70 bg-card/95 shadow-2xl">
+    <Card className="glass-card-strong w-full max-w-md p-2 shadow-none">
       <CardHeader>
-        <CardTitle>Đăng nhập SBF</CardTitle>
+        <CardTitle className="text-xl">Đăng nhập</CardTitle>
         <CardDescription>Dán API key từ Telegram bot để vào dashboard.</CardDescription>
       </CardHeader>
       <CardContent>
