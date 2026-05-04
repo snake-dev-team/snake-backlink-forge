@@ -1,5 +1,6 @@
 import { ThemeToggle } from "@/components/theme-toggle";
 import { fetchMeServer } from "@/lib/api/server-fetch";
+import { CmdKButton } from "./cmd-k-button";
 import { UserMenu } from "./user-menu";
 
 const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "SnakeBacklinkForgeBot";
@@ -14,6 +15,7 @@ export async function TopBar() {
 
   return (
     <div className="flex items-center gap-2">
+      <CmdKButton />
       <ThemeToggle />
       <UserMenu
         botUsername={botUsername}

@@ -1,17 +1,18 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "SnakeBacklinkForgeBot";
 
 export function QuickActionsCard() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Thao tác nhanh</CardTitle>
-        <CardDescription>Mở bot, nạp credit, hoặc chuẩn bị kết nối WordPress.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-3">
+    <article className="glass-card p-6">
+      <header className="space-y-1">
+        <h2 className="text-lg font-semibold tracking-tight">Thao tác nhanh</h2>
+        <p className="text-sm text-muted-foreground">
+          Mở bot, nạp credit, hoặc chuẩn bị kết nối WordPress.
+        </p>
+      </header>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Button asChild variant="outline">
           <a href={`https://t.me/${botUsername}`} rel="noreferrer" target="_blank">
             Mở Telegram bot
@@ -25,7 +26,7 @@ export function QuickActionsCard() {
         <Button asChild>
           <Link href="/sites/connect">Kết nối WordPress</Link>
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </article>
   );
 }

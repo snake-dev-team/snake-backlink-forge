@@ -1,4 +1,3 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchMeServer } from "@/lib/api/server-fetch";
 import { formatCredits } from "@/lib/format/currency";
 
@@ -11,12 +10,12 @@ export async function BalanceCard() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Số dư credit</CardTitle>
-        <CardDescription>Dùng cho campaign và publishing workflow.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <article className="glass-card p-6">
+      <header className="space-y-1">
+        <h2 className="text-lg font-semibold tracking-tight">Số dư credit</h2>
+        <p className="text-sm text-muted-foreground">Dùng cho campaign và publishing workflow.</p>
+      </header>
+      <div className="mt-4 space-y-4">
         {me ? (
           <>
             <div className="text-4xl font-semibold tracking-tight">
@@ -32,7 +31,7 @@ export async function BalanceCard() {
             Chưa tải được số dư. Đăng xuất rồi đăng nhập lại nếu lỗi kéo dài.
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </article>
   );
 }
