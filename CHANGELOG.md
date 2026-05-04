@@ -1,3 +1,9 @@
+## [1.0.0-beta.39](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.38...v1.0.0-beta.39) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **auth:** apply ambient layer + glass treatment to login page ([5cefbdb](https://github.com/snake-dev-team/snake-backlink-forge/commit/5cefbdbce0bd54891ebec7c0cce1c50f1e962dae))
+
 ## [1.0.0-beta.38](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.37...v1.0.0-beta.38) (2026-05-04)
 
 ### 🐞 Bug Fixes
