@@ -1,3 +1,10 @@
+## [1.0.0-beta.22](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.21...v1.0.0-beta.22) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **landing:** harden auth form feedback ([5af5e93](https://github.com/snake-dev-team/snake-backlink-forge/commit/5af5e935e591addd1c6f84c1d3ff7b59b7d140ca))
+* **landing:** normalize auth form line endings for biome ci ([54d13ac](https://github.com/snake-dev-team/snake-backlink-forge/commit/54d13acd7be329d552951550e7ed9dc89e9d1515))
+
 ## [1.0.0-beta.21](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.20...v1.0.0-beta.21) (2026-04-30)
 
 ### 🐞 Bug Fixes
