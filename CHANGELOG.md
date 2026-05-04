@@ -1,3 +1,9 @@
+## [1.0.0-beta.38](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.37...v1.0.0-beta.38) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **landing:** restore UI B mockup hero + ambient fidelity ([489ebbf](https://github.com/snake-dev-team/snake-backlink-forge/commit/489ebbfce7c2c47e412abaf8c4158bf431212428))
+
 ## [1.0.0-beta.37](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.36...v1.0.0-beta.37) (2026-05-04)
 
 ### 🐞 Bug Fixes
