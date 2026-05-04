@@ -107,4 +107,115 @@
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+
+  /* === Glass surfaces === */
+  --glass-blur: 12px;
+  --glass-blur-strong: 16px;
+  --glass-blur-modal: 24px;
+  --glass-bg: oklch(1 0 0 / 0.04);            /* 4% white tint */
+  --glass-bg-strong: oklch(1 0 0 / 0.08);     /* 8% for elevated */
+  --glass-border: oklch(1 0 0 / 0.10);        /* 10% white border */
+  --glass-border-strong: oklch(1 0 0 / 0.18); /* 18% for elevated */
+
+  /* Solid fallback colors (when @supports fails) */
+  --glass-fallback-bg: oklch(0.20 0.03 296 / 0.92);
+  --glass-fallback-border: oklch(0.28 0.03 296 / 0.6);
+}
+
+@layer components {
+  /* === Subtle glass (default surface) === */
+  .glass-card {
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background-color: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+  }
+
+  /* === Elevated glass (hero, large feature cells) === */
+  .glass-card-strong {
+    backdrop-filter: blur(var(--glass-blur-strong));
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+    background-color: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: var(--radius);
+  }
+
+  /* === Modal glass (palette / dialog only) === */
+  .glass-card-modal {
+    backdrop-filter: blur(var(--glass-blur-modal));
+    -webkit-backdrop-filter: blur(var(--glass-blur-modal));
+    background-color: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: var(--radius);
+  }
+
+  /* === Decorative grid pattern === */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 72px 72px;
+  }
+
+  /* === Decorative vignette === */
+  .bg-vignette {
+    background-image:
+      radial-gradient(circle at top left, oklch(0.45 0.18 295 / 0.18), transparent 38%),
+      radial-gradient(circle at top right, oklch(0.65 0.14 215 / 0.12), transparent 32%),
+      radial-gradient(circle at bottom, oklch(0.16 0.03 296 / 0.85), transparent 65%);
+  }
+
+  /* === Brand gradient text (violet → cyan → amber) ===
+     Used by hero h1 (Phase 04). Safari needs -webkit- prefix; @supports
+     fallback paints solid --accent in browsers without background-clip:text. */
+  .gradient-text {
+    background: linear-gradient(135deg,
+      oklch(0.78 0.18 296) 0%,
+      oklch(0.85 0.13 215) 50%,
+      oklch(0.88 0.16 84) 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  @supports not (background-clip: text) {
+    .gradient-text {
+      color: var(--accent);
+      -webkit-text-fill-color: initial;
+      background: transparent;
+    }
+  }
+}
+
+/* === Fallback: browsers without backdrop-filter === */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-card,
+  .glass-card-strong,
+  .glass-card-modal {
+    background-color: var(--glass-fallback-bg);
+    border-color: var(--glass-fallback-border);
+  }
+}
+
+/* === Accessibility: motion-sensitive users === */
+@media (prefers-reduced-motion: reduce) {
+  .glass-card,
+  .glass-card-strong,
+  .glass-card-modal {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: var(--glass-fallback-bg);
+  }
+}
+
+/* === Accessibility: reduced transparency === */
+@media (prefers-reduced-transparency: reduce) {
+  .glass-card,
+  .glass-card-strong,
+  .glass-card-modal {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    background-color: oklch(0.18 0.03 296 / 0.92);
+  }
 }
