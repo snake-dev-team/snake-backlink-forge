@@ -147,8 +147,11 @@ func (c *ClaudeClient) Generate(ctx context.Context, req ContentRequest) (Conten
 		return ContentResponse{}, fmt.Errorf("claude: status %d: %s", resp.StatusCode, snippet)
 	}
 
+	// Use Decoder.Decode (not Unmarshal) so SSE-style trailing bytes like
+	// "data: [DONE]" appended by some Anthropic-compat proxies (9router) don't
+	// break parsing. Decoder stops after the first complete JSON value.
 	var apiResp claudeResponse
-	if err := json.Unmarshal(respBytes, &apiResp); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(respBytes)).Decode(&apiResp); err != nil {
 		return ContentResponse{}, fmt.Errorf("claude: unmarshal response: %w", err)
 	}
 
