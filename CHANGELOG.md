@@ -1,3 +1,9 @@
+## [1.0.0-beta.49](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.48...v1.0.0-beta.49) (2026-05-05)
+
+### 🚀 Features
+
+* **worker:** embedded go worker for auto job processing ([f963eb2](https://github.com/snake-dev-team/snake-backlink-forge/commit/f963eb2a9dfbcdfe618eb031f3a8b6d6794a7421))
+
 ## [1.0.0-beta.48](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.47...v1.0.0-beta.48) (2026-05-05)
 
 ### 🐞 Bug Fixes
