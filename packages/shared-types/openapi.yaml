@@ -1,0 +1,533 @@
+openapi: 3.1.0
+info:
+  title: Snake Backlink Forge API
+  version: 0.1.0
+  description: SBF — SEO backlink automation SaaS API. Phase 2 endpoints + Phase 3 web auth.
+servers:
+  - url: https://snake-backlink-api.fly.dev
+    description: Production
+  - url: http://localhost:8080
+    description: Local development
+components:
+  securitySchemes:
+    BearerApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: sbf_live_*
+      description: API key issued via Telegram bot. Format sbf_live_<random>.
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+    AuthVerifyRequest:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+          pattern: "^sbf_live_"
+    AuthVerifyResponse:
+      type: object
+      required: [ok, user]
+      properties:
+        ok:
+          type: boolean
+        user:
+          $ref: "#/components/schemas/AuthUser"
+    AuthUser:
+      type: object
+      required: [id, key_prefix]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key_prefix:
+          type: string
+    Me:
+      type: object
+      required: [user_id, telegram_id, language, is_verified, balance_credits, premium_credits, standard_credits, key_prefix]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        telegram_id:
+          type: integer
+          format: int64
+        telegram_username:
+          type: string
+          nullable: true
+        language:
+          type: string
+        is_verified:
+          type: boolean
+        balance_credits:
+          type: integer
+        premium_credits:
+          type: integer
+        standard_credits:
+          type: integer
+        key_prefix:
+          type: string
+    Balance:
+      type: object
+      required: [balance_credits, premium_credits, standard_credits]
+      properties:
+        balance_credits:
+          type: integer
+        premium_credits:
+          type: integer
+        standard_credits:
+          type: integer
+    Transaction:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        amount_credits:
+          type: integer
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    LedgerEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        delta_credits:
+          type: integer
+        balance_after_credits:
+          type: integer
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    TransactionsPage:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        limit:
+          type: integer
+        offset:
+          type: integer
+    LedgerPage:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LedgerEntry"
+        limit:
+          type: integer
+        offset:
+          type: integer
+    WpSite:
+      type: object
+      required: [id, base_url, app_username, label, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        base_url:
+          type: string
+          format: uri
+          pattern: "^https://(?!localhost(?::|/|$))(?!127\\.)(?!10\\.)(?!192\\.168\\.)(?!172\\.(1[6-9]|2[0-9]|3[0-1])\\.)(?!169\\.254\\.)(?!\\[?::1\\]?)(?!0\\.)(?!100\\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\\.)(?!198\\.(1[8-9])\\.)(?!198\\.51\\.100\\.)(?!203\\.0\\.113\\.)(?!224\\.)(?!240\\.)[^\\s]+$"
+          description: >-
+            Normalized public HTTPS WordPress origin URL. Implementations reject
+            loopback, private, link-local, multicast, reserved, documentation/test-net,
+            unspecified, and other non-public IP destinations after DNS resolution.
+        app_username:
+          type: string
+        label:
+          type: string
+        status:
+          type: string
+          enum: [pending, connected, error]
+        last_validated_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_error:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    WpSitesPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WpSite"
+    WpSiteCreateRequest:
+      type: object
+      description: >-
+        Connects a WordPress site after backend validation of its REST API. Validation
+        permits only HTTPS public-internet destinations and fails closed for redirects,
+        DNS answers containing non-public IPs, invalid URLs, or unreachable REST APIs.
+      required: [base_url, app_username, app_password]
+      properties:
+        base_url:
+          type: string
+          format: uri
+          pattern: "^https://(?!localhost(?::|/|$))(?!127\\.)(?!10\\.)(?!192\\.168\\.)(?!172\\.(1[6-9]|2[0-9]|3[0-1])\\.)(?!169\\.254\\.)(?!\\[?::1\\]?)(?!0\\.)(?!100\\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\\.)(?!198\\.(1[8-9])\\.)(?!198\\.51\\.100\\.)(?!203\\.0\\.113\\.)(?!224\\.)(?!240\\.)[^\\s]+$"
+          description: >-
+            Public HTTPS WordPress site origin. Implementations must reject non-HTTP(S)
+            schemes, plaintext HTTP, localhost names, loopback, private, link-local,
+            multicast, reserved, documentation/test-net, and otherwise non-public
+            destinations for both IPv4 and IPv6 after DNS resolution. Validation must
+            be repeated before outbound requests and redirects must not reach internal
+            destinations.
+        app_username:
+          type: string
+        app_password:
+          type: string
+          writeOnly: true
+        label:
+          type: string
+    WpSiteCreateResponse:
+      type: object
+      required: [item]
+      properties:
+        item:
+          $ref: "#/components/schemas/WpSite"
+    WpSiteRevalidateResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, connected, error]
+    MeUsage:
+      type: object
+      required: [sites_connected, credits_consumed_month, campaigns_running]
+      properties:
+        sites_connected:
+          type: integer
+          format: int64
+          description: Total connected WordPress sites (not soft-deleted)
+        credits_consumed_month:
+          type: integer
+          format: int64
+          description: Total credits consumed in current calendar month (Asia/Ho_Chi_Minh tz)
+        campaigns_running:
+          type: integer
+          format: int64
+          description: Count of campaigns with status='running'
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /api/v1/health:
+    get:
+      summary: API v1 health check
+      operationId: getApiV1Health
+      responses:
+        "200":
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /api/v1/auth/verify:
+    post:
+      summary: Verify API key
+      operationId: postApiV1AuthVerify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthVerifyRequest"
+      responses:
+        "200":
+          description: API key is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthVerifyResponse"
+        "401":
+          description: Invalid key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Account banned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/me:
+    get:
+      summary: Current user profile
+      operationId: getApiV1Me
+      security:
+        - BearerApiKey: []
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/me/usage:
+    get:
+      summary: Current month usage statistics
+      operationId: getApiV1MeUsage
+      security:
+        - BearerApiKey: []
+      responses:
+        "200":
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeUsage"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/balance:
+    get:
+      summary: Current user credit balance
+      operationId: getApiV1Balance
+      security:
+        - BearerApiKey: []
+      responses:
+        "200":
+          description: Credit balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/transactions:
+    get:
+      summary: Current user transactions
+      operationId: getApiV1Transactions
+      security:
+        - BearerApiKey: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Transactions page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionsPage"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/ledger:
+    get:
+      summary: Current user credit ledger
+      operationId: getApiV1Ledger
+      security:
+        - BearerApiKey: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Ledger page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerPage"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/wp-sites:
+    get:
+      summary: List connected WordPress sites
+      operationId: getApiV1WpSites
+      security:
+        - BearerApiKey: []
+      responses:
+        "200":
+          description: WordPress sites page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WpSitesPage"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Connect WordPress site
+      operationId: postApiV1WpSites
+      security:
+        - BearerApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WpSiteCreateRequest"
+      responses:
+        "201":
+          description: Connected WordPress site
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WpSiteCreateResponse"
+        "400":
+          description: >-
+            Invalid WordPress URL, non-public destination rejected, redirect rejected,
+            or REST API unavailable. Error values include wp_invalid_url and
+            wp_private_address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized or invalid WordPress credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: WordPress rate limited validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/wp-sites/{id}:
+    delete:
+      summary: Delete connected WordPress site
+      operationId: deleteApiV1WpSite
+      security:
+        - BearerApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/wp-sites/{id}/revalidate:
+    post:
+      summary: Revalidate connected WordPress site
+      operationId: postApiV1WpSiteRevalidate
+      security:
+        - BearerApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Revalidation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WpSiteRevalidateResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"

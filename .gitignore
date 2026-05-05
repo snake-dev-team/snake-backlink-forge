@@ -13,6 +13,10 @@ node_modules/
 
 # testing
 /coverage
+playwright-report/
+test-results/
+apps/landing/playwright-report/
+apps/landing/test-results/
 
 # next.js
 /.next/
@@ -97,6 +101,7 @@ worktrees/
 
 # Go
 vendor/
+!.claude/hooks/scout-block/vendor/
 *.exe
 *.test
 *.out

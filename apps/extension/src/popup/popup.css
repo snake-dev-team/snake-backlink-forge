@@ -1,0 +1,97 @@
+/* Minimal popup styling — dark developer-tool aesthetic. */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Geist Mono", "Cascadia Code", ui-monospace, monospace;
+  font-size: 13px;
+  background: #1a1625;
+  color: #e2d9f3;
+  width: 320px;
+  padding: 16px;
+}
+
+h1 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #a78bfa;
+  margin-bottom: 10px;
+  letter-spacing: 0.02em;
+}
+
+h2 {
+  font-size: 12px;
+  font-weight: 500;
+  color: #7c6faa;
+  margin: 14px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status {
+  font-size: 12px;
+  color: #9d86e8;
+  background: #261f38;
+  border: 1px solid #3d2f6e;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  min-height: 28px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  flex: 1;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  border: 1px solid #4c3b8a;
+  border-radius: 4px;
+  background: #2d2045;
+  color: #c4b5fd;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+button:hover:not(:disabled) {
+  background: #3d2f6e;
+  color: #ede9fe;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+li {
+  font-size: 11px;
+  color: #8b7db8;
+  background: #1e1730;
+  border-radius: 3px;
+  padding: 5px 8px;
+  word-break: break-all;
+}
+
+a {
+  color: #67e8f9;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}

@@ -22,10 +22,17 @@ func New(cfg *config.Config, log *zap.Logger, pool *pgxpool.Pool, rdb *goredis.C
 		// Show startup banner in development; suppress in prod containers.
 		DisableStartupMessage: cfg.IsProduction(),
 
+		// [C1] Hard cap at 64KB — SePay payloads are <2KB; reject oversized bodies to
+		// prevent memory pressure and DoS amplification. Spec §non-functional line 59.
+		BodyLimit: 64 * 1024,
+
 		// Generous but bounded timeouts to prevent resource exhaustion.
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:             15 * time.Second,
+		WriteTimeout:            15 * time.Second,
+		IdleTimeout:             60 * time.Second,
+		ProxyHeader:             fiber.HeaderXForwardedFor,
+		EnableTrustedProxyCheck: true,
+		TrustedProxies:          cfg.TrustedProxyCIDRs,
 
 		// Return structured JSON on unhandled errors.
 		ErrorHandler: jsonErrorHandler,
@@ -34,6 +41,7 @@ func New(cfg *config.Config, log *zap.Logger, pool *pgxpool.Pool, rdb *goredis.C
 	// Middleware: recover before logger so panics are captured in the same request log.
 	app.Use(middleware.NewRecover(log, cfg))
 	app.Use(middleware.NewLogger(log))
+	app.Use(middleware.NewCORS(cfg.CORSOrigins))
 
 	// Routes.
 	Register(app, pool, rdb)

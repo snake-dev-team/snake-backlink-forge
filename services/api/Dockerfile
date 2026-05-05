@@ -17,18 +17,24 @@ COPY . .
 # CGO_ENABLED=0 produces a fully static binary compatible with distroless/static.
 # -ldflags='-s -w' strips debug info and DWARF tables (~30% size reduction).
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o /out/api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o /out/migrate ./cmd/migrate
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 # distroless/static-debian12:nonroot has no shell, no package manager, no libc.
 # Target image size: ~2.5 MB base + ~15-20 MB Go binary = well under 25 MB [M2].
 FROM gcr.io/distroless/static-debian12:nonroot
 
-# Copy only the compiled binary from the builder stage.
+# Copy compiled binaries from the builder stage.
+# /migrate is invoked by Fly release_command before the app starts.
 COPY --from=builder /out/api /api
+COPY --from=builder /out/migrate /migrate
 
 EXPOSE 8080
 
 # Run as nonroot (uid 65532) — no privileged operations needed.
 USER nonroot:nonroot
 
-ENTRYPOINT ["/api"]
+# Use CMD (not ENTRYPOINT) so Fly's release_command (defined in fly.toml) can swap
+# the executable for /migrate. With ENTRYPOINT ["/api"], release_command runs
+# "/api migrate up" which silently boots the API binary instead of the migrator.
+CMD ["/api"]

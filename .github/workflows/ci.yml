@@ -15,11 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
         with:
           version: 9.15.9
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: pnpm
@@ -27,6 +27,14 @@ jobs:
       - run: pnpm exec biome ci .
       - run: pnpm -r typecheck
       - run: pnpm -r build
+      - name: Guard against TanStack Query in landing source
+        run: |
+          if grep -R "@tanstack/react-query" apps/landing/src; then
+            echo "TanStack Query is intentionally excluded from Phase 3"
+            exit 1
+          fi
+      - run: pnpm --filter '@sbf/landing' exec playwright install chromium
+      - run: pnpm --filter '@sbf/landing' test:e2e
 
   go:
     name: Go (services/api) vet+lint+test
@@ -36,15 +44,15 @@ jobs:
       run:
         working-directory: services/api
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.26"
           cache-dependency-path: services/api/go.sum
       - run: go vet ./...
-      - uses: golangci/golangci-lint-action@v7
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.68
+          version: v2.11.4
           working-directory: services/api
       - run: go test ./... -race -cover
 
@@ -53,10 +61,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: .gitleaks.toml
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+      - name: Run gitleaks
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --no-banner

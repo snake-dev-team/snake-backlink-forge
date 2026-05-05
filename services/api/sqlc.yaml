@@ -2,7 +2,7 @@ version: "2"
 sql:
   - engine: "postgresql"
     queries: "internal/db/queries"
-    schema: "internal/migrations/*.up.sql"   # [M6] glob picks up all future migrations automatically
+    schema: "internal/migrations/*.sql"   # [M6] consolidated single-file goose format (no .up.sql split)
     gen:
       go:
         package: "sqlcdb"

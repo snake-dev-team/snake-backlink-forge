@@ -4,32 +4,31 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 permissions:
-  contents: write # to be able to publish a GitHub release
-  issues: write # to be able to comment on released issues
-  pull-requests: write # to be able to comment on released pull requests
-  id-token: write # to enable use of OIDC for npm provenance
+  contents: read
 
 concurrency:
   group: release-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Release
+  validate-release:
+    name: Validate Release
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout protected release branch
+        uses: actions/checkout@v6
         with:
+          ref: main
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 'lts/*'
 
@@ -39,7 +38,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
         run: npm audit signatures
@@ -50,14 +49,51 @@ jobs:
       - name: Run linting
         run: npm run lint
 
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: validate-release
+    environment: production-release
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout protected release branch
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm run semantic-release
+        run: npm exec --yes semantic-release
 
       - name: Send release notification to Discord
         if: success()
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: node scripts/send-discord-release.cjs production
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_WEBHOOK_URL is not configured; skipping Discord notification."
+            exit 0
+          fi
+          node scripts/_claudekit/send-discord-release.cjs production

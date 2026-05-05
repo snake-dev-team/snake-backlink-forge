@@ -4,7 +4,10 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/caarlos0/env/v10"
 )
@@ -26,9 +29,59 @@ type Config struct {
 	ClaudeBaseURL string `env:"CLAUDE_BASE_URL"`
 	ClaudeModel   string `env:"CLAUDE_MODEL"`
 
+	// -- Worker plane runtime (legacy execution flow) --
+	WorkerSharedToken string `env:"WORKER_SHARED_TOKEN"`
+	WorkerLeaseSec    int    `env:"WORKER_LEASE_SEC" envDefault:"300"`
+	WorkerRetryLimit  int    `env:"WORKER_RETRY_LIMIT" envDefault:"3"`
+	WorkerModel       string `env:"WORKER_MODEL"`
+
+	// -- Embedded Go worker (Phase 7.05) --
+	// WorkerEnabled activates the server-side goroutine that polls content_ready jobs.
+	// When false (default), jobs are only processed by the Chrome extension fallback.
+	WorkerEnabled bool `env:"WORKER_ENABLED" envDefault:"false"`
+	// WorkerPollInterval controls how often the worker polls for new jobs.
+	WorkerPollInterval string `env:"WORKER_POLL_INTERVAL" envDefault:"10s"`
+	// WorkerMaxConcurrent is the maximum number of jobs processed simultaneously.
+	WorkerMaxConcurrent int `env:"WORKER_MAX_CONCURRENT" envDefault:"5"`
+	// WorkerInternalRetryLimit is max transient failures before a job moves to DLQ.
+	// Separate from WorkerRetryLimit (legacy execution flow) to avoid collision.
+	WorkerInternalRetryLimit int `env:"WORKER_INTERNAL_RETRY_LIMIT" envDefault:"3"`
+	// WorkerLeaseDuration is how long a claimed job is protected from re-claiming.
+	WorkerLeaseDuration string `env:"WORKER_LEASE_DURATION" envDefault:"5m"`
+
 	// -- Telegram / Payments (Phase 2) --
-	TelegramBotToken  string `env:"TELEGRAM_BOT_TOKEN"`
-	SepayWebhookToken string `env:"SEPAY_WEBHOOK_TOKEN"`
+	TelegramBotToken    string `env:"TELEGRAM_BOT_TOKEN"`
+	TelegramBotUsername string `env:"TELEGRAM_BOT_USERNAME"`
+	SepayWebhookToken   string `env:"SEPAY_WEBHOOK_TOKEN"`
+
+	// -- SePay QR + Webhook (Phase 05-06) --
+	// SepayBankCode is the SePay bank identifier used in QR URL generation (e.g. "MBBank").
+	SepayBankCode string `env:"SEPAY_BANK_CODE" envDefault:"MBBank"`
+	// SepayBankAccount is the destination bank account number. Never logged in full.
+	SepayBankAccount string `env:"SEPAY_BANK_ACCOUNT"`
+
+	// -- Phase 07: Installer download URL --
+	// InstallerURL is the full URL to the Windows installer binary (e.g. Cloudflare R2 CDN).
+	// Empty string → /download replies "installer not yet published".
+	InstallerURL string `env:"INSTALLER_URL"`
+
+	// -- Phase 7.04: AI content generation --
+	// AnthropicAPIKey is the Anthropic API key (or proxy auth token) for Claude.
+	// Empty → AI content generation disabled (graceful degradation, no panic).
+	AnthropicAPIKey string `env:"ANTHROPIC_API_KEY"`
+	// AnthropicAuthToken is an alternative env name for the same secret. When set
+	// it overrides AnthropicAPIKey. Used by 9router-style proxies that name the
+	// secret ANTHROPIC_AUTH_TOKEN instead of ANTHROPIC_API_KEY.
+	AnthropicAuthToken string `env:"ANTHROPIC_AUTH_TOKEN"`
+	// AnthropicBaseURL points the Claude client at a custom Messages API endpoint.
+	// Empty → uses official https://api.anthropic.com/v1. The client appends "/messages".
+	// Example for 9router proxy: https://rakrqei.9router.com/v1
+	AnthropicBaseURL string `env:"ANTHROPIC_BASE_URL"`
+	// OpenAIAPIKey is the OpenAI API key used as fallback when Claude fails.
+	// Empty → OpenAI fallback disabled.
+	OpenAIAPIKey string `env:"OPENAI_API_KEY"`
+	// AIModelPrimary overrides the default Claude model (claude-sonnet-4-6).
+	AIModelPrimary string `env:"AI_MODEL_PRIMARY" envDefault:"claude-sonnet-4-6"`
 
 	// -- External APIs (Phase 4-6) --
 	SerpapiKey          string  `env:"SERPAPI_KEY"`
@@ -39,6 +92,11 @@ type Config struct {
 	ResendKey           string  `env:"RESEND_KEY"`
 	JWTSecret           string  `env:"JWT_SECRET"`
 	AdminTelegramIDs    []int64 `env:"ADMIN_TELEGRAM_IDS" envSeparator:","`
+
+	// -- Web SaaS API (Phase 3) --
+	CORSOrigins       []string `env:"CORS_ORIGINS"        envSeparator:","`
+	TrustedProxyCIDRs []string `env:"TRUSTED_PROXY_CIDRS" envSeparator:"," envDefault:"fdaa::/16,100.64.0.0/10,127.0.0.1/32"`
+	WPEncKey          string   `env:"WP_ENC_KEY"`
 }
 
 // Load parses environment variables into a Config struct.
@@ -51,11 +109,132 @@ func Load() (*Config, error) {
 
 	// Normalize env value for predictable comparisons downstream.
 	cfg.Env = strings.ToLower(strings.TrimSpace(cfg.Env))
+	cfg.ClaudeBaseURL = strings.TrimSpace(cfg.ClaudeBaseURL)
+	cfg.ClaudeModel = strings.TrimSpace(cfg.ClaudeModel)
+	cfg.WorkerSharedToken = strings.TrimSpace(cfg.WorkerSharedToken)
+	cfg.WorkerModel = strings.TrimSpace(cfg.WorkerModel)
+	cfg.SepayWebhookToken = strings.TrimSpace(cfg.SepayWebhookToken)
+	cfg.SepayBankAccount = strings.TrimSpace(cfg.SepayBankAccount)
+	cfg.CORSOrigins = normalizeStringSlice(cfg.CORSOrigins)
+	cfg.TrustedProxyCIDRs = normalizeStringSlice(cfg.TrustedProxyCIDRs)
+	cfg.AnthropicAPIKey = strings.TrimSpace(cfg.AnthropicAPIKey)
+	cfg.AnthropicAuthToken = strings.TrimSpace(cfg.AnthropicAuthToken)
+	cfg.AnthropicBaseURL = strings.TrimSpace(cfg.AnthropicBaseURL)
+	// ANTHROPIC_AUTH_TOKEN takes precedence when both are set (9router-style deploys).
+	if cfg.AnthropicAuthToken != "" {
+		cfg.AnthropicAPIKey = cfg.AnthropicAuthToken
+	}
+	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
+	cfg.AIModelPrimary = strings.TrimSpace(cfg.AIModelPrimary)
+
+	if err := validateCORSOrigins(cfg.CORSOrigins); err != nil {
+		return nil, fmt.Errorf("config: CORS_ORIGINS: %w", err)
+	}
+	if err := validateSePayWebhookConfig(cfg); err != nil {
+		return nil, fmt.Errorf("config: SePay webhook: %w", err)
+	}
+	if err := validateWorkerRuntime(cfg); err != nil {
+		return nil, fmt.Errorf("config: worker runtime: %w", err)
+	}
+
+	// [L3] Validate + deduplicate admin telegram IDs after env.Parse populates the slice.
+	validated, err := validateAdminTelegramIDs(cfg.AdminTelegramIDs)
+	if err != nil {
+		return nil, fmt.Errorf("config: ADMIN_TELEGRAM_IDS: %w", err)
+	}
+	cfg.AdminTelegramIDs = validated
 
 	return cfg, nil
+}
+
+// validateAdminTelegramIDs deduplicates and validates the parsed admin ID slice.
+// Rules:
+//   - Non-positive values → error (fail boot)
+//   - Duplicate values → warn to stderr (keep first occurrence)
+//   - Result is sorted ascending for deterministic iteration
+func normalizeStringSlice(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func validateCORSOrigins(origins []string) error {
+	for _, origin := range origins {
+		if strings.ContainsAny(origin, "*()[]{}") {
+			return fmt.Errorf("wildcards or regex-like chars are banned with credentials: %q", origin)
+		}
+	}
+	return nil
+}
+
+func validateSePayWebhookConfig(cfg *Config) error {
+	if len(cfg.SepayWebhookToken) < 32 {
+		return fmt.Errorf("SEPAY_WEBHOOK_TOKEN must be at least 32 characters")
+	}
+	if cfg.SepayBankAccount == "" {
+		return fmt.Errorf("SEPAY_BANK_ACCOUNT is required")
+	}
+	return nil
+}
+
+func validateWorkerRuntime(cfg *Config) error {
+	if cfg.WorkerLeaseSec <= 0 {
+		return fmt.Errorf("WORKER_LEASE_SEC must be positive")
+	}
+	if cfg.WorkerRetryLimit < 0 {
+		return fmt.Errorf("WORKER_RETRY_LIMIT must be zero or positive")
+	}
+	if cfg.WorkerModel == "" {
+		cfg.WorkerModel = cfg.ClaudeModel
+	}
+	return nil
+}
+
+func validateAdminTelegramIDs(ids []int64) ([]int64, error) {
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, fmt.Errorf("non-positive value: %d", id)
+		}
+		if _, dup := seen[id]; dup {
+			// Log warn to stderr — logger not yet constructed at config load time.
+			fmt.Fprintf(os.Stderr, "config: duplicate ADMIN_TELEGRAM_ID %d (kept first occurrence)\n", id)
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out, nil
 }
 
 // IsProduction returns true when running in production mode.
 func (c *Config) IsProduction() bool {
 	return c.Env == "production"
+}
+
+// WorkerPollIntervalDuration parses WorkerPollInterval string into time.Duration.
+// Falls back to 10s on parse failure.
+func (c *Config) WorkerPollIntervalDuration() time.Duration {
+	d, err := time.ParseDuration(c.WorkerPollInterval)
+	if err != nil || d <= 0 {
+		return 10 * time.Second
+	}
+	return d
+}
+
+// WorkerLeaseDurationDuration parses WorkerLeaseDuration string into time.Duration.
+// Falls back to 5 minutes on parse failure.
+func (c *Config) WorkerLeaseDurationDuration() time.Duration {
+	d, err := time.ParseDuration(c.WorkerLeaseDuration)
+	if err != nil || d <= 0 {
+		return 5 * time.Minute
+	}
+	return d
 }

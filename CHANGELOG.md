@@ -1,3 +1,435 @@
+## [1.0.0-beta.56](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.55...v1.0.0-beta.56) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **ai:** raise per-article cost cap to $0.15 for claude opus 4.7 ([99f22d4](https://github.com/snake-dev-team/snake-backlink-forge/commit/99f22d48f6b8d2b95d80e5ee013394e7e388082b))
+
+## [1.0.0-beta.55](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.54...v1.0.0-beta.55) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **ai:** tolerate sse trailer (data: [DONE]) appended by 9router proxy ([56bf552](https://github.com/snake-dev-team/snake-backlink-forge/commit/56bf5523da7dfd69608a2472030dd69af2f88d9e))
+
+## [1.0.0-beta.54](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.53...v1.0.0-beta.54) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **deploy:** use CMD instead of ENTRYPOINT so fly release_command swaps binary ([85d75f3](https://github.com/snake-dev-team/snake-backlink-forge/commit/85d75f3f1fc543fb81dc4839016e1694e7ffc12d))
+
+## [1.0.0-beta.53](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.52...v1.0.0-beta.53) (2026-05-05)
+
+### 🚀 Features
+
+* **ai:** support custom anthropic base url + dual auth headers for proxy ([5e97957](https://github.com/snake-dev-team/snake-backlink-forge/commit/5e9795781f9dd3c4b9bb23b54679ab2b2fd7bc60))
+
+### 📚 Documentation
+
+* **runbook:** e2e 20 backlinks live test runbook + mock helpers ([33c024f](https://github.com/snake-dev-team/snake-backlink-forge/commit/33c024f875b606b4d4b4eb99e64bf8d6aa93fd9c))
+
+## [1.0.0-beta.52](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.51...v1.0.0-beta.52) (2026-05-05)
+
+### 🚀 Features
+
+* **verification:** http head + anchor presence + enqueue from campaign_target_sites ([067ec8f](https://github.com/snake-dev-team/snake-backlink-forge/commit/067ec8fbbefb91c29d63486d7586a3f07a0e3b16))
+
+## [1.0.0-beta.51](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.50...v1.0.0-beta.51) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **sqlc:** add missing CampaignTargetSite struct to models.go ([799c8f1](https://github.com/snake-dev-team/snake-backlink-forge/commit/799c8f1fef0f69c04023bc183c5005545297cdea))
+
+## [1.0.0-beta.50](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.49...v1.0.0-beta.50) (2026-05-05)
+
+### 🚀 Features
+
+* **landing:** site multi-select + auto-enqueue + progress polling ([c101d16](https://github.com/snake-dev-team/snake-backlink-forge/commit/c101d160cb085495c525c76ad6d8e18c7fb64165))
+
+## [1.0.0-beta.49](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.48...v1.0.0-beta.49) (2026-05-05)
+
+### 🚀 Features
+
+* **worker:** embedded go worker for auto job processing ([f963eb2](https://github.com/snake-dev-team/snake-backlink-forge/commit/f963eb2a9dfbcdfe618eb031f3a8b6d6794a7421))
+
+## [1.0.0-beta.48](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.47...v1.0.0-beta.48) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **handlers:** wire ContentSvc field into ApiHandlerDeps ([10dd4c2](https://github.com/snake-dev-team/snake-backlink-forge/commit/10dd4c24863d8a61a4546ffe1d504566b0540e1a))
+
+## [1.0.0-beta.47](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.46...v1.0.0-beta.47) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **sqlc:** add missing jobs_content query file referenced by querier interface ([8780d82](https://github.com/snake-dev-team/snake-backlink-forge/commit/8780d82ea11626e0b7553b332e219ccde191f557))
+
+## [1.0.0-beta.46](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.45...v1.0.0-beta.46) (2026-05-05)
+
+### 🚀 Features
+
+* **ai:** claude-first content generation + multi-provider fallback ([c7bf603](https://github.com/snake-dev-team/snake-backlink-forge/commit/c7bf603ac9f4cb1acaf924800189e994ad961f5a))
+
+## [1.0.0-beta.45](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.44...v1.0.0-beta.45) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **test:** remove unused getPremiumCredits helper from service tests ([14c6387](https://github.com/snake-dev-team/snake-backlink-forge/commit/14c6387a9d2cda4e2559ebea3a9f8e733ed6d4c8))
+
+### ✅ Tests
+
+* **service:** campaign + job unit/integration tests with sql enum cast fix ([7523fbe](https://github.com/snake-dev-team/snake-backlink-forge/commit/7523fbea8927a0b2a4aa262565c88e42ae96426e))
+
+## [1.0.0-beta.44](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.43...v1.0.0-beta.44) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **bot:** remove unused ctxWithUser helper from campaign smoke test ([99ed37e](https://github.com/snake-dev-team/snake-backlink-forge/commit/99ed37ee3a8b4e5f71834e8266d8f578ec32471f))
+
+## [1.0.0-beta.43](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.42...v1.0.0-beta.43) (2026-05-05)
+
+### 🚀 Features
+
+* **bot:** /campaign commands — list/new/pause/resume/archive/jobs/stats ([ed80402](https://github.com/snake-dev-team/snake-backlink-forge/commit/ed80402219343635c84dfdd61ee5cc7e1440a7ab))
+
+## [1.0.0-beta.42](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.41...v1.0.0-beta.42) (2026-05-05)
+
+### 🚀 Features
+
+* **extension:** wp rest api poster + manifest fix + signed wp-sites endpoint ([d2c97b4](https://github.com/snake-dev-team/snake-backlink-forge/commit/d2c97b4570f4ce350de6e5840eaaab203de37417))
+
+### 🐞 Bug Fixes
+
+* **deps:** regen pnpm-lock for extension package without svelte ([9e75b12](https://github.com/snake-dev-team/snake-backlink-forge/commit/9e75b1258624628068f377062513607267a79f8b))
+
+## [1.0.0-beta.41](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.40...v1.0.0-beta.41) (2026-05-05)
+
+### 🚀 Features
+
+* **campaigns:** backend module (handlers + service + sqlc + HMAC + migration) ([838cf54](https://github.com/snake-dev-team/snake-backlink-forge/commit/838cf541a1a60d6bedcd7e77c4965821467af7d1))
+* **landing:** campaigns list + create UI ([d0028f7](https://github.com/snake-dev-team/snake-backlink-forge/commit/d0028f7bff596a102b72e47c383b9f60c50b2169))
+
+## [1.0.0-beta.40](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.39...v1.0.0-beta.40) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **auth:** pump glass-card-strong dark glow + add CLI hint box on login ([5600c37](https://github.com/snake-dev-team/snake-backlink-forge/commit/5600c37503b40a3a9a5c190de39da64ff67630b6))
+
+## [1.0.0-beta.39](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.38...v1.0.0-beta.39) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **auth:** apply ambient layer + glass treatment to login page ([5cefbdb](https://github.com/snake-dev-team/snake-backlink-forge/commit/5cefbdbce0bd54891ebec7c0cce1c50f1e962dae))
+
+## [1.0.0-beta.38](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.37...v1.0.0-beta.38) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **landing:** restore UI B mockup hero + ambient fidelity ([489ebbf](https://github.com/snake-dev-team/snake-backlink-forge/commit/489ebbfce7c2c47e412abaf8c4158bf431212428))
+
+## [1.0.0-beta.37](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.36...v1.0.0-beta.37) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **landing:** force dark default + kill light-mode glass blur for guaranteed WCAG AA ([89ab940](https://github.com/snake-dev-team/snake-backlink-forge/commit/89ab94090d8e9ba331270b9396db1deade7a399d))
+
+## [1.0.0-beta.36](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.35...v1.0.0-beta.36) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **landing:** contrast + secondary button + sparkline consistency ([a078b39](https://github.com/snake-dev-team/snake-backlink-forge/commit/a078b3935e4abee6a1f65227c3d9f6efcd83e872))
+
+## [1.0.0-beta.35](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.34...v1.0.0-beta.35) (2026-05-04)
+
+### 🚀 Features
+
+* **dashboard:** glass revamp + sparkline placeholders + cmdk trigger button ([642f910](https://github.com/snake-dev-team/snake-backlink-forge/commit/642f9109f3972a4f1b613b45564a810b166a8b18))
+
+## [1.0.0-beta.34](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.33...v1.0.0-beta.34) (2026-05-04)
+
+### 🚀 Features
+
+* **landing:** pricing + cta + footer redesign ([36da961](https://github.com/snake-dev-team/snake-backlink-forge/commit/36da96111c9751e6c1a6f79632c21bf4ce125342))
+
+## [1.0.0-beta.33](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.32...v1.0.0-beta.33) (2026-05-04)
+
+### 🚀 Features
+
+* **landing:** features bento + api showcase sections ([2d058b8](https://github.com/snake-dev-team/snake-backlink-forge/commit/2d058b8ef36c67c4e4bf2763aacb24ea5f4726ee))
+
+## [1.0.0-beta.32](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.31...v1.0.0-beta.32) (2026-05-04)
+
+### 🚀 Features
+
+* **landing:** hero redesign with gradient text + CLI snippet ([9fd5447](https://github.com/snake-dev-team/snake-backlink-forge/commit/9fd5447b4bdc4fc0f0d6fbc3c8f001ff63b21e01))
+
+## [1.0.0-beta.31](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.30...v1.0.0-beta.31) (2026-05-04)
+
+### 🚀 Features
+
+* **landing:** code window primitive + shiki build-time syntax highlight ([5287e41](https://github.com/snake-dev-team/snake-backlink-forge/commit/5287e412274b6bca0fabcde20cc1021a75886610))
+
+## [1.0.0-beta.30](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.29...v1.0.0-beta.30) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **palette:** aria-describedby + transaction display label consistency ([d083a45](https://github.com/snake-dev-team/snake-backlink-forge/commit/d083a45135b8a0da94cbe2227e2b8b03fa548690))
+
+## [1.0.0-beta.29](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.28...v1.0.0-beta.29) (2026-05-04)
+
+### 🚀 Features
+
+* **palette:** cmdk command palette with quick actions and tx search ([1c4e8b9](https://github.com/snake-dev-team/snake-backlink-forge/commit/1c4e8b9174362b618d8cd9cf92dd21122f7502a6))
+
+### 🐞 Bug Fixes
+
+* **landing:** regen pnpm-lock without unrelated workspace WIP ([dca8515](https://github.com/snake-dev-team/snake-backlink-forge/commit/dca85157988fab77a3b4bba0d0ecc9a7892e16af))
+
+## [1.0.0-beta.28](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.27...v1.0.0-beta.28) (2026-05-04)
+
+### 🚀 Features
+
+* **theme:** glass tokens + grid pattern + vignette overlays ([9d26304](https://github.com/snake-dev-team/snake-backlink-forge/commit/9d263045a0bc8dd93d899eea2c05e5c878a73704))
+
+## [1.0.0-beta.27](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.26...v1.0.0-beta.27) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **dashboard:** unify sidebar hover to violet for brand consistency ([98bceea](https://github.com/snake-dev-team/snake-backlink-forge/commit/98bceeaecaf11f5f35b0173e41d977875428effe))
+
+## [1.0.0-beta.26](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.25...v1.0.0-beta.26) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **api:** mutex guard IDOR test capture slice for race-safe errgroup ([83cd3f4](https://github.com/snake-dev-team/snake-backlink-forge/commit/83cd3f480254f7ce1f8014ef592b2b4b0b5eef15))
+
+## [1.0.0-beta.25](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.24...v1.0.0-beta.25) (2026-05-04)
+
+### 🚀 Features
+
+* **dashboard:** expand kpi grid to 4 cards + usage endpoint ([578b424](https://github.com/snake-dev-team/snake-backlink-forge/commit/578b424fdc6bad1b69ae1f8774c96ae7a4232049))
+
+## [1.0.0-beta.24](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.23...v1.0.0-beta.24) (2026-05-04)
+
+### 🚀 Features
+
+* **theme:** geist fonts + violet/cyan/amber brand tokens ([41af6aa](https://github.com/snake-dev-team/snake-backlink-forge/commit/41af6aaa2b517794c553e32701fdaf03d00c8d2a))
+
+## [1.0.0-beta.23](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.22...v1.0.0-beta.23) (2026-05-04)
+
+### 🚀 Features
+
+* **dashboard:** sidebar active state + transaction list format ([4b0c0f8](https://github.com/snake-dev-team/snake-backlink-forge/commit/4b0c0f8036a81f31ef3d3bac208bd9fcbd17052c))
+
+## [1.0.0-beta.22](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.21...v1.0.0-beta.22) (2026-05-04)
+
+### 🐞 Bug Fixes
+
+* **landing:** harden auth form feedback ([5af5e93](https://github.com/snake-dev-team/snake-backlink-forge/commit/5af5e935e591addd1c6f84c1d3ff7b59b7d140ca))
+* **landing:** normalize auth form line endings for biome ci ([54d13ac](https://github.com/snake-dev-team/snake-backlink-forge/commit/54d13acd7be329d552951550e7ed9dc89e9d1515))
+
+## [1.0.0-beta.21](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.20...v1.0.0-beta.21) (2026-04-30)
+
+### 🐞 Bug Fixes
+
+* update README release status ([9392ca1](https://github.com/snake-dev-team/snake-backlink-forge/commit/9392ca10b9def8eabcc55eb97a43931ff2662cec))
+
+### 👷 CI
+
+* opt into node 24 actions runtime ([712f397](https://github.com/snake-dev-team/snake-backlink-forge/commit/712f3973ce8922a165e0724cb9fe723eea54707b))
+* upgrade github actions runtime ([b9cc448](https://github.com/snake-dev-team/snake-backlink-forge/commit/b9cc448d1dfc9040f1fa571e9631de045d1bd975))
+
+## [1.0.0-beta.20](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.19...v1.0.0-beta.20) (2026-04-30)
+
+### 🐞 Bug Fixes
+
+* stabilize landing e2e startup ([0f1e23e](https://github.com/snake-dev-team/snake-backlink-forge/commit/0f1e23e2438ce6982feb01f082aba3ce604fdc82))
+
+## [1.0.0-beta.19](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.18...v1.0.0-beta.19) (2026-04-30)
+
+### 🐞 Bug Fixes
+
+* format manifest validator ([8a6b5f7](https://github.com/snake-dev-team/snake-backlink-forge/commit/8a6b5f79370305f4403472cd38fba5a7e5de8b20))
+* harden security scan findings ([6153819](https://github.com/snake-dev-team/snake-backlink-forge/commit/6153819a0cecad2dbd138fade399118b4ef3f603))
+* split release validation permissions ([4ce8be4](https://github.com/snake-dev-team/snake-backlink-forge/commit/4ce8be4ded2fd46ead89b2991b4a4e775883de27))
+
+## [1.0.0-beta.18](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.17...v1.0.0-beta.18) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** confirm wordpress site actions ([8986302](https://github.com/snake-dev-team/snake-backlink-forge/commit/89863028cab0966e84316bc8224910fd39ebe61c))
+
+## [1.0.0-beta.17](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.16...v1.0.0-beta.17) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** show wordpress site action progress ([d4edb52](https://github.com/snake-dev-team/snake-backlink-forge/commit/d4edb524a8345761e2141a6d58c4a03dcd11711e))
+
+## [1.0.0-beta.16](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.15...v1.0.0-beta.16) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** prevent sites and logout failures ([f7c6a20](https://github.com/snake-dev-team/snake-backlink-forge/commit/f7c6a20a1740545330dfe93df25c1a0ed59432ef))
+
+## [1.0.0-beta.15](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.14...v1.0.0-beta.15) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** fetch dashboard data from backend directly ([5b052a1](https://github.com/snake-dev-team/snake-backlink-forge/commit/5b052a1aa01fddd5fd1be298849f2cb825b1b1b9))
+
+## [1.0.0-beta.14](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.13...v1.0.0-beta.14) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** prevent dashboard api errors from crashing ([2652d75](https://github.com/snake-dev-team/snake-backlink-forge/commit/2652d75fda24311ff74dc9a586f895c73fd61a49))
+
+## [1.0.0-beta.13](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.12...v1.0.0-beta.13) (2026-04-29)
+
+### 🐞 Bug Fixes
+
+* **landing:** use production origins for server fetches ([9fbc1be](https://github.com/snake-dev-team/snake-backlink-forge/commit/9fbc1be247d4b06382f3b94313e5781079c011f7))
+
+## [1.0.0-beta.12](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.11...v1.0.0-beta.12) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **landing:** configure production auth backend ([1472fa7](https://github.com/snake-dev-team/snake-backlink-forge/commit/1472fa77fbe93e4b8e7e37ead0c04253e062c81f))
+
+## [1.0.0-beta.11](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.10...v1.0.0-beta.11) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **landing:** allow production login origin ([c0ad058](https://github.com/snake-dev-team/snake-backlink-forge/commit/c0ad05851ff42e6a424d31cf27d406247c999d26))
+
+## [1.0.0-beta.10](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.9...v1.0.0-beta.10) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **landing:** allow vercel live feedback frame ([a96d59a](https://github.com/snake-dev-team/snake-backlink-forge/commit/a96d59a9e8cec7a752f68b1333d1fd8a8b1e4516))
+
+## [1.0.0-beta.9](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.8...v1.0.0-beta.9) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **landing:** allow required inline scripts in csp ([276e62e](https://github.com/snake-dev-team/snake-backlink-forge/commit/276e62e17c41798f9bce8c0f97520f47755e561a))
+
+## [1.0.0-beta.8](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.7...v1.0.0-beta.8) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **deploy:** configure production cors origin ([9b2c855](https://github.com/snake-dev-team/snake-backlink-forge/commit/9b2c855e859f8ecbe4e8f5e7517f2ec7119cebd3))
+
+## [1.0.0-beta.7](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.6...v1.0.0-beta.7) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **api:** handle v1 cors preflight routes ([e7ca386](https://github.com/snake-dev-team/snake-backlink-forge/commit/e7ca386f935be3e76f6cf5527c66f95474f797a9))
+
+## [1.0.0-beta.6](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.5...v1.0.0-beta.6) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **api:** allow cors preflight before auth ([e90b2cd](https://github.com/snake-dev-team/snake-backlink-forge/commit/e90b2cd2819fab17a02bad1ce8be4df14b9d42bf))
+
+## [1.0.0-beta.5](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.4...v1.0.0-beta.5) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **ci:** remove legacy golangci config keys ([3055a92](https://github.com/snake-dev-team/snake-backlink-forge/commit/3055a92057b6e0718c210c2c5ef6b6033b0b590a))
+
+## [1.0.0-beta.4](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.3...v1.0.0-beta.4) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **ci:** migrate api lint to golangci v2 ([1616f60](https://github.com/snake-dev-team/snake-backlink-forge/commit/1616f605e27a9ea0fd139fc6b700e6f17b268e2b))
+
+## [1.0.0-beta.3](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.2...v1.0.0-beta.3) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **ci:** pin existing golangci-lint v1 release ([a533565](https://github.com/snake-dev-team/snake-backlink-forge/commit/a5335655c80ba5512a2e2c699e87dda655aff0ca))
+
+## [1.0.0-beta.2](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.1...v1.0.0-beta.2) (2026-04-28)
+
+### 🐞 Bug Fixes
+
+* **ci:** unblock go lint and release notifications ([6d0d8e6](https://github.com/snake-dev-team/snake-backlink-forge/commit/6d0d8e69d86a79476e5bfc47bcba780fe7499831))
+
+## 1.0.0-beta.1 (2026-04-28)
+
+### 🚀 Features
+
+* **api:** phase 02 go api skeleton ([640764c](https://github.com/snake-dev-team/snake-backlink-forge/commit/640764c5cfd8adfa22c26d79cc8d6306457cceda))
+* **bot:** compact 2-per-row package keyboard with inline prices ([015ecb8](https://github.com/snake-dev-team/snake-backlink-forge/commit/015ecb8ef14089e1601699dcc98550bc334f7855))
+* **bot:** phase 2.01 telegram bot skeleton ([5ab2ab1](https://github.com/snake-dev-team/snake-backlink-forge/commit/5ab2ab1a8f1459646edc128703444a5ed38d3b88))
+* **bot:** phase 2.07+08 history/support/admin/ref/language + auth-fail watcher ([a385a18](https://github.com/snake-dev-team/snake-backlink-forge/commit/a385a189e5aa1157d749ee0f7d4f4ed4bab59ed3))
+* **bot:** phase 2.09 message templates registry + 14 handlers refactored ([11f51e0](https://github.com/snake-dev-team/snake-backlink-forge/commit/11f51e0b3fcc88cc42ce0225861d9be430a7472a))
+* **bot:** publish command list to telegram menu button ([b75a6ec](https://github.com/snake-dev-team/snake-backlink-forge/commit/b75a6ecafd089427e8e5e06a1139b9d64210de54))
+* **db:** migration 20260424004 phase 2 schema deltas ([cbcb34f](https://github.com/snake-dev-team/snake-backlink-forge/commit/cbcb34f5775f982c92c192ae8dd809374130415c))
+* **db:** phase 03 postgres migrations + sqlc + goose embedded ([4ff9b62](https://github.com/snake-dev-team/snake-backlink-forge/commit/4ff9b62748d2c51d8055755b6ba9e708f333ca4a))
+* **deploy:** phase 10 step 1B fly.toml + auto-migrate on boot ([a6d8e3a](https://github.com/snake-dev-team/snake-backlink-forge/commit/a6d8e3ad51713aa1e78752fc2628249180622bd1))
+* **fe:** phase 05 frontend stubs ([c8b13bc](https://github.com/snake-dev-team/snake-backlink-forge/commit/c8b13bc6b55ac12a14450edff2f5f7e08b8494ff))
+* **infra:** phase 04 local docker compose + root makefile ([9c72163](https://github.com/snake-dev-team/snake-backlink-forge/commit/9c721637f1007ee68d7fd29f2d960e5bafda2ba5))
+* **key:** phase 2.03 key service + /key + /regenkey with race-safe rotation ([0ac8fa2](https://github.com/snake-dev-team/snake-backlink-forge/commit/0ac8fa208861da418be2decfdeef014a0ad767b9))
+* **landing:** phase 1 setup + deps complete ([c70b728](https://github.com/snake-dev-team/snake-backlink-forge/commit/c70b7283cf55971a7d5bb43575cba49ecedb4a15))
+* **phase3:** add authenticated web app foundation ([7694cde](https://github.com/snake-dev-team/snake-backlink-forge/commit/7694cde8d1fb8538b051affcea28a640a4c9dc0f))
+* **quality:** phase 06 lint + format + ci + secret scanning ([d6cf625](https://github.com/snake-dev-team/snake-backlink-forge/commit/d6cf625863cd216638ac358d43a8716aa517c994))
+* **repo:** phase 01 monorepo backbone ([be839e8](https://github.com/snake-dev-team/snake-backlink-forge/commit/be839e8b9967113fde0c65f8403e4d8b602b9bbc))
+* **tx:** phase 2.05 transactions + /buy + /topup with QR + Q2 cancel ([e9aa722](https://github.com/snake-dev-team/snake-backlink-forge/commit/e9aa7229b20d3ba67d483907186e068f1b3518c3))
+* **user:** phase 2.02 user service + /start trial flow ([581e32b](https://github.com/snake-dev-team/snake-backlink-forge/commit/581e32b438fcf3748fb57e7042cc48435e6a4cc6))
+* **wallet:** phase 2.04 wallet service + ledger atomic ops + /balance ([fda0fc1](https://github.com/snake-dev-team/snake-backlink-forge/commit/fda0fc1b85c82e9fdb18c9187a3a657c37d2ada1))
+* **webhook:** phase 2.06 sepay webhook + retry queue + admin alerts ([7d6bde5](https://github.com/snake-dev-team/snake-backlink-forge/commit/7d6bde55734b9624394b56e13a42301490694e4d))
+
+### 🐞 Bug Fixes
+
+* **ci:** align beta release with pnpm ([0d196dc](https://github.com/snake-dev-team/snake-backlink-forge/commit/0d196dcc1f3cc0595df014bce090e5064fadc0b9))
+* **ci:** pin golangci-lint patch version ([a4e3358](https://github.com/snake-dev-team/snake-backlink-forge/commit/a4e3358769ee2c71b2590e27a93b5a307ccb4fc1))
+* **ci:** restore release and go lint jobs ([c1fc560](https://github.com/snake-dev-team/snake-backlink-forge/commit/c1fc5606abadb9d4c1b0b1a4c9af9d2ce663906a))
+* **ci:** use oss gitleaks scan ([b787bab](https://github.com/snake-dev-team/snake-backlink-forge/commit/b787bab4531a4097511129c237c2af809fe5677f))
+* **db:** consolidate split up/down files to goose single-file format ([da20dba](https://github.com/snake-dev-team/snake-backlink-forge/commit/da20dba22f620e863ecb4aa791b554898b38c740))
+* **db:** unique migration versions — collapse date-seq underscore ([343698d](https://github.com/snake-dev-team/snake-backlink-forge/commit/343698de9f2805470eabf6be9b6954a93c5cfe3d))
+* **hooks:** normalize absolute Windows paths before ignore-lib match ([1712573](https://github.com/snake-dev-team/snake-backlink-forge/commit/1712573bf4550133ad1ab92035e6f5da81e2a748))
+* **hooks:** restore missing scout-block ignore module shim ([33b8a16](https://github.com/snake-dev-team/snake-backlink-forge/commit/33b8a16d1087b132d1163664026c281fc6708680))
+* **hooks:** use $CLAUDE_PROJECT_DIR for absolute hook paths ([2671a7e](https://github.com/snake-dev-team/snake-backlink-forge/commit/2671a7e8d5480610e9ced8231e3afdbbcfc78ee8))
+* **landing:** update next for vercel deploy ([c03aa37](https://github.com/snake-dev-team/snake-backlink-forge/commit/c03aa37e890bc8f366a667c973c8b1652a05e312))
+* **release:** remove legacy artifact packaging ([9292ae7](https://github.com/snake-dev-team/snake-backlink-forge/commit/9292ae7cbb7d3cc40983503bcc3937c24cc1bd7f))
+* **types:** generate api types before typecheck ([a8df83a](https://github.com/snake-dev-team/snake-backlink-forge/commit/a8df83a8f6fd53863df5da395a9931c8e5541ba2))
+* **webhook:** sepay_bank_code mbbank not mb to match actual gateway value ([34e52a9](https://github.com/snake-dev-team/snake-backlink-forge/commit/34e52a92a1c1bb74213da3db88be6a4db607a8d6))
+* **webhook:** wire real bot notify on topup success ([bdd9c70](https://github.com/snake-dev-team/snake-backlink-forge/commit/bdd9c70162a38d23a181cbf0c084eaa431f1c708))
+
+### 📚 Documentation
+
+* **master-prompt:** lock key format at 41 chars (187 bits base58) ([9ea7b8a](https://github.com/snake-dev-team/snake-backlink-forge/commit/9ea7b8a71d54aca37b6615466c483f3127343252))
+* **master-prompt:** pivot phase 3 from extension to web app saas ([3ff2205](https://github.com/snake-dev-team/snake-backlink-forge/commit/3ff2205b0d6b67aa05e5f9a4e3b057fc7d2e96f0))
+* **master-prompt:** sepay gateway field lesson — full name not short code ([d062dcd](https://github.com/snake-dev-team/snake-backlink-forge/commit/d062dcd184ea44eb27477cfb32e7c62e853a8491))
+* phase 07 readme, architecture, progress log, contributing, security ([dcfb334](https://github.com/snake-dev-team/snake-backlink-forge/commit/dcfb3349c4a3040d069cd978941d1aab20dc0a6e))
+* **phase-3:** plan locked + phase 0 complete + resume prompts ([a61a7ad](https://github.com/snake-dev-team/snake-backlink-forge/commit/a61a7ad771ccb9f9426e7010cf6ba8224b2f154e))
+* **plans:** phase 2 phase-10 — add outcome C custom domain fallback ([66cf86c](https://github.com/snake-dev-team/snake-backlink-forge/commit/66cf86c0b7ae93190b6ec86fbb943d6d25bad554))
+* **plans:** phase 2 plan patch round 2 — resolve 6 unresolved + fix 6 critical ([1f67020](https://github.com/snake-dev-team/snake-backlink-forge/commit/1f67020c59be3bf584c8463a2aec6a7eb814ecb0))
+* **plans:** phase 2 plan patch round 3 - F5 fix + auth alert + retry queue + domain defer ([51a901f](https://github.com/snake-dev-team/snake-backlink-forge/commit/51a901fe7d103b85aefdc58b3fb6fd1f028b1620))
+* **plans:** phase 2 round 4 — cleanup duplicate producer + test spec ([c1bfd8b](https://github.com/snake-dev-team/snake-backlink-forge/commit/c1bfd8b6213baf5d0dc2589b4fe1ef95ff5df083))
+* **plans:** phase 2 telegram bot + wallet + sepay implementation plan ([23aaf71](https://github.com/snake-dev-team/snake-backlink-forge/commit/23aaf7147cee289db9263f9ac66b7559174a00ca))
+* **progress:** 2026-04-24 evening checkpoint ([5299d13](https://github.com/snake-dev-team/snake-backlink-forge/commit/5299d13a7306117541cca1a0792fff721b6894be))
+* **progress:** 2026-04-24 machine handoff section ([53f74a5](https://github.com/snake-dev-team/snake-backlink-forge/commit/53f74a5cf14e175b175c0dca1586058285da9f52))
+* **progress:** phase 06 complete checkpoint (60%) — money-flow shipped ([380ce40](https://github.com/snake-dev-team/snake-backlink-forge/commit/380ce40529c28c8a4243aa6907416e144287df9b))
+* **progress:** phase 07-09 complete checkpoint (90%) — local stack production-shape ([fb994b1](https://github.com/snake-dev-team/snake-backlink-forge/commit/fb994b17529d0db5f8bf998067a96cb5e6972da5))
+* **progress:** phase 1 verify complete — 7/7 blocks pass on new machine ([01bb1a5](https://github.com/snake-dev-team/snake-backlink-forge/commit/01bb1a5945d80a25b14098ae6644901ba51b29ac))
+* **progress:** phase 2 100% complete milestone ([0912c5c](https://github.com/snake-dev-team/snake-backlink-forge/commit/0912c5c687abb2ecac4ebcc2d5bafb8209633455))
+* **progress:** phase 2 foundation complete checkpoint (50%) ([ca3c950](https://github.com/snake-dev-team/snake-backlink-forge/commit/ca3c95099dda8fff9f96c629c102ae0fff6a0f59))
+* **reports:** code review phase 01 bot skeleton — FIX_REQUIRED ([e9a828b](https://github.com/snake-dev-team/snake-backlink-forge/commit/e9a828bb4f6d797c2cc7521abdd823607000d3d8))
+* **reports:** code review phase 01 fix loop 1 — APPROVED ([5cfa69c](https://github.com/snake-dev-team/snake-backlink-forge/commit/5cfa69c309ebfcf6d4df7213da1728b35e8ef16a))
+* **reports:** code review phase 02 user service — APPROVED ([c6d3905](https://github.com/snake-dev-team/snake-backlink-forge/commit/c6d390582c3c2ac5cdafc92831fb96cff758fec1))
+* **reports:** code review phase 03 fix loop 1 — APPROVED_WITH_MINOR ([a4e01d2](https://github.com/snake-dev-team/snake-backlink-forge/commit/a4e01d2ca06c328cbf62cfa5b3729c79a8c187da))
+* **reports:** code review phase 03 key service - FIX_REQUIRED ([581ee8e](https://github.com/snake-dev-team/snake-backlink-forge/commit/581ee8e1d14403eb6c14ab8e999b23efa1522f35))
+* **reports:** code review phase 04 wallet service — APPROVED_WITH_FIXES ([51f7ce5](https://github.com/snake-dev-team/snake-backlink-forge/commit/51f7ce51b49dcc735f754dae071f59faaed4596b))
+* **reports:** code review phase 05 transactions — approved-with-fixes ([4029f16](https://github.com/snake-dev-team/snake-backlink-forge/commit/4029f168bcddde74066f471bb725cacc6b262a90))
+* **reports:** code review phase 06 fix loop 1 — APPROVED ([dcc0ad8](https://github.com/snake-dev-team/snake-backlink-forge/commit/dcc0ad8f7ac53baa7fa494935606f23041008001))
+* **reports:** code review phase 06 sepay webhook — fix-required ([e9fb7cb](https://github.com/snake-dev-team/snake-backlink-forge/commit/e9fb7cb9eecf576b9e53954387634f727c0960fd))
+* **reports:** code review phase 07 history-support — APPROVED_WITH_FIXES ([4e09286](https://github.com/snake-dev-team/snake-backlink-forge/commit/4e09286ea19a1dbee9366082dc0025bb0ca800e8))
+* **reports:** code review phase 08 admin commands — APPROVED_WITH_FIXES ([b1998bd](https://github.com/snake-dev-team/snake-backlink-forge/commit/b1998bd147ae9dd826fba87267878d2d3d37c370))
+* **reports:** code review phase 09 templates — APPROVED_WITH_FIXES ([774f3a0](https://github.com/snake-dev-team/snake-backlink-forge/commit/774f3a003d0c77b6b354bb56c8d4fdc282468b12))
+* **reports:** red-team review phase 2 plan — 6 critical findings ([18bab2d](https://github.com/snake-dev-team/snake-backlink-forge/commit/18bab2d70148777c6668899cd993fa8960c5a004))
+* **reports:** red-team review round 2 phase 2 patches — FIX_REQUIRED ([6826b58](https://github.com/snake-dev-team/snake-backlink-forge/commit/6826b58eabb8f01377a1c1a089b2144adb77f0c1))
+* **reports:** red-team review round 3 phase 2 - approved with minor ([738bbdd](https://github.com/snake-dev-team/snake-backlink-forge/commit/738bbddafbf53aca733cbc9f9656bf240192644a))
+
 ## [2.14.0](https://github.com/claudekit/claudekit-engineer/compare/v2.13.0...v2.14.0) (2026-03-28)
 
 

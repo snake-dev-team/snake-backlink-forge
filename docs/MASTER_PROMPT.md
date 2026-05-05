@@ -118,7 +118,11 @@ Khách hàng:
 ### 1.3 Credit & Key Model (CỰC QUAN TRỌNG — CORE BUSINESS LOGIC)
 
 **Key:**
-- Format: `sbf_live_<32-char-base58>` (46 chars total)
+- Format: `sbf_live_<32-char-base58>` (41 chars total, ~187 bits base58 entropy)
+  - Breakdown: `sbf_live_` prefix (9) + 32 base58 chars = 41 chars
+  - Entropy: 32 × log2(58) ≈ 187 bits (exceeds UUID v4 122 bits; collision-resistant far beyond SBF scale)
+  - Base58 alphabet excludes `0OIl` to prevent eye-confusion
+  - [Locked 2026-04-25 — phase-03 code review; supersedes earlier 46-char draft]
 - Store: SHA256 hash in DB, plaintext chỉ hiện 1 lần cho user khi `/start` hoặc `/regenkey`
 - 1 Telegram user = 1 active key (regenerate invalidate cũ)
 - Không lock HWID, không lock IP — khách dùng đâu cũng được
@@ -381,8 +385,7 @@ snake-backlink-forge/
 │   │   │   │       ├── ledger.sql
 │   │   │   │       └── audit.sql
 │   │   │   ├── migrations/                   # goose .sql
-│   │   │   │   ├── 20260424_001_init.up.sql
-│   │   │   │   ├── 20260424_001_init.down.sql
+│   │   │   │   ├── 20260424001_init.sql       # single-file goose (+goose Up/Down sections)
 │   │   │   │   └── ...
 │   │   │   ├── redis/
 │   │   │   │   └── redis.go
@@ -527,7 +530,7 @@ snake-backlink-forge/
 ### 3.1 Full DDL
 
 ```sql
--- migrations/20260424_001_init.up.sql
+-- migrations/20260424001_init.sql (Up section)
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -880,7 +883,7 @@ GROUP BY u.id, w.premium_credits, w.standard_credits;
 -- (seed dork patterns, tiers sẽ có trong file migration tiếp theo)
 ```
 
-### 3.2 Seed dork patterns file (`20260424_002_seed_dorks.up.sql`)
+### 3.2 Seed dork patterns file (`20260424002_seed_dorks.sql`)
 
 Viết file seed 30 dork patterns VN + EN cho mỗi `target_type`. Ví dụ:
 
@@ -1311,7 +1314,90 @@ func canGrantTrial(ctx, tgUser) error {
 
 ---
 
+## 5.5 PHASE 3 PATH A PIVOT — Web App SEO SaaS over Chrome Extension
+
+**Date:** 2026-04-26 (post Phase 2 ship). Supersedes original Phase 3+ scope in §6, §9, §10.
+
+### Decision
+
+Phase 3 onward pivots from "Chrome Extension MV3 + Rust WASM signing for mass backlink posting" to **Web App SEO SaaS Service: AI content generation + auto-publish to user's own WordPress sites**.
+
+### Why pivot
+
+After analysis of 9 quality categories (market fit, legal risk, monetization, UX onboarding, code reuse, AI assistability, infra cost, churn risk, time-to-revenue), the extension model lost on:
+
+1. **Category leader pattern** — SEObot, RankYak, ListingBott are all web SaaS, not extensions. Extension model has no major successful exemplars in this niche.
+2. **Legitimacy** — Mass backlink posting via extension carries Google penalty risk for end users (their target sites can be deindexed). SEO SaaS that publishes to user's own WordPress sites = legitimate, no penalty surface.
+3. **Code reuse from Phase 2** — Web app reuses ~80% of shipped backend (auth, /key, wallet, billing, audit_log, SePay topup, /balance, /history). Extension would have required Rust toolchain + WASM signer + CRX packaging + auto-update infra — net new surface.
+4. **Onboarding friction** — Paste URL → use < 1 min vs install browser ext + paste API key + grant permissions. SaaS funnel converts higher.
+5. **Revenue model** — Recurring SaaS tiers ($30 / $59 / $99 monthly) vs one-time tool sale. LTV/CAC math is far better.
+6. **AI assistance** — Claude has full ethical support for legitimate SEO content publishing service (no policy limits Phase 4-9).
+
+### Stack
+
+| Layer | Choice | Notes |
+|---|---|---|
+| **Frontend** | Next.js 15 (App Router) + React + TypeScript + Tailwind + shadcn/ui | Existing §8 LANDING PAGE already uses Next.js 15 — same stack |
+| **Backend** | Phase 2 Go Fiber **extended** | New endpoints under `/api/v1/*`; new sqlc-generated DB layer for new tables |
+| **Database** | PostgreSQL (Phase 2 schema + 5 new tables) | `articles`, `wp_sites`, `campaigns`, `serp_snapshots`, `keyword_research_results` |
+| **AI** | Anthropic API multi-tier | Haiku (cheap drafts), Sonnet (default), Opus (premium tier articles) — credit cost varies |
+| **External APIs** | DataForSEO (SERP/keyword research), WordPress REST API (publish via Application Password) | OAuth2 for future advanced WP, basic auth via App Password for v1 |
+| **Hosting** | Vercel (frontend) + Fly.io (backend extend, same `snake-backlink-api` app) + Cloudflare CDN | Vercel for ISR / RSC perf; Fly.io stays for stateful Go service |
+| **Type contract** | OpenAPI 3.0 auto-gen | TS types via `openapi-typescript`, Go types via existing handler structs |
+
+### Engineering bar (HIGH — non-negotiable)
+
+- Type safety end-to-end (TS strict mode + Go strict typing)
+- Test pyramid: unit (Vitest + Go testing) + integration (testcontainers-go) + E2E (Playwright)
+- CI/CD GitHub Actions on push (lint + test + build + preview deploy)
+- Monitoring: Sentry (errors) + Plausible (analytics, no cookies)
+- Lighthouse score ≥ 90 all routes
+- WCAG 2.1 AA accessibility compliance
+- i18n VN + EN day 1 (next-intl)
+- Documentation: `README.md`, `docs/architecture.md`, OpenAPI docs auto-generated
+- Same git/commit discipline as Phase 2 (conventional commits, lowercase subject)
+
+### Phase 3-10 revised roadmap (V1 launch ~30-40 days)
+
+| Phase | Scope | Estimate |
+|---|---|---|
+| **3** | Web foundation: Next.js scaffold, auth via Phase 2 API key, dashboard, campaign UI shell, WordPress site connection flow, landing page revamp | 5-7 days |
+| **4** | AI article generation: multi-tier prompt strategy, credit metering integration, article CRUD | 4-5 days |
+| **5** | WordPress publish: REST API client, Application Password flow, draft/publish, error retry | 4-5 days |
+| **6** | SERP + keyword research: DataForSEO integration, search intent classifier, keyword cluster | 3-4 days |
+| **7** | Campaign scheduler: cron jobs, retry queue, status dashboard | 3-4 days |
+| **8** | Analytics: view metrics, content performance, exportable reports | 3-4 days |
+| **9** | Subscription tiers: $30 / $59 / $99 monthly via SePay recurring + manual upgrade flow | 2-3 days |
+| **10** | Production launch: custom domain, Vercel prod env, Sentry/Plausible wired, soak test | 2-3 days |
+
+### What stays from §6, §9, §10
+
+These sections become **historical reference** — they document the Phase 2 trial-grant + API key auth scheme that the web app will reuse, but the extension/installer/CRX deliverables themselves are NOT shipped.
+
+- §3 DATABASE SCHEMA — keep + extend
+- §4 API CONTRACT — keep + extend with new `/api/v1/*` endpoints
+- §5 TELEGRAM BOT — keep as-is (production)
+- §6 EXTENSION ARCHITECTURE — **DEPRECATED**, do not implement
+- §7 CORE SERVICE LOGIC — keep (wallet, key svc, etc. all reused)
+- §8 LANDING PAGE — extend to product app routes
+- §9 INSTALLER (NSIS) — **DEPRECATED**
+- §10 CRX PACKAGING — **DEPRECATED**
+- §11.2 EXTENSION TESTING — **DEPRECATED** (replaced by Web app E2E)
+- §12 DEPLOYMENT — extend with Vercel section
+- §13 CK EXECUTION PLAN — Phase 3+ phases re-scoped per table above
+
+### Migration notes
+
+- DO NOT delete §6, §9, §10 from this file. Keep them as historical record. Future Claude sessions reading the doc need to see the deprecated banner BEFORE encountering the spec content.
+- Future cross-references to backlink-posting features in extension/installer should be flagged as out-of-scope, not implemented.
+
+---
+
 ## 6. EXTENSION ARCHITECTURE (MV3)
+
+> **⚠️ DEPRECATED 2026-04-26 — superseded by §5.5 PHASE 3 PATH A PIVOT.**
+>
+> This section is preserved as historical reference only. Phase 3 pivoted to Web App SEO SaaS (Next.js + Phase 2 backend extend). Do NOT implement the Chrome extension scope below. The HMAC signing scheme described here will be reused inside the web app's server-side WordPress publish module instead.
 
 ### 6.1 manifest.json (generated by CRXJS from TS config)
 
@@ -1943,6 +2029,9 @@ Seed 5 blog posts:
 
 ## 9. INSTALLER (NSIS, Windows)
 
+> **⚠️ DEPRECATED 2026-04-26 — superseded by §5.5 PHASE 3 PATH A PIVOT.**
+> Extension/desktop installer not shipped. Web app launch via Vercel custom domain instead.
+
 ### 9.1 `installer/setup.nsi`
 
 ```nsis
@@ -2053,6 +2142,9 @@ Write-Host "Built SnakeBacklinkSetup.exe version $Version"
 
 ## 10. CRX PACKAGING & UPDATE MANIFEST
 
+> **⚠️ DEPRECATED 2026-04-26 — superseded by §5.5 PHASE 3 PATH A PIVOT.**
+> No CRX packaging. Web app deploys via Vercel; auto-update is HTTP cache invalidation, not extension manifest polling.
+
 ### 10.1 `tools/crx-packager/index.mjs`
 
 ```javascript
@@ -2104,6 +2196,7 @@ curl -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE}/purge_cache"
 
 - **Unit tests**: mỗi service có `*_test.go`, target ≥ 80% coverage
 - **Integration tests**: test containers (testcontainers-go) spin up Postgres + Redis, run full HTTP flow
+- **Migration smoke test**: MANDATORY in any phase modifying DB schema. Use testcontainers-go for real Postgres in CI — don't defer runtime test. Lesson: Phase 1 Block C bug layer 1 (duplicate version from `YYYYMMDD_NNN_` prefix collision) + layer 2 (split `.up.sql`/`.down.sql` files incompatible with goose single-file parser) both exposed by deferred runtime test. Single-file goose format is the only supported convention: `YYYYMMDDNNN_name.sql` with `-- +goose Up` and `-- +goose Down` sections separated by directive lines.
 - **Load tests**: `k6` scripts cho `/v1/campaign/next` và `/webhooks/sepay` (target p95 < 300ms @ 50 VU)
 - **Security tests**:
   - HMAC bypass attempt → must 401
@@ -2111,15 +2204,15 @@ curl -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE}/purge_cache"
   - Timestamp skew > 60s → must 401
   - Credit race condition (1000 concurrent consume) → consistent balance
 
-### 11.2 Extension (TS)
+### 11.2 Extension (TS) — DEPRECATED 2026-04-26
 
-- **Unit tests**: Vitest cho adapters, signer, state manager
-- **E2E tests**: Playwright với extension loaded, test flow:
-  1. Install extension
-  2. Paste key in options → verify
-  3. Create campaign
-  4. Start → observe network calls mock server
-  5. Check backlink history updated
+> **⚠️ Replaced by Web App E2E testing in §5.5 PHASE 3 PATH A PIVOT.**
+>
+> Phase 3 pivoted to Web App SaaS — Vitest unit tests + Playwright E2E now run against Next.js app routes (login, dashboard, campaign create, WP site connect, article publish), not a browser extension. Adapter/signer logic moves server-side into Go backend handlers; tested via existing `*_test.go` patterns + testcontainers-go integration tests.
+>
+> Original extension test scope (preserved for historical reference):
+> - Unit tests: Vitest cho adapters, signer, state manager
+> - E2E tests: Playwright với extension loaded — install / paste key / create campaign / start / verify history
 
 ### 11.3 Landing (Next.js)
 
@@ -2139,6 +2232,28 @@ Sau mỗi /ck:cook, luôn chạy `/ck:test` với agent `tester` → đảm bả
 - `go test ./... -race -cover` cho services/api
 - `pnpm test` cho apps/extension, apps/landing
 - Code review với agent `code-reviewer` → 0 critical issues mới commit
+
+### 11.6 Lesson: SePay payload field discrepancy
+
+Discovered Phase 10 production E2E test that SePay actual webhook payload uses
+gateway field with FULL bank name ('MBBank'), not short code ('MB'). Phase 06
+spec initially assumed short code, requiring hotfix 34e52a9.
+
+For future expansion to other Vietnamese banks (Vietcombank, ACB, TPBank, etc.):
+- DO NOT trust docs.sepay.vn/banks.html short code mapping for gateway field
+- DO test with real webhook payload BEFORE deploying strict matcher
+- DO log full payload at INFO level in dev for first 100 transactions per bank
+- DO keep gateway match flexible: try fuzzy match before strict equals
+
+Action items adding new bank:
+1. Generate fresh test transaction
+2. Capture full webhook payload from production logs
+3. Verify gateway field exact value (case-sensitive)
+4. Update gateway whitelist with verified value
+5. Add unit test with captured payload as fixture
+
+This is a 'docs vs reality' bug class. Apply same skepticism to all 3rd-party
+webhook integrations.
 
 ---
 
@@ -2274,6 +2389,10 @@ jobs:
 ---
 
 ## 13. CLAUDEKIT EXECUTION PLAN — 10 PHASES
+
+> **⚠️ Phase 1-2 SHIPPED 2026-04-25 (tag `v0.1.0-beta-phase2-complete`). Phase 3+ RE-SCOPED 2026-04-26 — see §5.5 PHASE 3 PATH A PIVOT for the active roadmap.**
+>
+> The Phase 3-10 sections below describe the original Chrome Extension MV3 scope. They are preserved as historical reference. The active Phase 3-10 plan (Web App SEO SaaS) lives in §5.5 with timeline ~30-40 days for V1 launch.
 
 Mỗi phase đi đủ flow: `/ck:scout → /watzup → /ck:plan --hard → review plan/ → /clear → /ck:cook → /ck:test → code review loop → /ck:git cm`.
 
