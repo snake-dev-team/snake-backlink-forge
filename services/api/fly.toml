@@ -10,6 +10,12 @@ primary_region = "sin"
 [build]
   dockerfile = "Dockerfile"
 
+# release_command runs once per deploy in a temporary VM before the app starts.
+# Goose-up applies any pending migrations against DATABASE_URL. If it fails,
+# the deploy is aborted and old machines keep serving — safe for prod.
+[deploy]
+  release_command = "/migrate up"
+
 # Non-secret env. Secrets (TELEGRAM_BOT_TOKEN, SEPAY_*, JWT_SECRET, DATABASE_URL,
 # REDIS_URL, etc.) set via `flyctl secrets set` — never stored in fly.toml.
 [env]
