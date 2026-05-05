@@ -34,4 +34,7 @@ EXPOSE 8080
 # Run as nonroot (uid 65532) — no privileged operations needed.
 USER nonroot:nonroot
 
-ENTRYPOINT ["/api"]
+# Use CMD (not ENTRYPOINT) so Fly's release_command (defined in fly.toml) can swap
+# the executable for /migrate. With ENTRYPOINT ["/api"], release_command runs
+# "/api migrate up" which silently boots the API binary instead of the migrator.
+CMD ["/api"]
