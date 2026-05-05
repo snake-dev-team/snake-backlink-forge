@@ -7,9 +7,29 @@ package sqlcdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const bumpCampaignCreditsConsumed = `-- name: BumpCampaignCreditsConsumed :exec
+UPDATE campaigns
+SET credits_consumed = credits_consumed + $3,
+    updated_at = NOW()
+WHERE user_id = $1 AND id = $2
+`
+
+type BumpCampaignCreditsConsumedParams struct {
+	UserID          uuid.UUID `json:"user_id"`
+	ID              uuid.UUID `json:"id"`
+	CreditsConsumed int32     `json:"credits_consumed"`
+}
+
+func (q *Queries) BumpCampaignCreditsConsumed(ctx context.Context, arg BumpCampaignCreditsConsumedParams) error {
+	_, err := q.db.Exec(ctx, bumpCampaignCreditsConsumed, arg.UserID, arg.ID, arg.CreditsConsumed)
+	return err
+}
 
 const countRunningCampaignsByUser = `-- name: CountRunningCampaignsByUser :one
 SELECT COUNT(*) FROM campaigns WHERE user_id = $1 AND status = 'running'
@@ -22,18 +42,249 @@ func (q *Queries) CountRunningCampaignsByUser(ctx context.Context, userID uuid.U
 	return count, err
 }
 
-const placeholderCampaignsSelect = `-- name: PlaceholderCampaignsSelect :one
+const createCampaign = `-- name: CreateCampaign :one
 
-SELECT 1 AS dummy
+INSERT INTO campaigns (
+    user_id, name, money_site_url, niche_keywords, anchor_texts,
+    pool, source_mode, daily_limit, ethical_mode, niche_filter,
+    credits_allocated, status, started_at
+) VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8, $9, $10,
+    $11, $12,
+    CASE WHEN $12 = 'running' THEN NOW() ELSE NULL END
+)
+RETURNING id, user_id, name, money_site_url, niche_keywords, anchor_texts, pool, source_mode, daily_limit, status, ethical_mode, niche_filter, credits_allocated, credits_consumed, started_at, completed_at, created_at, updated_at
 `
 
+type CreateCampaignParams struct {
+	UserID           uuid.UUID      `json:"user_id"`
+	Name             string         `json:"name"`
+	MoneySiteUrl     string         `json:"money_site_url"`
+	NicheKeywords    []string       `json:"niche_keywords"`
+	AnchorTexts      []byte         `json:"anchor_texts"`
+	Pool             string         `json:"pool"`
+	SourceMode       string         `json:"source_mode"`
+	DailyLimit       int32          `json:"daily_limit"`
+	EthicalMode      bool           `json:"ethical_mode"`
+	NicheFilter      bool           `json:"niche_filter"`
+	CreditsAllocated int32          `json:"credits_allocated"`
+	Status           CampaignStatus `json:"status"`
+}
+
 // Queries for the campaigns table.
-// Phase 2+ will add real queries here (create, list, pause, resume, archive).
 // trg_campaign_limit trigger enforces max 3 running campaigns at DB layer.
-// Placeholder kept so sqlc can parse this file without errors.
-func (q *Queries) PlaceholderCampaignsSelect(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, placeholderCampaignsSelect)
-	var dummy int32
-	err := row.Scan(&dummy)
-	return dummy, err
+func (q *Queries) CreateCampaign(ctx context.Context, arg CreateCampaignParams) (Campaign, error) {
+	row := q.db.QueryRow(ctx, createCampaign,
+		arg.UserID,
+		arg.Name,
+		arg.MoneySiteUrl,
+		arg.NicheKeywords,
+		arg.AnchorTexts,
+		arg.Pool,
+		arg.SourceMode,
+		arg.DailyLimit,
+		arg.EthicalMode,
+		arg.NicheFilter,
+		arg.CreditsAllocated,
+		arg.Status,
+	)
+	var i Campaign
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.MoneySiteUrl,
+		&i.NicheKeywords,
+		&i.AnchorTexts,
+		&i.Pool,
+		&i.SourceMode,
+		&i.DailyLimit,
+		&i.Status,
+		&i.EthicalMode,
+		&i.NicheFilter,
+		&i.CreditsAllocated,
+		&i.CreditsConsumed,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCampaignByUser = `-- name: GetCampaignByUser :one
+SELECT id, user_id, name, money_site_url, niche_keywords, anchor_texts, pool, source_mode, daily_limit, status, ethical_mode, niche_filter, credits_allocated, credits_consumed, started_at, completed_at, created_at, updated_at FROM campaigns
+WHERE user_id = $1 AND id = $2
+`
+
+type GetCampaignByUserParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	ID     uuid.UUID `json:"id"`
+}
+
+func (q *Queries) GetCampaignByUser(ctx context.Context, arg GetCampaignByUserParams) (Campaign, error) {
+	row := q.db.QueryRow(ctx, getCampaignByUser, arg.UserID, arg.ID)
+	var i Campaign
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.MoneySiteUrl,
+		&i.NicheKeywords,
+		&i.AnchorTexts,
+		&i.Pool,
+		&i.SourceMode,
+		&i.DailyLimit,
+		&i.Status,
+		&i.EthicalMode,
+		&i.NicheFilter,
+		&i.CreditsAllocated,
+		&i.CreditsConsumed,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listCampaignsByUser = `-- name: ListCampaignsByUser :many
+SELECT
+    c.id, c.user_id, c.name, c.money_site_url, c.niche_keywords, c.anchor_texts, c.pool, c.source_mode, c.daily_limit, c.status, c.ethical_mode, c.niche_filter, c.credits_allocated, c.credits_consumed, c.started_at, c.completed_at, c.created_at, c.updated_at,
+    COUNT(j.id)::int AS job_count,
+    COUNT(j.id) FILTER (WHERE j.status = 'queued')::int AS queued_count,
+    COUNT(j.id) FILTER (WHERE j.status = 'dispatched')::int AS dispatched_count,
+    COUNT(j.id) FILTER (WHERE j.status = 'in_progress')::int AS in_progress_count,
+    COUNT(j.id) FILTER (WHERE j.status = 'success')::int AS success_count,
+    COUNT(j.id) FILTER (WHERE j.status = 'failed')::int AS failed_count,
+    COUNT(j.id) FILTER (WHERE j.status = 'skipped')::int AS skipped_count
+FROM campaigns c
+LEFT JOIN jobs j ON j.campaign_id = c.id
+WHERE c.user_id = $1
+GROUP BY c.id
+ORDER BY c.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListCampaignsByUserParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
+}
+
+type ListCampaignsByUserRow struct {
+	ID               uuid.UUID          `json:"id"`
+	UserID           uuid.UUID          `json:"user_id"`
+	Name             string             `json:"name"`
+	MoneySiteUrl     string             `json:"money_site_url"`
+	NicheKeywords    []string           `json:"niche_keywords"`
+	AnchorTexts      []byte             `json:"anchor_texts"`
+	Pool             string             `json:"pool"`
+	SourceMode       string             `json:"source_mode"`
+	DailyLimit       int32              `json:"daily_limit"`
+	Status           CampaignStatus     `json:"status"`
+	EthicalMode      bool               `json:"ethical_mode"`
+	NicheFilter      bool               `json:"niche_filter"`
+	CreditsAllocated int32              `json:"credits_allocated"`
+	CreditsConsumed  int32              `json:"credits_consumed"`
+	StartedAt        pgtype.Timestamptz `json:"started_at"`
+	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+	JobCount         int32              `json:"job_count"`
+	QueuedCount      int32              `json:"queued_count"`
+	DispatchedCount  int32              `json:"dispatched_count"`
+	InProgressCount  int32              `json:"in_progress_count"`
+	SuccessCount     int32              `json:"success_count"`
+	FailedCount      int32              `json:"failed_count"`
+	SkippedCount     int32              `json:"skipped_count"`
+}
+
+func (q *Queries) ListCampaignsByUser(ctx context.Context, arg ListCampaignsByUserParams) ([]ListCampaignsByUserRow, error) {
+	rows, err := q.db.Query(ctx, listCampaignsByUser, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCampaignsByUserRow
+	for rows.Next() {
+		var i ListCampaignsByUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.MoneySiteUrl,
+			&i.NicheKeywords,
+			&i.AnchorTexts,
+			&i.Pool,
+			&i.SourceMode,
+			&i.DailyLimit,
+			&i.Status,
+			&i.EthicalMode,
+			&i.NicheFilter,
+			&i.CreditsAllocated,
+			&i.CreditsConsumed,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.JobCount,
+			&i.QueuedCount,
+			&i.DispatchedCount,
+			&i.InProgressCount,
+			&i.SuccessCount,
+			&i.FailedCount,
+			&i.SkippedCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateCampaignStatus = `-- name: UpdateCampaignStatus :one
+UPDATE campaigns
+SET status = $3,
+    started_at = CASE WHEN $3 = 'running' AND started_at IS NULL THEN NOW() ELSE started_at END,
+    completed_at = CASE WHEN $3 IN ('completed', 'archived') THEN NOW() ELSE completed_at END,
+    updated_at = NOW()
+WHERE user_id = $1 AND id = $2
+RETURNING id, user_id, name, money_site_url, niche_keywords, anchor_texts, pool, source_mode, daily_limit, status, ethical_mode, niche_filter, credits_allocated, credits_consumed, started_at, completed_at, created_at, updated_at
+`
+
+type UpdateCampaignStatusParams struct {
+	UserID uuid.UUID      `json:"user_id"`
+	ID     uuid.UUID      `json:"id"`
+	Status CampaignStatus `json:"status"`
+}
+
+func (q *Queries) UpdateCampaignStatus(ctx context.Context, arg UpdateCampaignStatusParams) (Campaign, error) {
+	row := q.db.QueryRow(ctx, updateCampaignStatus, arg.UserID, arg.ID, arg.Status)
+	var i Campaign
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.MoneySiteUrl,
+		&i.NicheKeywords,
+		&i.AnchorTexts,
+		&i.Pool,
+		&i.SourceMode,
+		&i.DailyLimit,
+		&i.Status,
+		&i.EthicalMode,
+		&i.NicheFilter,
+		&i.CreditsAllocated,
+		&i.CreditsConsumed,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

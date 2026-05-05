@@ -9,14 +9,16 @@ import (
 )
 
 type ApiHandlerDeps struct {
-	Pool      *pgxpool.Pool
-	Rdb       *goredis.Client
-	Queries   *sqlcdb.Queries
-	KeySvc    *service.KeyService
-	UserSvc   *service.UserService
-	WalletSvc *service.WalletService
-	TxSvc     *service.TransactionService
-	AuditSvc  *service.AuditService
-	WpSiteSvc *service.WpSiteService
-	Log       *zap.Logger
+	Pool        *pgxpool.Pool
+	Rdb         *goredis.Client
+	Queries     *sqlcdb.Queries
+	KeySvc      *service.KeyService
+	UserSvc     *service.UserService
+	WalletSvc   *service.WalletService
+	TxSvc       *service.TransactionService
+	AuditSvc    *service.AuditService
+	WpSiteSvc   *service.WpSiteService
+	CampaignSvc *service.CampaignService
+	JobSvc      *service.JobService
+	Log         *zap.Logger
 }

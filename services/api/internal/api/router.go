@@ -5,6 +5,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/api/handlers"
+	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/middleware"
 	goredis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -33,6 +34,22 @@ func RegisterV1(app *fiber.App, deps *handlers.ApiHandlerDeps) {
 	authed.Post("/wp-sites", handlers.V1WpSitesCreate(deps))
 	authed.Delete("/wp-sites/:id", handlers.V1WpSitesDelete(deps))
 	authed.Post("/wp-sites/:id/revalidate", handlers.V1WpSitesRevalidate(deps))
+
+	authed.Get("/campaigns", handlers.V1CampaignsList(deps))
+	authed.Post("/campaigns", handlers.V1CampaignsCreate(deps))
+	authed.Get("/campaigns/:id", handlers.V1CampaignGet(deps))
+	authed.Post("/campaigns/:id/start", handlers.V1CampaignStatus(deps, sqlcdb.CampaignStatusRunning))
+	authed.Post("/campaigns/:id/pause", handlers.V1CampaignStatus(deps, sqlcdb.CampaignStatusPaused))
+	authed.Post("/campaigns/:id/archive", handlers.V1CampaignStatus(deps, sqlcdb.CampaignStatusArchived))
+	authed.Post("/campaigns/:id/enqueue", handlers.V1CampaignEnqueue(deps))
+	authed.Get("/campaigns/:id/jobs", handlers.V1CampaignJobs(deps))
+	// Pass Redis client so nonce replay protection is multi-instance safe (F4).
+	// When deps.Rdb is nil (dev/test without Redis), falls back to in-process cache.
+	extensionAuthed := authed.Group("", middleware.ExtensionSignature(deps.Rdb))
+	extensionAuthed.Get("/campaign/next", handlers.V1CampaignNext(deps))
+	extensionAuthed.Post("/campaign/result/:id", handlers.V1CampaignResult(deps))
+	authed.Get("/targets", handlers.V1TargetsList(deps))
+	authed.Post("/targets", handlers.V1TargetsCreate(deps))
 }
 
 // RegisterWebhook mounts the SePay webhook route with its middleware chain.

@@ -7,19 +7,513 @@ package sqlcdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
-const placeholderJobsSelect = `-- name: PlaceholderJobsSelect :one
-
-SELECT 1 AS dummy
+const campaignJobStats = `-- name: CampaignJobStats :one
+SELECT
+    COUNT(*)::int AS total,
+    COUNT(*) FILTER (WHERE status = 'queued')::int AS queued,
+    COUNT(*) FILTER (WHERE status = 'dispatched')::int AS dispatched,
+    COUNT(*) FILTER (WHERE status = 'in_progress')::int AS in_progress,
+    COUNT(*) FILTER (WHERE status = 'success')::int AS success,
+    COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+    COUNT(*) FILTER (WHERE status = 'skipped')::int AS skipped
+FROM jobs
+WHERE user_id = $1 AND campaign_id = $2
 `
 
+type CampaignJobStatsParams struct {
+	UserID     uuid.UUID `json:"user_id"`
+	CampaignID uuid.UUID `json:"campaign_id"`
+}
+
+type CampaignJobStatsRow struct {
+	Total      int32 `json:"total"`
+	Queued     int32 `json:"queued"`
+	Dispatched int32 `json:"dispatched"`
+	InProgress int32 `json:"in_progress"`
+	Success    int32 `json:"success"`
+	Failed     int32 `json:"failed"`
+	Skipped    int32 `json:"skipped"`
+}
+
+func (q *Queries) CampaignJobStats(ctx context.Context, arg CampaignJobStatsParams) (CampaignJobStatsRow, error) {
+	row := q.db.QueryRow(ctx, campaignJobStats, arg.UserID, arg.CampaignID)
+	var i CampaignJobStatsRow
+	err := row.Scan(
+		&i.Total,
+		&i.Queued,
+		&i.Dispatched,
+		&i.InProgress,
+		&i.Success,
+		&i.Failed,
+		&i.Skipped,
+	)
+	return i, err
+}
+
+const claimNextQueuedJob = `-- name: ClaimNextQueuedJob :one
+WITH claimed AS (
+    UPDATE jobs
+    SET status = 'dispatched', dispatched_at = NOW()
+    WHERE id = (
+        SELECT j.id
+        FROM jobs j
+        JOIN campaigns c ON c.id = j.campaign_id
+        WHERE j.user_id = $1
+          AND j.status = 'queued'
+          AND c.status = 'running'
+        ORDER BY j.created_at ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING *
+)
+SELECT claimed.id, claimed.user_id, claimed.campaign_id, claimed.target_id,
+       claimed.target_url_snapshot, claimed.anchor_text, claimed.anchor_type,
+       claimed.content_body, claimed.status, claimed.pool, claimed.credits_cost,
+       claimed.captcha_cost, claimed.error_code, claimed.error_message,
+       claimed.result_url, claimed.dispatched_at, claimed.completed_at,
+       claimed.created_at, c.money_site_url
+FROM claimed
+JOIN campaigns c ON c.id = claimed.campaign_id
+`
+
+// ClaimNextQueuedJobRow is the return type for ClaimNextQueuedJob.
+// Extends Job with money_site_url from the joined campaigns row so the
+// extension worker can build the backlink without a second round-trip.
+type ClaimNextQueuedJobRow struct {
+	Job
+	MoneySiteUrl string `json:"money_site_url"`
+}
+
+func (q *Queries) ClaimNextQueuedJob(ctx context.Context, userID uuid.UUID) (ClaimNextQueuedJobRow, error) {
+	row := q.db.QueryRow(ctx, claimNextQueuedJob, userID)
+	var i ClaimNextQueuedJobRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CampaignID,
+		&i.TargetID,
+		&i.TargetUrlSnapshot,
+		&i.AnchorText,
+		&i.AnchorType,
+		&i.ContentBody,
+		&i.Status,
+		&i.Pool,
+		&i.CreditsCost,
+		&i.CaptchaCost,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.ResultUrl,
+		&i.DispatchedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.MoneySiteUrl,
+	)
+	return i, err
+}
+
+const completeJob = `-- name: CompleteJob :one
+UPDATE jobs
+SET status = 'success', result_url = $3, completed_at = NOW(), error_code = NULL, error_message = NULL
+WHERE user_id = $1 AND id = $2 AND status IN ('dispatched', 'in_progress')
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+`
+
+type CompleteJobParams struct {
+	UserID    uuid.UUID `json:"user_id"`
+	ID        uuid.UUID `json:"id"`
+	ResultUrl *string   `json:"result_url"`
+}
+
+func (q *Queries) CompleteJob(ctx context.Context, arg CompleteJobParams) (Job, error) {
+	row := q.db.QueryRow(ctx, completeJob, arg.UserID, arg.ID, arg.ResultUrl)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CampaignID,
+		&i.TargetID,
+		&i.TargetUrlSnapshot,
+		&i.AnchorText,
+		&i.AnchorType,
+		&i.ContentBody,
+		&i.Status,
+		&i.Pool,
+		&i.CreditsCost,
+		&i.CaptchaCost,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.ResultUrl,
+		&i.DispatchedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const countCampaignCompletedWork = `-- name: CountCampaignCompletedWork :one
+SELECT COALESCE(SUM(credits_cost + captcha_cost), 0)::int
+FROM jobs
+WHERE user_id = $1
+  AND campaign_id = $2
+  AND status = 'success'
+`
+
+type CountCampaignCompletedWorkParams struct {
+	UserID     uuid.UUID `json:"user_id"`
+	CampaignID uuid.UUID `json:"campaign_id"`
+}
+
+func (q *Queries) CountCampaignCompletedWork(ctx context.Context, arg CountCampaignCompletedWorkParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countCampaignCompletedWork, arg.UserID, arg.CampaignID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countCampaignQueuedWork = `-- name: CountCampaignQueuedWork :one
+SELECT COALESCE(SUM(credits_cost + captcha_cost), 0)::int
+FROM jobs
+WHERE user_id = $1
+  AND campaign_id = $2
+  AND status IN ('queued', 'dispatched', 'in_progress')
+`
+
+type CountCampaignQueuedWorkParams struct {
+	UserID     uuid.UUID `json:"user_id"`
+	CampaignID uuid.UUID `json:"campaign_id"`
+}
+
+func (q *Queries) CountCampaignQueuedWork(ctx context.Context, arg CountCampaignQueuedWorkParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countCampaignQueuedWork, arg.UserID, arg.CampaignID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const createJob = `-- name: CreateJob :one
+
+INSERT INTO jobs (
+    user_id, campaign_id, target_id, target_url_snapshot, anchor_text,
+    anchor_type, content_body, status, pool, credits_cost
+) VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, 'queued', $8, $9
+)
+ON CONFLICT (campaign_id, target_id) DO NOTHING
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+`
+
+type CreateJobParams struct {
+	UserID            uuid.UUID `json:"user_id"`
+	CampaignID        uuid.UUID `json:"campaign_id"`
+	TargetID          uuid.UUID `json:"target_id"`
+	TargetUrlSnapshot string    `json:"target_url_snapshot"`
+	AnchorText        string    `json:"anchor_text"`
+	AnchorType        string    `json:"anchor_type"`
+	ContentBody       *string   `json:"content_body"`
+	Pool              string    `json:"pool"`
+	CreditsCost       int32     `json:"credits_cost"`
+}
+
 // Queries for the jobs table.
-// Phase 2+ will add real queries here (enqueue, dispatch, complete, fail, stats).
-// Placeholder kept so sqlc can parse this file without errors.
-func (q *Queries) PlaceholderJobsSelect(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, placeholderJobsSelect)
-	var dummy int32
-	err := row.Scan(&dummy)
-	return dummy, err
+func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, error) {
+	row := q.db.QueryRow(ctx, createJob,
+		arg.UserID,
+		arg.CampaignID,
+		arg.TargetID,
+		arg.TargetUrlSnapshot,
+		arg.AnchorText,
+		arg.AnchorType,
+		arg.ContentBody,
+		arg.Pool,
+		arg.CreditsCost,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CampaignID,
+		&i.TargetID,
+		&i.TargetUrlSnapshot,
+		&i.AnchorText,
+		&i.AnchorType,
+		&i.ContentBody,
+		&i.Status,
+		&i.Pool,
+		&i.CreditsCost,
+		&i.CaptchaCost,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.ResultUrl,
+		&i.DispatchedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const failJob = `-- name: FailJob :one
+UPDATE jobs
+SET status = 'failed', error_code = $3, error_message = $4, completed_at = NOW()
+WHERE user_id = $1 AND id = $2 AND status IN ('queued', 'dispatched', 'in_progress')
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+`
+
+type FailJobParams struct {
+	UserID       uuid.UUID `json:"user_id"`
+	ID           uuid.UUID `json:"id"`
+	ErrorCode    *string   `json:"error_code"`
+	ErrorMessage *string   `json:"error_message"`
+}
+
+func (q *Queries) FailJob(ctx context.Context, arg FailJobParams) (Job, error) {
+	row := q.db.QueryRow(ctx, failJob,
+		arg.UserID,
+		arg.ID,
+		arg.ErrorCode,
+		arg.ErrorMessage,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CampaignID,
+		&i.TargetID,
+		&i.TargetUrlSnapshot,
+		&i.AnchorText,
+		&i.AnchorType,
+		&i.ContentBody,
+		&i.Status,
+		&i.Pool,
+		&i.CreditsCost,
+		&i.CaptchaCost,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.ResultUrl,
+		&i.DispatchedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getJobByUser = `-- name: GetJobByUser :one
+SELECT id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at FROM jobs
+WHERE user_id = $1 AND id = $2
+`
+
+type GetJobByUserParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	ID     uuid.UUID `json:"id"`
+}
+
+func (q *Queries) GetJobByUser(ctx context.Context, arg GetJobByUserParams) (Job, error) {
+	row := q.db.QueryRow(ctx, getJobByUser, arg.UserID, arg.ID)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CampaignID,
+		&i.TargetID,
+		&i.TargetUrlSnapshot,
+		&i.AnchorText,
+		&i.AnchorType,
+		&i.ContentBody,
+		&i.Status,
+		&i.Pool,
+		&i.CreditsCost,
+		&i.CaptchaCost,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.ResultUrl,
+		&i.DispatchedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getJobForReport = `-- name: GetJobForReport :one
+SELECT id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at FROM jobs
+WHERE user_id = $1
+  AND id = $2
+  AND status IN ('dispatched', 'in_progress')
+FOR UPDATE
+`
+
+type GetJobForReportParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	ID     uuid.UUID `json:"id"`
+}
+
+func (q *Queries) GetJobForReport(ctx context.Context, arg GetJobForReportParams) (Job, error) {
+	row := q.db.QueryRow(ctx, getJobForReport, arg.UserID, arg.ID)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CampaignID,
+		&i.TargetID,
+		&i.TargetUrlSnapshot,
+		&i.AnchorText,
+		&i.AnchorType,
+		&i.ContentBody,
+		&i.Status,
+		&i.Pool,
+		&i.CreditsCost,
+		&i.CaptchaCost,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.ResultUrl,
+		&i.DispatchedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listJobsByCampaign = `-- name: ListJobsByCampaign :many
+SELECT id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at FROM jobs
+WHERE user_id = $1 AND campaign_id = $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4
+`
+
+type ListJobsByCampaignParams struct {
+	UserID     uuid.UUID `json:"user_id"`
+	CampaignID uuid.UUID `json:"campaign_id"`
+	Limit      int32     `json:"limit"`
+	Offset     int32     `json:"offset"`
+}
+
+func (q *Queries) ListJobsByCampaign(ctx context.Context, arg ListJobsByCampaignParams) ([]Job, error) {
+	rows, err := q.db.Query(ctx, listJobsByCampaign,
+		arg.UserID,
+		arg.CampaignID,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CampaignID,
+			&i.TargetID,
+			&i.TargetUrlSnapshot,
+			&i.AnchorText,
+			&i.AnchorType,
+			&i.ContentBody,
+			&i.Status,
+			&i.Pool,
+			&i.CreditsCost,
+			&i.CaptchaCost,
+			&i.ErrorCode,
+			&i.ErrorMessage,
+			&i.ResultUrl,
+			&i.DispatchedAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markJobInProgress = `-- name: MarkJobInProgress :one
+UPDATE jobs
+SET status = 'in_progress'
+WHERE user_id = $1 AND id = $2 AND status IN ('queued', 'dispatched')
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+`
+
+type MarkJobInProgressParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	ID     uuid.UUID `json:"id"`
+}
+
+func (q *Queries) MarkJobInProgress(ctx context.Context, arg MarkJobInProgressParams) (Job, error) {
+	row := q.db.QueryRow(ctx, markJobInProgress, arg.UserID, arg.ID)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CampaignID,
+		&i.TargetID,
+		&i.TargetUrlSnapshot,
+		&i.AnchorText,
+		&i.AnchorType,
+		&i.ContentBody,
+		&i.Status,
+		&i.Pool,
+		&i.CreditsCost,
+		&i.CaptchaCost,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.ResultUrl,
+		&i.DispatchedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const skipJob = `-- name: SkipJob :one
+UPDATE jobs
+SET status = 'skipped', error_code = $3, error_message = $4, completed_at = NOW()
+WHERE user_id = $1 AND id = $2 AND status IN ('queued', 'dispatched', 'in_progress')
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+`
+
+type SkipJobParams struct {
+	UserID       uuid.UUID `json:"user_id"`
+	ID           uuid.UUID `json:"id"`
+	ErrorCode    *string   `json:"error_code"`
+	ErrorMessage *string   `json:"error_message"`
+}
+
+func (q *Queries) SkipJob(ctx context.Context, arg SkipJobParams) (Job, error) {
+	row := q.db.QueryRow(ctx, skipJob,
+		arg.UserID,
+		arg.ID,
+		arg.ErrorCode,
+		arg.ErrorMessage,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CampaignID,
+		&i.TargetID,
+		&i.TargetUrlSnapshot,
+		&i.AnchorText,
+		&i.AnchorType,
+		&i.ContentBody,
+		&i.Status,
+		&i.Pool,
+		&i.CreditsCost,
+		&i.CaptchaCost,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.ResultUrl,
+		&i.DispatchedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
 }

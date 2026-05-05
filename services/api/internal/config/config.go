@@ -28,6 +28,12 @@ type Config struct {
 	ClaudeBaseURL string `env:"CLAUDE_BASE_URL"`
 	ClaudeModel   string `env:"CLAUDE_MODEL"`
 
+	// -- Worker plane runtime (legacy execution flow) --
+	WorkerSharedToken string `env:"WORKER_SHARED_TOKEN"`
+	WorkerLeaseSec    int    `env:"WORKER_LEASE_SEC" envDefault:"300"`
+	WorkerRetryLimit  int    `env:"WORKER_RETRY_LIMIT" envDefault:"3"`
+	WorkerModel       string `env:"WORKER_MODEL"`
+
 	// -- Telegram / Payments (Phase 2) --
 	TelegramBotToken    string `env:"TELEGRAM_BOT_TOKEN"`
 	TelegramBotUsername string `env:"TELEGRAM_BOT_USERNAME"`
@@ -70,6 +76,10 @@ func Load() (*Config, error) {
 
 	// Normalize env value for predictable comparisons downstream.
 	cfg.Env = strings.ToLower(strings.TrimSpace(cfg.Env))
+	cfg.ClaudeBaseURL = strings.TrimSpace(cfg.ClaudeBaseURL)
+	cfg.ClaudeModel = strings.TrimSpace(cfg.ClaudeModel)
+	cfg.WorkerSharedToken = strings.TrimSpace(cfg.WorkerSharedToken)
+	cfg.WorkerModel = strings.TrimSpace(cfg.WorkerModel)
 	cfg.SepayWebhookToken = strings.TrimSpace(cfg.SepayWebhookToken)
 	cfg.SepayBankAccount = strings.TrimSpace(cfg.SepayBankAccount)
 	cfg.CORSOrigins = normalizeStringSlice(cfg.CORSOrigins)
@@ -80,6 +90,9 @@ func Load() (*Config, error) {
 	}
 	if err := validateSePayWebhookConfig(cfg); err != nil {
 		return nil, fmt.Errorf("config: SePay webhook: %w", err)
+	}
+	if err := validateWorkerRuntime(cfg); err != nil {
+		return nil, fmt.Errorf("config: worker runtime: %w", err)
 	}
 
 	// [L3] Validate + deduplicate admin telegram IDs after env.Parse populates the slice.
@@ -123,6 +136,19 @@ func validateSePayWebhookConfig(cfg *Config) error {
 	}
 	if cfg.SepayBankAccount == "" {
 		return fmt.Errorf("SEPAY_BANK_ACCOUNT is required")
+	}
+	return nil
+}
+
+func validateWorkerRuntime(cfg *Config) error {
+	if cfg.WorkerLeaseSec <= 0 {
+		return fmt.Errorf("WORKER_LEASE_SEC must be positive")
+	}
+	if cfg.WorkerRetryLimit < 0 {
+		return fmt.Errorf("WORKER_RETRY_LIMIT must be zero or positive")
+	}
+	if cfg.WorkerModel == "" {
+		cfg.WorkerModel = cfg.ClaudeModel
 	}
 	return nil
 }

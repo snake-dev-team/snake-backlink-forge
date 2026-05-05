@@ -15,6 +15,7 @@ type ApiUser struct {
 	ID        uuid.UUID
 	IsBanned  bool
 	KeyPrefix string
+	RawKey    string
 }
 
 const ctxKeyApiUser = "api_user"
@@ -36,7 +37,8 @@ func AuthAPIKey(keySvc *service.KeyService, audit *service.AuditService, log *za
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}
 
-		userID, isBanned, prefix, err := keySvc.ValidatePlaintext(c.Context(), strings.TrimPrefix(auth, "Bearer "))
+		rawKey := strings.TrimPrefix(auth, "Bearer ")
+		userID, isBanned, prefix, err := keySvc.ValidatePlaintext(c.Context(), rawKey)
 		if err != nil {
 			if !errors.Is(err, service.ErrInvalidKey) && log != nil {
 				log.Warn("api key validation failed", zap.Error(err))
@@ -48,7 +50,7 @@ func AuthAPIKey(keySvc *service.KeyService, audit *service.AuditService, log *za
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "account_banned"})
 		}
 
-		c.Locals(ctxKeyApiUser, ApiUser{ID: userID, IsBanned: isBanned, KeyPrefix: prefix})
+		c.Locals(ctxKeyApiUser, ApiUser{ID: userID, IsBanned: isBanned, KeyPrefix: prefix, RawKey: rawKey})
 		return c.Next()
 	}
 }

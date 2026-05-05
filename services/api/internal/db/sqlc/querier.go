@@ -13,12 +13,18 @@ import (
 type Querier interface {
 	AddVNDSpent(ctx context.Context, arg AddVNDSpentParams) error
 	BanUser(ctx context.Context, telegramID int64) error
+	BumpCampaignCreditsConsumed(ctx context.Context, arg BumpCampaignCreditsConsumedParams) error
+	CampaignJobStats(ctx context.Context, arg CampaignJobStatsParams) (CampaignJobStatsRow, error)
 	// [Q2] Sets status='cancelled' (NOT 'failed') so provider_ref stays in the
 	// idx_tx_provider_ref_active partial index, enabling late-payment recovery in Phase 06.
 	// Metadata is augmented (||) rather than replaced to preserve existing fields.
 	CancelPendingTransaction(ctx context.Context, arg CancelPendingTransactionParams) error
+	ClaimNextQueuedJob(ctx context.Context, userID uuid.UUID) (ClaimNextQueuedJobRow, error)
+	CompleteJob(ctx context.Context, arg CompleteJobParams) (Job, error)
 	CountActiveKeys(ctx context.Context) (int64, error)
 	CountAuditLogByEventSince(ctx context.Context, arg CountAuditLogByEventSinceParams) (int64, error)
+	CountCampaignCompletedWork(ctx context.Context, arg CountCampaignCompletedWorkParams) (int32, error)
+	CountCampaignQueuedWork(ctx context.Context, arg CountCampaignQueuedWorkParams) (int32, error)
 	// Uses Asia/Ho_Chi_Minh timezone for month boundary (VN-only user base).
 	// Avoids UTC drift where VN users see counter reset 7 hours early at month end.
 	CountCreditsConsumedThisMonth(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -34,13 +40,25 @@ type Querier interface {
 	CountUsersTrialUsed(ctx context.Context) (int64, error)
 	CountUsersVerified(ctx context.Context) (int64, error)
 	CountWpSitesByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	// Queries for the campaigns table.
+	// trg_campaign_limit trigger enforces max 3 running campaigns at DB layer.
+	CreateCampaign(ctx context.Context, arg CreateCampaignParams) (Campaign, error)
+	// Queries for the targets table.
+	// Note: {niche} in dork_patterns is a Go template placeholder, NOT SQL interpolation.
+	CreateCustomTarget(ctx context.Context, arg CreateCustomTargetParams) (Target, error)
+	// Queries for the jobs table.
+	CreateJob(ctx context.Context, arg CreateJobParams) (Job, error)
 	CreditsOutstanding(ctx context.Context) (CreditsOutstandingRow, error)
 	EnsureWallet(ctx context.Context, userID uuid.UUID) error
+	FailJob(ctx context.Context, arg FailJobParams) (Job, error)
 	// Queries for the api_keys table.
 	// Phase 03: real queries replacing placeholder stub.
 	// key_hash is BYTEA (SHA-256 of plaintext). Plaintext is NEVER stored.
 	GetActiveKeyByUser(ctx context.Context, userID uuid.UUID) (ApiKey, error)
 	GetAuditLogByEventSince(ctx context.Context, arg GetAuditLogByEventSinceParams) ([]AuditLog, error)
+	GetCampaignByUser(ctx context.Context, arg GetCampaignByUserParams) (Campaign, error)
+	GetJobByUser(ctx context.Context, arg GetJobByUserParams) (Job, error)
+	GetJobForReport(ctx context.Context, arg GetJobForReportParams) (Job, error)
 	GetKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	GetLedgerConsumesByUserPage(ctx context.Context, arg GetLedgerConsumesByUserPageParams) ([]Ledger, error)
 	// Queries for the ledger table. Phase 04: paginated history + count.
@@ -52,6 +70,7 @@ type Querier interface {
 	GetReferralByCode(ctx context.Context, code string) (Referral, error)
 	// Queries for referrals table. Phase 07: code lookup + insert + increment.
 	GetReferralByUser(ctx context.Context, userID uuid.UUID) (Referral, error)
+	GetTargetForUser(ctx context.Context, arg GetTargetForUserParams) (Target, error)
 	// Webhook lookup: find a transaction by its SePay order code (provider_ref).
 	GetTxByProviderRef(ctx context.Context, providerRef *string) (Transaction, error)
 	GetTxByUserPage(ctx context.Context, arg GetTxByUserPageParams) ([]Transaction, error)
@@ -81,28 +100,22 @@ type Querier interface {
 	InsertSupportTicket(ctx context.Context, arg InsertSupportTicketParams) (SupportTicket, error)
 	// Queries for connected WordPress sites.
 	InsertWpSite(ctx context.Context, arg InsertWpSiteParams) (WpSite, error)
+	ListCampaignsByUser(ctx context.Context, arg ListCampaignsByUserParams) ([]ListCampaignsByUserRow, error)
+	ListJobsByCampaign(ctx context.Context, arg ListJobsByCampaignParams) ([]Job, error)
+	ListTargetsForUser(ctx context.Context, arg ListTargetsForUserParams) ([]Target, error)
 	ListWpSitesByUser(ctx context.Context, userID uuid.UUID) ([]ListWpSitesByUserRow, error)
-	// Queries for the campaigns table.
-	// Phase 2+ will add real queries here (create, list, pause, resume, archive).
-	// trg_campaign_limit trigger enforces max 3 running campaigns at DB layer.
-	// Placeholder kept so sqlc can parse this file without errors.
-	PlaceholderCampaignsSelect(ctx context.Context) (int32, error)
-	// Queries for the jobs table.
-	// Phase 2+ will add real queries here (enqueue, dispatch, complete, fail, stats).
-	// Placeholder kept so sqlc can parse this file without errors.
-	PlaceholderJobsSelect(ctx context.Context) (int32, error)
-	// Queries for the targets table.
-	// Phase 2+ will add real queries here (pool fetch by type, domain cooldown check).
-	// Note: {niche} in dork_patterns is a Go template placeholder, NOT SQL interpolation.
-	// Placeholder kept so sqlc can parse this file without errors.
-	PlaceholderTargetsSelect(ctx context.Context) (int32, error)
+	MarkJobInProgress(ctx context.Context, arg MarkJobInProgressParams) (Job, error)
+	PickTargetsForCampaign(ctx context.Context, arg PickTargetsForCampaignParams) ([]Target, error)
 	RevokeActiveKeysForUser(ctx context.Context, userID uuid.UUID) error
 	SetLanguage(ctx context.Context, arg SetLanguageParams) error
 	SetPhoneAndVerify(ctx context.Context, arg SetPhoneAndVerifyParams) (User, error)
+	SkipJob(ctx context.Context, arg SkipJobParams) (Job, error)
 	SoftDeleteWpSite(ctx context.Context, arg SoftDeleteWpSiteParams) error
 	TxStats24h(ctx context.Context) (TxStats24hRow, error)
 	UnbanUser(ctx context.Context, telegramID int64) error
+	UpdateCampaignStatus(ctx context.Context, arg UpdateCampaignStatusParams) (Campaign, error)
 	UpdateWpSiteStatus(ctx context.Context, arg UpdateWpSiteStatusParams) error
+	UpsertDomainCooldown(ctx context.Context, arg UpsertDomainCooldownParams) error
 	UpsertUserStub(ctx context.Context, arg UpsertUserStubParams) (User, error)
 }
 

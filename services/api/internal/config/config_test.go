@@ -89,3 +89,46 @@ func TestValidateAdminTelegramIDs_Empty(t *testing.T) {
 		t.Fatalf("expected empty result, got %v", out)
 	}
 }
+
+func TestValidateWorkerRuntime(t *testing.T) {
+	tests := []struct {
+		name       string
+		cfg        Config
+		wantErr    bool
+		wantModel  string
+	}{
+		{
+			name:      "valid explicit model",
+			cfg:       Config{WorkerLeaseSec: 300, WorkerRetryLimit: 3, WorkerModel: "worker-model", ClaudeModel: "claude-model"},
+			wantModel: "worker-model",
+		},
+		{
+			name:      "fallback to claude model",
+			cfg:       Config{WorkerLeaseSec: 300, WorkerRetryLimit: 3, ClaudeModel: "claude-model"},
+			wantModel: "claude-model",
+		},
+		{
+			name:    "reject non-positive lease",
+			cfg:     Config{WorkerLeaseSec: 0, WorkerRetryLimit: 3},
+			wantErr: true,
+		},
+		{
+			name:    "reject negative retry limit",
+			cfg:     Config{WorkerLeaseSec: 300, WorkerRetryLimit: -1},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := tt.cfg
+			err := validateWorkerRuntime(&cfg)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err == nil && cfg.WorkerModel != tt.wantModel {
+				t.Fatalf("worker model = %q, want %q", cfg.WorkerModel, tt.wantModel)
+			}
+		})
+	}
+}

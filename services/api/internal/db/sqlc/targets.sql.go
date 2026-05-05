@@ -7,20 +7,291 @@ package sqlcdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
-const placeholderTargetsSelect = `-- name: PlaceholderTargetsSelect :one
+const createCustomTarget = `-- name: CreateCustomTarget :one
 
-SELECT 1 AS dummy
+INSERT INTO targets (
+    url, domain, tld, type, source, owner_user_id, pool,
+    dr, da, traffic_est, language, niche_tags, platform,
+    form_selectors, captcha_type, captcha_sitekey, is_active, is_blocklisted
+) VALUES (
+    $1, $2, $3, $4, 'custom', $5, $6,
+    $7, $8, $9, $10, $11, $12,
+    $13, $14, $15, TRUE, FALSE
+)
+RETURNING id, url, domain, tld, type, source, owner_user_id, pool, dr, da, traffic_est, language, niche_tags, platform, form_selectors, captcha_type, captcha_sitekey, is_active, is_blocklisted, success_rate, last_verified_at, created_at
 `
 
+type CreateCustomTargetParams struct {
+	Url            string     `json:"url"`
+	Domain         string     `json:"domain"`
+	Tld            *string    `json:"tld"`
+	Type           TargetType `json:"type"`
+	OwnerUserID    *uuid.UUID `json:"owner_user_id"`
+	Pool           string     `json:"pool"`
+	Dr             *int32     `json:"dr"`
+	Da             *int32     `json:"da"`
+	TrafficEst     *int32     `json:"traffic_est"`
+	Language       *string    `json:"language"`
+	NicheTags      []string   `json:"niche_tags"`
+	Platform       *string    `json:"platform"`
+	FormSelectors  []byte     `json:"form_selectors"`
+	CaptchaType    *string    `json:"captcha_type"`
+	CaptchaSitekey *string    `json:"captcha_sitekey"`
+}
+
 // Queries for the targets table.
-// Phase 2+ will add real queries here (pool fetch by type, domain cooldown check).
 // Note: {niche} in dork_patterns is a Go template placeholder, NOT SQL interpolation.
-// Placeholder kept so sqlc can parse this file without errors.
-func (q *Queries) PlaceholderTargetsSelect(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, placeholderTargetsSelect)
-	var dummy int32
-	err := row.Scan(&dummy)
-	return dummy, err
+func (q *Queries) CreateCustomTarget(ctx context.Context, arg CreateCustomTargetParams) (Target, error) {
+	row := q.db.QueryRow(ctx, createCustomTarget,
+		arg.Url,
+		arg.Domain,
+		arg.Tld,
+		arg.Type,
+		arg.OwnerUserID,
+		arg.Pool,
+		arg.Dr,
+		arg.Da,
+		arg.TrafficEst,
+		arg.Language,
+		arg.NicheTags,
+		arg.Platform,
+		arg.FormSelectors,
+		arg.CaptchaType,
+		arg.CaptchaSitekey,
+	)
+	var i Target
+	err := row.Scan(
+		&i.ID,
+		&i.Url,
+		&i.Domain,
+		&i.Tld,
+		&i.Type,
+		&i.Source,
+		&i.OwnerUserID,
+		&i.Pool,
+		&i.Dr,
+		&i.Da,
+		&i.TrafficEst,
+		&i.Language,
+		&i.NicheTags,
+		&i.Platform,
+		&i.FormSelectors,
+		&i.CaptchaType,
+		&i.CaptchaSitekey,
+		&i.IsActive,
+		&i.IsBlocklisted,
+		&i.SuccessRate,
+		&i.LastVerifiedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getTargetForUser = `-- name: GetTargetForUser :one
+SELECT id, url, domain, tld, type, source, owner_user_id, pool, dr, da, traffic_est, language, niche_tags, platform, form_selectors, captcha_type, captcha_sitekey, is_active, is_blocklisted, success_rate, last_verified_at, created_at FROM targets
+WHERE id = $2
+  AND is_active
+  AND NOT is_blocklisted
+  AND (owner_user_id = $1 OR owner_user_id IS NULL)
+`
+
+type GetTargetForUserParams struct {
+	OwnerUserID *uuid.UUID `json:"owner_user_id"`
+	ID          uuid.UUID  `json:"id"`
+}
+
+func (q *Queries) GetTargetForUser(ctx context.Context, arg GetTargetForUserParams) (Target, error) {
+	row := q.db.QueryRow(ctx, getTargetForUser, arg.OwnerUserID, arg.ID)
+	var i Target
+	err := row.Scan(
+		&i.ID,
+		&i.Url,
+		&i.Domain,
+		&i.Tld,
+		&i.Type,
+		&i.Source,
+		&i.OwnerUserID,
+		&i.Pool,
+		&i.Dr,
+		&i.Da,
+		&i.TrafficEst,
+		&i.Language,
+		&i.NicheTags,
+		&i.Platform,
+		&i.FormSelectors,
+		&i.CaptchaType,
+		&i.CaptchaSitekey,
+		&i.IsActive,
+		&i.IsBlocklisted,
+		&i.SuccessRate,
+		&i.LastVerifiedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listTargetsForUser = `-- name: ListTargetsForUser :many
+SELECT id, url, domain, tld, type, source, owner_user_id, pool, dr, da, traffic_est, language, niche_tags, platform, form_selectors, captcha_type, captcha_sitekey, is_active, is_blocklisted, success_rate, last_verified_at, created_at FROM targets
+WHERE is_active
+  AND NOT is_blocklisted
+  AND (owner_user_id = $1 OR owner_user_id IS NULL)
+  AND ($2::text = '' OR pool = $2)
+  AND ($3::text = '' OR type = $3::target_type)
+ORDER BY owner_user_id NULLS LAST, success_rate DESC, created_at DESC
+LIMIT $4 OFFSET $5
+`
+
+type ListTargetsForUserParams struct {
+	OwnerUserID *uuid.UUID `json:"owner_user_id"`
+	Column2     string     `json:"column_2"`
+	Column3     string     `json:"column_3"`
+	Limit       int32      `json:"limit"`
+	Offset      int32      `json:"offset"`
+}
+
+func (q *Queries) ListTargetsForUser(ctx context.Context, arg ListTargetsForUserParams) ([]Target, error) {
+	rows, err := q.db.Query(ctx, listTargetsForUser,
+		arg.OwnerUserID,
+		arg.Column2,
+		arg.Column3,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Target
+	for rows.Next() {
+		var i Target
+		if err := rows.Scan(
+			&i.ID,
+			&i.Url,
+			&i.Domain,
+			&i.Tld,
+			&i.Type,
+			&i.Source,
+			&i.OwnerUserID,
+			&i.Pool,
+			&i.Dr,
+			&i.Da,
+			&i.TrafficEst,
+			&i.Language,
+			&i.NicheTags,
+			&i.Platform,
+			&i.FormSelectors,
+			&i.CaptchaType,
+			&i.CaptchaSitekey,
+			&i.IsActive,
+			&i.IsBlocklisted,
+			&i.SuccessRate,
+			&i.LastVerifiedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pickTargetsForCampaign = `-- name: PickTargetsForCampaign :many
+SELECT t.id, t.url, t.domain, t.tld, t.type, t.source, t.owner_user_id, t.pool, t.dr, t.da, t.traffic_est, t.language, t.niche_tags, t.platform, t.form_selectors, t.captcha_type, t.captcha_sitekey, t.is_active, t.is_blocklisted, t.success_rate, t.last_verified_at, t.created_at FROM targets t
+WHERE t.is_active
+  AND NOT t.is_blocklisted
+  AND t.pool = $2
+  AND (t.owner_user_id = $1 OR t.owner_user_id IS NULL)
+  AND NOT EXISTS (
+      SELECT 1 FROM jobs j
+      WHERE j.campaign_id = $3 AND j.target_id = t.id
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM domain_cooldown dc
+      WHERE dc.user_id = $1
+        AND dc.domain = t.domain
+        AND dc.last_used > NOW() - ($4::int * INTERVAL '1 hour')
+  )
+ORDER BY t.owner_user_id NULLS LAST, t.success_rate DESC, t.created_at DESC
+LIMIT $5
+FOR UPDATE OF t SKIP LOCKED
+`
+
+type PickTargetsForCampaignParams struct {
+	OwnerUserID *uuid.UUID `json:"owner_user_id"`
+	Pool        string     `json:"pool"`
+	CampaignID  uuid.UUID  `json:"campaign_id"`
+	Column4     int32      `json:"column_4"`
+	Limit       int32      `json:"limit"`
+}
+
+func (q *Queries) PickTargetsForCampaign(ctx context.Context, arg PickTargetsForCampaignParams) ([]Target, error) {
+	rows, err := q.db.Query(ctx, pickTargetsForCampaign,
+		arg.OwnerUserID,
+		arg.Pool,
+		arg.CampaignID,
+		arg.Column4,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Target
+	for rows.Next() {
+		var i Target
+		if err := rows.Scan(
+			&i.ID,
+			&i.Url,
+			&i.Domain,
+			&i.Tld,
+			&i.Type,
+			&i.Source,
+			&i.OwnerUserID,
+			&i.Pool,
+			&i.Dr,
+			&i.Da,
+			&i.TrafficEst,
+			&i.Language,
+			&i.NicheTags,
+			&i.Platform,
+			&i.FormSelectors,
+			&i.CaptchaType,
+			&i.CaptchaSitekey,
+			&i.IsActive,
+			&i.IsBlocklisted,
+			&i.SuccessRate,
+			&i.LastVerifiedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertDomainCooldown = `-- name: UpsertDomainCooldown :exec
+INSERT INTO domain_cooldown (user_id, domain, last_used)
+VALUES ($1, $2, NOW())
+ON CONFLICT (user_id, domain) DO UPDATE SET last_used = EXCLUDED.last_used
+`
+
+type UpsertDomainCooldownParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Domain string    `json:"domain"`
+}
+
+func (q *Queries) UpsertDomainCooldown(ctx context.Context, arg UpsertDomainCooldownParams) error {
+	_, err := q.db.Exec(ctx, upsertDomainCooldown, arg.UserID, arg.Domain)
+	return err
 }

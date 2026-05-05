@@ -126,6 +126,16 @@ func main() {
 		log.Info("transaction service initialized")
 	}
 
+	// --- Campaign automation services (Phase 3 web SaaS) ---
+	var campaignSvc *service.CampaignService
+	var jobSvc *service.JobService
+	if dbPool != nil {
+		q := sqlcdb.New(dbPool)
+		campaignSvc = service.NewCampaignService(dbPool, q, log.Named("campaign_svc"))
+		jobSvc = service.NewJobService(dbPool, q, log.Named("job_svc"))
+		log.Info("campaign + job services initialized")
+	}
+
 	// --- WpSiteService (Phase 3 web SaaS) ---
 	var wpSiteSvc *service.WpSiteService
 	if dbPool != nil && cfg.WPEncKey != "" {
@@ -225,15 +235,17 @@ func main() {
 	// --- HTTP Server ---
 	app := api.New(cfg, log, dbPool, rdb)
 	apiDeps := &handlers.ApiHandlerDeps{
-		Pool:      dbPool,
-		Rdb:       rdb,
-		KeySvc:    keySvc,
-		UserSvc:   userSvc,
-		WalletSvc: walletSvc,
-		TxSvc:     txSvc,
-		AuditSvc:  auditSvc,
-		WpSiteSvc: wpSiteSvc,
-		Log:       log.Named("api_v1"),
+		Pool:        dbPool,
+		Rdb:         rdb,
+		KeySvc:      keySvc,
+		UserSvc:     userSvc,
+		WalletSvc:   walletSvc,
+		TxSvc:       txSvc,
+		AuditSvc:    auditSvc,
+		WpSiteSvc:   wpSiteSvc,
+		CampaignSvc: campaignSvc,
+		JobSvc:      jobSvc,
+		Log:         log.Named("api_v1"),
 	}
 	if dbPool != nil {
 		apiDeps.Queries = sqlcdb.New(dbPool)
