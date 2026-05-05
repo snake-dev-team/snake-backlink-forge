@@ -1,5 +1,4 @@
 import { crx } from "@crxjs/vite-plugin";
-import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { type Connect, defineConfig, type Plugin } from "vite";
 import manifest from "./src/manifest.config";
 
@@ -31,9 +30,8 @@ function devOriginGuard(): Plugin {
   };
 }
 
-// svelte() MUST come before crx() — CRXJS requires Svelte transforms to run first
 export default defineConfig({
-  plugins: [devOriginGuard(), svelte(), crx({ manifest })],
+  plugins: [devOriginGuard(), crx({ manifest })],
   server: {
     host: "127.0.0.1",
     port: 5173,

@@ -7,8 +7,10 @@ package sqlcdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const campaignJobStats = `-- name: CampaignJobStats :one
@@ -69,7 +71,7 @@ WITH claimed AS (
         LIMIT 1
         FOR UPDATE SKIP LOCKED
     )
-    RETURNING *
+    RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
 )
 SELECT claimed.id, claimed.user_id, claimed.campaign_id, claimed.target_id,
        claimed.target_url_snapshot, claimed.anchor_text, claimed.anchor_type,
@@ -81,12 +83,26 @@ FROM claimed
 JOIN campaigns c ON c.id = claimed.campaign_id
 `
 
-// ClaimNextQueuedJobRow is the return type for ClaimNextQueuedJob.
-// Extends Job with money_site_url from the joined campaigns row so the
-// extension worker can build the backlink without a second round-trip.
 type ClaimNextQueuedJobRow struct {
-	Job
-	MoneySiteUrl string `json:"money_site_url"`
+	ID                uuid.UUID          `json:"id"`
+	UserID            uuid.UUID          `json:"user_id"`
+	CampaignID        uuid.UUID          `json:"campaign_id"`
+	TargetID          uuid.UUID          `json:"target_id"`
+	TargetUrlSnapshot string             `json:"target_url_snapshot"`
+	AnchorText        string             `json:"anchor_text"`
+	AnchorType        string             `json:"anchor_type"`
+	ContentBody       *string            `json:"content_body"`
+	Status            JobStatus          `json:"status"`
+	Pool              string             `json:"pool"`
+	CreditsCost       int32              `json:"credits_cost"`
+	CaptchaCost       int32              `json:"captcha_cost"`
+	ErrorCode         *string            `json:"error_code"`
+	ErrorMessage      *string            `json:"error_message"`
+	ResultUrl         *string            `json:"result_url"`
+	DispatchedAt      pgtype.Timestamptz `json:"dispatched_at"`
+	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt         time.Time          `json:"created_at"`
+	MoneySiteUrl      string             `json:"money_site_url"`
 }
 
 func (q *Queries) ClaimNextQueuedJob(ctx context.Context, userID uuid.UUID) (ClaimNextQueuedJobRow, error) {

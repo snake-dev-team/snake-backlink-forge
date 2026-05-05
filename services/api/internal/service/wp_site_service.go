@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
@@ -28,6 +29,8 @@ var (
 	ErrWpServerError503         = errors.New("wp_server_error_503")
 	ErrWpServerError504         = errors.New("wp_server_error_504")
 	ErrWpPrivateAddress         = errors.New("wp_private_address")
+	// ErrWPSiteNotFound is returned by GetByDomainPlain when no connected wp_site matches.
+	ErrWPSiteNotFound = errors.New("wp_site_not_found")
 )
 
 type WpSiteService struct {
@@ -160,4 +163,38 @@ func wpStatusError(status int) error {
 		}
 		return fmt.Errorf("wp_unexpected_status_%d", status)
 	}
+}
+
+// WPSiteCredsView holds decrypted credentials returned to the extension.
+// Never logged — caller must ensure response body is not captured in access logs.
+type WPSiteCredsView struct {
+	BaseURL          string `json:"base_url"`
+	AppUsername      string `json:"app_username"`
+	AppPasswordPlain string `json:"app_password_plain"`
+}
+
+// GetByDomainPlain looks up the first connected wp_site for the user matching domain,
+// decrypts the Application Password, and returns plaintext credentials.
+// Returns ErrWPSiteNotFound if no matching connected site exists.
+// Used exclusively by the extension /wp-sites/by-domain/:domain signed endpoint.
+func (s *WpSiteService) GetByDomainPlain(ctx context.Context, userID uuid.UUID, domain string) (WPSiteCredsView, error) {
+	row, err := s.q.GetWPSiteByUserDomain(ctx, sqlcdb.GetWPSiteByUserDomainParams{
+		UserID: userID,
+		Domain: domain,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return WPSiteCredsView{}, ErrWPSiteNotFound
+	}
+	if err != nil {
+		return WPSiteCredsView{}, fmt.Errorf("wp_site.GetByDomainPlain: query: %w", err)
+	}
+	plain, err := util.DecryptAESGCM(s.masterKey, row.AppPasswordEnc)
+	if err != nil {
+		return WPSiteCredsView{}, fmt.Errorf("wp_site.GetByDomainPlain: decrypt: %w", err)
+	}
+	return WPSiteCredsView{
+		BaseURL:          row.BaseUrl,
+		AppUsername:      row.AppUsername,
+		AppPasswordPlain: string(plain),
+	}, nil
 }

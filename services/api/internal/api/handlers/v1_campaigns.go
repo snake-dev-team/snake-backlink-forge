@@ -335,11 +335,28 @@ func jobMap(row sqlcdb.Job) fiber.Map {
 
 // claimedJobMap serializes a ClaimNextQueuedJob result. Includes money_url from
 // the campaigns join so the extension worker can build the backlink without an
-// extra API call.
+// extra API call. sqlc regen produces a flat row struct (not embedded Job).
 func claimedJobMap(row sqlcdb.ClaimNextQueuedJobRow) fiber.Map {
-	m := jobMap(row.Job)
-	m["money_url"] = row.MoneySiteUrl
-	return m
+	return fiber.Map{
+		"id":             row.ID,
+		"campaign_id":    row.CampaignID,
+		"target_id":      row.TargetID,
+		"target_url":     row.TargetUrlSnapshot,
+		"anchor_text":    row.AnchorText,
+		"anchor_type":    row.AnchorType,
+		"content_body":   row.ContentBody,
+		"status":         row.Status,
+		"pool":           row.Pool,
+		"credits_cost":   row.CreditsCost,
+		"captcha_cost":   row.CaptchaCost,
+		"error_code":     row.ErrorCode,
+		"error_message":  row.ErrorMessage,
+		"result_url":     row.ResultUrl,
+		"dispatched_at":  formatPGTime(row.DispatchedAt),
+		"completed_at":   formatPGTime(row.CompletedAt),
+		"created_at":     row.CreatedAt.Format(time.RFC3339),
+		"money_url":      row.MoneySiteUrl,
+	}
 }
 
 func targetMap(row sqlcdb.Target) fiber.Map {

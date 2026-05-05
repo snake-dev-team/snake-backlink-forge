@@ -48,6 +48,9 @@ func RegisterV1(app *fiber.App, deps *handlers.ApiHandlerDeps) {
 	extensionAuthed := authed.Group("", middleware.ExtensionSignature(deps.Rdb))
 	extensionAuthed.Get("/campaign/next", handlers.V1CampaignNext(deps))
 	extensionAuthed.Post("/campaign/result/:id", handlers.V1CampaignResult(deps))
+	// Signed extension-only: returns decrypted WP App Password for job execution.
+	// Audit-logged on every call; response body must not be captured in access logs.
+	extensionAuthed.Get("/wp-sites/by-domain/:domain", handlers.V1WPSiteByDomainExt(deps))
 	authed.Get("/targets", handlers.V1TargetsList(deps))
 	authed.Post("/targets", handlers.V1TargetsCreate(deps))
 }

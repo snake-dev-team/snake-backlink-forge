@@ -7,17 +7,12 @@
     "build": "vite build",
     "dev": "vite",
     "package:check": "npm run build && npm run validate:manifest",
-    "typecheck": "tsc --noEmit && svelte-check --tsconfig tsconfig.json",
+    "typecheck": "tsc --noEmit",
     "validate:manifest": "node scripts/validate-manifest.mjs"
-  },
-  "dependencies": {
-    "svelte": "^5"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "2.4.0",
-    "@sveltejs/vite-plugin-svelte": "^3",
     "@types/chrome": "latest",
-    "svelte-check": "latest",
     "typescript": "6.0.3",
     "vite": "^5"
   }

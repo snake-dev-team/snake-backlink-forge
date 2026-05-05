@@ -24,6 +24,47 @@ func (q *Queries) CountWpSitesByUser(ctx context.Context, userID uuid.UUID) (int
 	return count, err
 }
 
+const getWPSiteByUserDomain = `-- name: GetWPSiteByUserDomain :one
+SELECT id, user_id, base_url, app_username, app_password_enc, status
+FROM wp_sites
+WHERE user_id = $1
+  AND base_url ILIKE '%' || $2::text || '%'
+  AND deleted_at IS NULL
+  AND status = 'connected'
+LIMIT 1
+`
+
+type GetWPSiteByUserDomainParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Domain string    `json:"domain"`
+}
+
+type GetWPSiteByUserDomainRow struct {
+	ID             uuid.UUID    `json:"id"`
+	UserID         uuid.UUID    `json:"user_id"`
+	BaseUrl        string       `json:"base_url"`
+	AppUsername    string       `json:"app_username"`
+	AppPasswordEnc []byte       `json:"app_password_enc"`
+	Status         WpSiteStatus `json:"status"`
+}
+
+// Used by extension endpoint /wp-sites/by-domain/:domain to fetch credentials for decryption.
+// Matches base_url containing the domain (ILIKE). Returns first match (LIMIT 1).
+// Status filter: active sites only (connected = validated successfully).
+func (q *Queries) GetWPSiteByUserDomain(ctx context.Context, arg GetWPSiteByUserDomainParams) (GetWPSiteByUserDomainRow, error) {
+	row := q.db.QueryRow(ctx, getWPSiteByUserDomain, arg.UserID, arg.Domain)
+	var i GetWPSiteByUserDomainRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.BaseUrl,
+		&i.AppUsername,
+		&i.AppPasswordEnc,
+		&i.Status,
+	)
+	return i, err
+}
+
 const getWpSiteByID = `-- name: GetWpSiteByID :one
 SELECT id, user_id, base_url, app_username, app_password_enc, label, status, last_validated_at, last_error, created_at, updated_at, deleted_at
 FROM wp_sites

@@ -83,6 +83,10 @@ type Querier interface {
 	//       is inlined as raw pgx.Tx in user_service.go — sqlc cannot model that compound
 	//       transaction cleanly.
 	GetUserByTelegramID(ctx context.Context, telegramID int64) (User, error)
+	// Used by extension endpoint /wp-sites/by-domain/:domain to fetch credentials for decryption.
+	// Matches base_url containing the domain (ILIKE). Returns first match (LIMIT 1).
+	// Status filter: active sites only (connected = validated successfully).
+	GetWPSiteByUserDomain(ctx context.Context, arg GetWPSiteByUserDomainParams) (GetWPSiteByUserDomainRow, error)
 	// Queries for the wallets table. Phase 04: balance fetch + VND spend bump.
 	GetWalletByUser(ctx context.Context, userID uuid.UUID) (Wallet, error)
 	GetWpSiteByID(ctx context.Context, arg GetWpSiteByIDParams) (WpSite, error)

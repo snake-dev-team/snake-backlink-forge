@@ -29,3 +29,15 @@ WHERE id = $3 AND user_id = $4 AND deleted_at IS NULL;
 
 -- name: CountWpSitesByUser :one
 SELECT COUNT(*) FROM wp_sites WHERE user_id = $1 AND deleted_at IS NULL;
+
+-- name: GetWPSiteByUserDomain :one
+-- Used by extension endpoint /wp-sites/by-domain/:domain to fetch credentials for decryption.
+-- Matches base_url containing the domain (ILIKE). Returns first match (LIMIT 1).
+-- Status filter: active sites only (connected = validated successfully).
+SELECT id, user_id, base_url, app_username, app_password_enc, status
+FROM wp_sites
+WHERE user_id = $1
+  AND base_url ILIKE '%' || sqlc.arg(domain)::text || '%'
+  AND deleted_at IS NULL
+  AND status = 'connected'
+LIMIT 1;
