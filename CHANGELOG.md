@@ -1,3 +1,13 @@
+## [1.0.0-beta.42](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.41...v1.0.0-beta.42) (2026-05-05)
+
+### 🚀 Features
+
+* **extension:** wp rest api poster + manifest fix + signed wp-sites endpoint ([d2c97b4](https://github.com/snake-dev-team/snake-backlink-forge/commit/d2c97b4570f4ce350de6e5840eaaab203de37417))
+
+### 🐞 Bug Fixes
+
+* **deps:** regen pnpm-lock for extension package without svelte ([9e75b12](https://github.com/snake-dev-team/snake-backlink-forge/commit/9e75b1258624628068f377062513607267a79f8b))
+
 ## [1.0.0-beta.41](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.40...v1.0.0-beta.41) (2026-05-05)
 
 ### 🚀 Features
