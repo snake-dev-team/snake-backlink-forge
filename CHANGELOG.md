@@ -1,3 +1,9 @@
+## [1.0.0-beta.52](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.51...v1.0.0-beta.52) (2026-05-05)
+
+### 🚀 Features
+
+* **verification:** http head + anchor presence + enqueue from campaign_target_sites ([067ec8f](https://github.com/snake-dev-team/snake-backlink-forge/commit/067ec8fbbefb91c29d63486d7586a3f07a0e3b16))
+
 ## [1.0.0-beta.51](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.50...v1.0.0-beta.51) (2026-05-05)
 
 ### 🐞 Bug Fixes
