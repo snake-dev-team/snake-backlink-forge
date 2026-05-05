@@ -1,3 +1,9 @@
+## [1.0.0-beta.50](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.49...v1.0.0-beta.50) (2026-05-05)
+
+### 🚀 Features
+
+* **landing:** site multi-select + auto-enqueue + progress polling ([c101d16](https://github.com/snake-dev-team/snake-backlink-forge/commit/c101d160cb085495c525c76ad6d8e18c7fb64165))
+
 ## [1.0.0-beta.49](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.48...v1.0.0-beta.49) (2026-05-05)
 
 ### 🚀 Features
