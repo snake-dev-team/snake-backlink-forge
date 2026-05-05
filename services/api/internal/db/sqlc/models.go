@@ -68,6 +68,7 @@ const (
 	JobStatusSuccess      JobStatus = "success"
 	JobStatusFailed       JobStatus = "failed"
 	JobStatusSkipped      JobStatus = "skipped"
+	JobStatusDlq          JobStatus = "dlq"
 )
 
 func (e *JobStatus) Scan(src interface{}) error {
@@ -454,6 +455,10 @@ type Job struct {
 	CreatedAt         time.Time          `json:"created_at"`
 	ContentTitle      *string            `json:"content_title"`
 	ContentMeta       *string            `json:"content_meta"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+	LeaseHolder       *string            `json:"lease_holder"`
+	RetryCount        int32              `json:"retry_count"`
+	LastErrorAt       pgtype.Timestamptz `json:"last_error_at"`
 }
 
 type Ledger struct {

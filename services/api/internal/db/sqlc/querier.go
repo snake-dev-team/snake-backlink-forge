@@ -19,6 +19,13 @@ type Querier interface {
 	// idx_tx_provider_ref_active partial index, enabling late-payment recovery in Phase 06.
 	// Metadata is augmented (||) rather than replaced to preserve existing fields.
 	CancelPendingTransaction(ctx context.Context, arg CancelPendingTransactionParams) error
+	// Worker job queries for the embedded Go background worker (Phase 7.05).
+	// These queries are separate from jobs.sql to keep file size manageable.
+	// All claiming uses FOR UPDATE SKIP LOCKED for safe concurrent polling.
+	// Claims a batch of content_ready jobs atomically, setting in_progress + lease.
+	// Uses FOR UPDATE SKIP LOCKED so concurrent worker goroutines never double-claim.
+	// sqlc.arg() with explicit ::type cast — lesson from Phase 7.02/7.03/7.04.
+	ClaimContentReadyJobs(ctx context.Context, arg ClaimContentReadyJobsParams) ([]Job, error)
 	// Phase 7.04: claims content_ready jobs first (AI content populated), falling
 	// back to queued jobs (for backward compat when AI generation is disabled).
 	// Extension receives content_title / content_meta alongside content_body.
@@ -95,7 +102,13 @@ type Querier interface {
 	GetWPSiteByUserDomain(ctx context.Context, arg GetWPSiteByUserDomainParams) (GetWPSiteByUserDomainRow, error)
 	// Queries for the wallets table. Phase 04: balance fetch + VND spend bump.
 	GetWalletByUser(ctx context.Context, userID uuid.UUID) (Wallet, error)
+	// Returns queue depth, in-flight count, and last completed timestamp.
+	// Used by GET /health/worker to expose worker state without exposing job data.
+	GetWorkerHealth(ctx context.Context) (GetWorkerHealthRow, error)
 	GetWpSiteByID(ctx context.Context, arg GetWpSiteByIDParams) (WpSite, error)
+	// Bumps retry_count and records last failure details without changing status.
+	// Called before RescheduleJobRetry or MoveJobToDLQ to record the failure.
+	IncrementJobRetry(ctx context.Context, arg IncrementJobRetryParams) error
 	IncrementReferralCount(ctx context.Context, userID uuid.UUID) error
 	// Queries for the audit_log table. Phase 08: real event insert + lookup queries.
 	// ip_hash stores sha256(ip) — raw IP is never persisted.
@@ -115,7 +128,13 @@ type Querier interface {
 	ListTargetsForUser(ctx context.Context, arg ListTargetsForUserParams) ([]Target, error)
 	ListWpSitesByUser(ctx context.Context, userID uuid.UUID) ([]ListWpSitesByUserRow, error)
 	MarkJobInProgress(ctx context.Context, arg MarkJobInProgressParams) (Job, error)
+	// Transitions a job to 'dlq' status after max retries exceeded.
+	// Sets completed_at so it appears as a terminal state in duration metrics.
+	MoveJobToDLQ(ctx context.Context, jobID uuid.UUID) error
 	PickTargetsForCampaign(ctx context.Context, arg PickTargetsForCampaignParams) ([]Target, error)
+	// Re-queues a transiently-failed job as content_ready with a backoff lease_until.
+	// The worker will not pick it up until lease_until has passed.
+	RescheduleJobRetry(ctx context.Context, arg RescheduleJobRetryParams) error
 	// Resolves a UUID prefix to up to 2 candidates for ambiguity check.
 	// Bot uses 4-8 char prefixes; LIMIT 2 lets us detect collisions cheaply.
 	ResolveCampaignIDPrefix(ctx context.Context, arg ResolveCampaignIDPrefixParams) ([]ResolveCampaignIDPrefixRow, error)

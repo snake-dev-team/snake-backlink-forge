@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/caarlos0/env/v10"
 )
@@ -33,6 +34,20 @@ type Config struct {
 	WorkerLeaseSec    int    `env:"WORKER_LEASE_SEC" envDefault:"300"`
 	WorkerRetryLimit  int    `env:"WORKER_RETRY_LIMIT" envDefault:"3"`
 	WorkerModel       string `env:"WORKER_MODEL"`
+
+	// -- Embedded Go worker (Phase 7.05) --
+	// WorkerEnabled activates the server-side goroutine that polls content_ready jobs.
+	// When false (default), jobs are only processed by the Chrome extension fallback.
+	WorkerEnabled bool `env:"WORKER_ENABLED" envDefault:"false"`
+	// WorkerPollInterval controls how often the worker polls for new jobs.
+	WorkerPollInterval string `env:"WORKER_POLL_INTERVAL" envDefault:"10s"`
+	// WorkerMaxConcurrent is the maximum number of jobs processed simultaneously.
+	WorkerMaxConcurrent int `env:"WORKER_MAX_CONCURRENT" envDefault:"5"`
+	// WorkerInternalRetryLimit is max transient failures before a job moves to DLQ.
+	// Separate from WorkerRetryLimit (legacy execution flow) to avoid collision.
+	WorkerInternalRetryLimit int `env:"WORKER_INTERNAL_RETRY_LIMIT" envDefault:"3"`
+	// WorkerLeaseDuration is how long a claimed job is protected from re-claiming.
+	WorkerLeaseDuration string `env:"WORKER_LEASE_DURATION" envDefault:"5m"`
 
 	// -- Telegram / Payments (Phase 2) --
 	TelegramBotToken    string `env:"TELEGRAM_BOT_TOKEN"`
@@ -188,4 +203,24 @@ func validateAdminTelegramIDs(ids []int64) ([]int64, error) {
 // IsProduction returns true when running in production mode.
 func (c *Config) IsProduction() bool {
 	return c.Env == "production"
+}
+
+// WorkerPollIntervalDuration parses WorkerPollInterval string into time.Duration.
+// Falls back to 10s on parse failure.
+func (c *Config) WorkerPollIntervalDuration() time.Duration {
+	d, err := time.ParseDuration(c.WorkerPollInterval)
+	if err != nil || d <= 0 {
+		return 10 * time.Second
+	}
+	return d
+}
+
+// WorkerLeaseDurationDuration parses WorkerLeaseDuration string into time.Duration.
+// Falls back to 5 minutes on parse failure.
+func (c *Config) WorkerLeaseDurationDuration() time.Duration {
+	d, err := time.ParseDuration(c.WorkerLeaseDuration)
+	if err != nil || d <= 0 {
+		return 5 * time.Minute
+	}
+	return d
 }

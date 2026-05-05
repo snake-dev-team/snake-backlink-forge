@@ -26,6 +26,7 @@ import (
 	appredis "github.com/kekuta/snake-backlink-forge/services/api/internal/redis"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/util"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/worker"
 	"go.uber.org/zap"
 )
 
@@ -130,11 +131,13 @@ func main() {
 	// --- Campaign automation services (Phase 3 web SaaS) ---
 	var campaignSvc *service.CampaignService
 	var jobSvc *service.JobService
+	var executionSvc *service.ExecutionService
 	if dbPool != nil {
 		q := sqlcdb.New(dbPool)
 		campaignSvc = service.NewCampaignService(dbPool, q, log.Named("campaign_svc"))
 		jobSvc = service.NewJobService(dbPool, q, log.Named("job_svc"))
-		log.Info("campaign + job services initialized")
+		executionSvc = service.NewExecutionService(dbPool, q, cfg.WorkerLeaseSec, cfg.WorkerRetryLimit, cfg.WorkerModel, log.Named("execution_svc"))
+		log.Info("campaign + job + execution services initialized")
 	}
 
 	// --- ContentService (Phase 7.04: AI content generation) ---
@@ -251,6 +254,33 @@ func main() {
 		log.Info("audit fail watcher started")
 	}
 
+	// --- Embedded Go Worker (Phase 7.05) ---
+	// Spawned as a detached goroutine so it never blocks API server startup.
+	// Controlled by WORKER_ENABLED env var; gracefully shut down via rootCtx cancellation.
+	var embeddedWorker *worker.Worker
+	if cfg.WorkerEnabled && dbPool != nil && jobSvc != nil && wpSiteSvc != nil {
+		workerCfg := worker.Config{
+			Enabled:       true,
+			PollInterval:  cfg.WorkerPollIntervalDuration(),
+			MaxConcurrent: cfg.WorkerMaxConcurrent,
+			RetryLimit:    cfg.WorkerInternalRetryLimit,
+			LeaseDuration: cfg.WorkerLeaseDurationDuration(),
+		}
+		embeddedWorker = worker.New(workerCfg, worker.Deps{
+			Q:         sqlcdb.New(dbPool),
+			JobSvc:    jobSvc,
+			WpSiteSvc: wpSiteSvc,
+		}, log)
+		go embeddedWorker.Start(rootCtx)
+		log.Info("embedded worker started",
+			zap.Bool("enabled", true),
+			zap.Duration("poll_interval", workerCfg.PollInterval),
+			zap.Int("max_concurrent", workerCfg.MaxConcurrent),
+		)
+	} else if cfg.WorkerEnabled {
+		log.Warn("embedded worker disabled — missing required dependencies (dbPool, jobSvc, or wpSiteSvc)")
+	}
+
 	// --- HTTP Server ---
 	app := api.New(cfg, log, dbPool, rdb)
 	apiDeps := &handlers.ApiHandlerDeps{
@@ -263,9 +293,18 @@ func main() {
 		AuditSvc:    auditSvc,
 		WpSiteSvc:   wpSiteSvc,
 		CampaignSvc: campaignSvc,
-		JobSvc:      jobSvc,
-		ContentSvc:  contentSvc,
-		Log:         log.Named("api_v1"),
+		JobSvc:            jobSvc,
+		ContentSvc:        contentSvc,
+		ExecutionSvc:      executionSvc,
+		WorkerSharedToken: cfg.WorkerSharedToken,
+		WorkerEnabled:     cfg.WorkerEnabled,
+		WorkerID:          func() string {
+			if embeddedWorker != nil {
+				return embeddedWorker.WorkerID()
+			}
+			return ""
+		}(),
+		Log: log.Named("api_v1"),
 	}
 	if dbPool != nil {
 		apiDeps.Queries = sqlcdb.New(dbPool)
@@ -317,8 +356,15 @@ func main() {
 
 	log.Info("shutting down — draining connections (max 10s)")
 
-	// 1. Cancel root context — stops retry consumer + admin alert consumer goroutines.
+	// 1. Cancel root context — stops retry consumer, admin alert consumer, and embedded worker.
 	rootCancel()
+
+	// 1a. Signal embedded worker to drain in-flight jobs (it observes rootCtx cancellation).
+	// Stop() is a no-op hook for symmetry; actual drain happens inside worker.Start().
+	if embeddedWorker != nil {
+		embeddedWorker.Stop(context.Background())
+		log.Info("embedded worker stop signalled")
+	}
 
 	// 2. Stop bot first: drains in-flight handlers before closing DB/Redis.
 	if bot != nil {

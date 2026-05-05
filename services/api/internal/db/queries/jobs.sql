@@ -43,6 +43,9 @@ SELECT * FROM jobs
 WHERE user_id = $1 AND id = $2;
 
 -- name: ClaimNextQueuedJob :one
+-- Phase 7.04: claims content_ready jobs first (AI content populated), falling
+-- back to queued jobs (for backward compat when AI generation is disabled).
+-- Extension receives content_title / content_meta alongside content_body.
 WITH claimed AS (
     UPDATE jobs
     SET status = 'dispatched', dispatched_at = NOW()
@@ -51,9 +54,9 @@ WITH claimed AS (
         FROM jobs j
         JOIN campaigns c ON c.id = j.campaign_id
         WHERE j.user_id = $1
-          AND j.status = 'queued'
+          AND j.status IN ('content_ready', 'queued')
           AND c.status = 'running'
-        ORDER BY j.created_at ASC
+        ORDER BY j.status DESC, j.created_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
     )
@@ -61,7 +64,8 @@ WITH claimed AS (
 )
 SELECT claimed.id, claimed.user_id, claimed.campaign_id, claimed.target_id,
        claimed.target_url_snapshot, claimed.anchor_text, claimed.anchor_type,
-       claimed.content_body, claimed.status, claimed.pool, claimed.credits_cost,
+       claimed.content_body, claimed.content_title, claimed.content_meta,
+       claimed.status, claimed.pool, claimed.credits_cost,
        claimed.captcha_cost, claimed.error_code, claimed.error_message,
        claimed.result_url, claimed.dispatched_at, claimed.completed_at,
        claimed.created_at, c.money_site_url

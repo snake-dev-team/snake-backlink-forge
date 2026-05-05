@@ -21,6 +21,8 @@ func Register(app *fiber.App, pool *pgxpool.Pool, rdb *goredis.Client) {
 func RegisterV1(app *fiber.App, deps *handlers.ApiHandlerDeps) {
 	v1 := app.Group("/api/v1")
 	v1.Get("/health", handlers.Health)
+	// Public worker health endpoint — no auth; safe for load balancer checks.
+	v1.Get("/health/worker", handlers.V1WorkerHealth(deps))
 	v1.Options("/*", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
 	v1.Post("/auth/verify", middleware.NewAuthVerifyRateLimit(deps.Rdb, deps.Log), handlers.V1AuthVerify(deps))
 
@@ -54,6 +56,10 @@ func RegisterV1(app *fiber.App, deps *handlers.ApiHandlerDeps) {
 	extensionAuthed.Get("/wp-sites/by-domain/:domain", handlers.V1WPSiteByDomainExt(deps))
 	authed.Get("/targets", handlers.V1TargetsList(deps))
 	authed.Post("/targets", handlers.V1TargetsCreate(deps))
+
+	worker := v1.Group("/internal/worker")
+	worker.Post("/lease", handlers.V1WorkerLease(deps))
+	worker.Post("/report", handlers.V1WorkerReport(deps))
 }
 
 // RegisterWebhook mounts the SePay webhook route with its middleware chain.
