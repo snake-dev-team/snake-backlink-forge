@@ -1,3 +1,9 @@
+## [1.0.0-beta.47](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.46...v1.0.0-beta.47) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **sqlc:** add missing jobs_content query file referenced by querier interface ([8780d82](https://github.com/snake-dev-team/snake-backlink-forge/commit/8780d82ea11626e0b7553b332e219ccde191f557))
+
 ## [1.0.0-beta.46](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.45...v1.0.0-beta.46) (2026-05-05)
 
 ### 🚀 Features
