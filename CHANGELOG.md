@@ -1,3 +1,9 @@
+## [1.0.0-beta.43](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.42...v1.0.0-beta.43) (2026-05-05)
+
+### 🚀 Features
+
+* **bot:** /campaign commands — list/new/pause/resume/archive/jobs/stats ([ed80402](https://github.com/snake-dev-team/snake-backlink-forge/commit/ed80402219343635c84dfdd61ee5cc7e1440a7ab))
+
 ## [1.0.0-beta.42](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.41...v1.0.0-beta.42) (2026-05-05)
 
 ### 🚀 Features
