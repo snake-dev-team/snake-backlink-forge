@@ -12,11 +12,14 @@ import (
 )
 
 const (
-	claudeAPIURL          = "https://api.anthropic.com/v1/messages"
-	claudeAPIVersion      = "2023-06-01"
-	claudeDefaultModel    = "claude-sonnet-4-6"
-	claudeMaxTokens       = 4096
-	claudeRequestTimeout  = 90 * time.Second
+	// claudeDefaultBaseURL is used when ANTHROPIC_BASE_URL env is unset.
+	// Endpoint suffix /messages is appended; both api.anthropic.com and
+	// proxy services that mirror the Anthropic Messages API contract should accept it.
+	claudeDefaultBaseURL = "https://api.anthropic.com/v1"
+	claudeAPIVersion     = "2023-06-01"
+	claudeDefaultModel   = "claude-sonnet-4-6"
+	claudeMaxTokens      = 4096
+	claudeRequestTimeout = 90 * time.Second
 )
 
 // claudeMessage is a single turn in the messages array.
@@ -51,24 +54,32 @@ type claudeResponse struct {
 	Usage   claudeUsage             `json:"usage"`
 }
 
-// ClaudeClient calls the Anthropic Messages API to generate content.
-// Returns ErrAIUnavailable when APIKey is empty.
+// ClaudeClient calls the Anthropic Messages API (or any proxy that mirrors it)
+// to generate content. Returns ErrAIUnavailable when apiKey is empty.
 type ClaudeClient struct {
 	apiKey     string
 	model      string
+	baseURL    string
 	httpClient *http.Client
 }
 
 // NewClaudeClient constructs a ClaudeClient.
+// baseURL defaults to claudeDefaultBaseURL when empty (e.g. "https://api.anthropic.com/v1").
+// Pass a custom baseURL (e.g. "https://rakrqei.9router.com/v1") to route through a proxy.
 // model defaults to claudeDefaultModel when empty.
 // Returns a client even when apiKey is empty; Generate() will return ErrAIUnavailable.
-func NewClaudeClient(apiKey, model string) *ClaudeClient {
+func NewClaudeClient(apiKey, model, baseURL string) *ClaudeClient {
 	if model == "" {
 		model = claudeDefaultModel
 	}
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		baseURL = claudeDefaultBaseURL
+	}
 	return &ClaudeClient{
-		apiKey: strings.TrimSpace(apiKey),
-		model:  model,
+		apiKey:  strings.TrimSpace(apiKey),
+		model:   model,
+		baseURL: baseURL,
 		httpClient: &http.Client{
 			Timeout: claudeRequestTimeout,
 		},
@@ -104,12 +115,16 @@ func (c *ClaudeClient) Generate(ctx context.Context, req ContentRequest) (Conten
 		return ContentResponse{}, fmt.Errorf("claude: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, claudeAPIURL, bytes.NewReader(body))
+	endpoint := c.baseURL + "/messages"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return ContentResponse{}, fmt.Errorf("claude: build request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	// Send both auth header styles so we work with native Anthropic (x-api-key)
+	// and Bearer-style proxies (9router etc) without per-deploy code changes.
 	httpReq.Header.Set("x-api-key", c.apiKey)
+	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	httpReq.Header.Set("anthropic-version", claudeAPIVersion)
 
 	resp, err := c.httpClient.Do(httpReq)

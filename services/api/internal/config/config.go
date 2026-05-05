@@ -66,9 +66,17 @@ type Config struct {
 	InstallerURL string `env:"INSTALLER_URL"`
 
 	// -- Phase 7.04: AI content generation --
-	// AnthropicAPIKey is the Anthropic API key for Claude content generation.
+	// AnthropicAPIKey is the Anthropic API key (or proxy auth token) for Claude.
 	// Empty → AI content generation disabled (graceful degradation, no panic).
 	AnthropicAPIKey string `env:"ANTHROPIC_API_KEY"`
+	// AnthropicAuthToken is an alternative env name for the same secret. When set
+	// it overrides AnthropicAPIKey. Used by 9router-style proxies that name the
+	// secret ANTHROPIC_AUTH_TOKEN instead of ANTHROPIC_API_KEY.
+	AnthropicAuthToken string `env:"ANTHROPIC_AUTH_TOKEN"`
+	// AnthropicBaseURL points the Claude client at a custom Messages API endpoint.
+	// Empty → uses official https://api.anthropic.com/v1. The client appends "/messages".
+	// Example for 9router proxy: https://rakrqei.9router.com/v1
+	AnthropicBaseURL string `env:"ANTHROPIC_BASE_URL"`
 	// OpenAIAPIKey is the OpenAI API key used as fallback when Claude fails.
 	// Empty → OpenAI fallback disabled.
 	OpenAIAPIKey string `env:"OPENAI_API_KEY"`
@@ -110,6 +118,12 @@ func Load() (*Config, error) {
 	cfg.CORSOrigins = normalizeStringSlice(cfg.CORSOrigins)
 	cfg.TrustedProxyCIDRs = normalizeStringSlice(cfg.TrustedProxyCIDRs)
 	cfg.AnthropicAPIKey = strings.TrimSpace(cfg.AnthropicAPIKey)
+	cfg.AnthropicAuthToken = strings.TrimSpace(cfg.AnthropicAuthToken)
+	cfg.AnthropicBaseURL = strings.TrimSpace(cfg.AnthropicBaseURL)
+	// ANTHROPIC_AUTH_TOKEN takes precedence when both are set (9router-style deploys).
+	if cfg.AnthropicAuthToken != "" {
+		cfg.AnthropicAPIKey = cfg.AnthropicAuthToken
+	}
 	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
 	cfg.AIModelPrimary = strings.TrimSpace(cfg.AIModelPrimary)
 

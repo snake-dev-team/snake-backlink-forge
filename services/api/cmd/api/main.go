@@ -148,7 +148,7 @@ func main() {
 	var contentSvc *service.ContentService
 	if dbPool != nil {
 		aiRouter := ai.NewRouter(
-			ai.NewClaudeClient(cfg.AnthropicAPIKey, cfg.AIModelPrimary),
+			ai.NewClaudeClient(cfg.AnthropicAPIKey, cfg.AIModelPrimary, cfg.AnthropicBaseURL),
 			ai.NewOpenAIClient(cfg.OpenAIAPIKey, ""),
 		)
 		contentSvc = service.NewContentService(dbPool, sqlcdb.New(dbPool), aiRouter, log.Named("content_svc"))
