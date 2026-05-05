@@ -1,3 +1,9 @@
+## [1.0.0-beta.48](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.47...v1.0.0-beta.48) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **handlers:** wire ContentSvc field into ApiHandlerDeps ([10dd4c2](https://github.com/snake-dev-team/snake-backlink-forge/commit/10dd4c24863d8a61a4546ffe1d504566b0540e1a))
+
 ## [1.0.0-beta.47](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.46...v1.0.0-beta.47) (2026-05-05)
 
 ### 🐞 Bug Fixes
