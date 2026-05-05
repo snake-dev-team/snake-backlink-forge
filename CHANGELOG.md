@@ -1,3 +1,13 @@
+## [1.0.0-beta.53](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.52...v1.0.0-beta.53) (2026-05-05)
+
+### 🚀 Features
+
+* **ai:** support custom anthropic base url + dual auth headers for proxy ([5e97957](https://github.com/snake-dev-team/snake-backlink-forge/commit/5e9795781f9dd3c4b9bb23b54679ab2b2fd7bc60))
+
+### 📚 Documentation
+
+* **runbook:** e2e 20 backlinks live test runbook + mock helpers ([33c024f](https://github.com/snake-dev-team/snake-backlink-forge/commit/33c024f875b606b4d4b4eb99e64bf8d6aa93fd9c))
+
 ## [1.0.0-beta.52](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.51...v1.0.0-beta.52) (2026-05-05)
 
 ### 🚀 Features
