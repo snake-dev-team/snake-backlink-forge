@@ -20,5 +20,6 @@ type ApiHandlerDeps struct {
 	WpSiteSvc   *service.WpSiteService
 	CampaignSvc *service.CampaignService
 	JobSvc      *service.JobService
+	ContentSvc  *service.ContentService
 	Log         *zap.Logger
 }
