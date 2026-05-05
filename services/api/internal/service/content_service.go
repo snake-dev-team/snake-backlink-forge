@@ -21,7 +21,9 @@ const (
 	claudeCostPerMOutputUSD = 15.0 // $15.00 / 1M output tokens
 
 	// maxCostPerArticleUSD is the hard cap; generation is aborted if exceeded.
-	maxCostPerArticleUSD = 0.05
+	// Sized for Claude Opus 4.7 worst case (~4K output tokens × $15/M = $0.06)
+	// plus headroom for proxy markup. Sonnet typical run: $0.025-0.035.
+	maxCostPerArticleUSD = 0.15
 
 	// wordCountMin / wordCountMax define acceptable article lengths.
 	wordCountMin = 800

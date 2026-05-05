@@ -141,9 +141,9 @@ func TestCalcCostUSD_TypicalUsage(t *testing.T) {
 }
 
 func TestCalcCostUSD_ExceedsCap(t *testing.T) {
-	// Massive token usage should exceed $0.05 cap.
-	// 10K input + 3K output = 0.03 + 0.045 = 0.075 > 0.05
-	cost := calcCostUSD(10_000, 3_000)
+	// Massive token usage should exceed the cap.
+	// 20K input + 10K output = 0.06 + 0.15 = 0.21 > $0.15 cap
+	cost := calcCostUSD(20_000, 10_000)
 	if cost <= maxCostPerArticleUSD {
 		t.Errorf("expected cost > %f, got %f", maxCostPerArticleUSD, cost)
 	}
@@ -234,9 +234,9 @@ func TestGenerateWithQualityGuard_CostCapExceeded(t *testing.T) {
 	anchor := "dịch vụ SEO"
 	moneyURL := "https://example.com"
 	resp := buildValidResponse(anchor, moneyURL)
-	// Set tokens that exceed $0.05 cap: 10K input + 3K output = $0.075.
-	resp.InputTokens = 10_000
-	resp.OutputTokens = 3_000
+	// Set tokens that exceed $0.15 cap: 20K input + 10K output = $0.21.
+	resp.InputTokens = 20_000
+	resp.OutputTokens = 10_000
 
 	mock := &mockGenerator{resp: resp}
 	svc := NewContentService(nil, nil, mock, nil)
