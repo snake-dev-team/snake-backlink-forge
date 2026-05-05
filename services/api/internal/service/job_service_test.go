@@ -43,19 +43,6 @@ func getStandardCredits(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID) int3
 	return n
 }
 
-// getPremiumCredits reads premium_credits from wallets for the given user.
-func getPremiumCredits(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID) int32 {
-	t.Helper()
-	var n int32
-	err := pool.QueryRow(context.Background(),
-		`SELECT premium_credits FROM wallets WHERE user_id = $1`, userID,
-	).Scan(&n)
-	if err != nil {
-		t.Fatalf("getPremiumCredits: %v", err)
-	}
-	return n
-}
-
 // getCampaignCreditsConsumed reads credits_consumed from campaigns row.
 func getCampaignCreditsConsumed(t *testing.T, pool *pgxpool.Pool, campaignID uuid.UUID) int32 {
 	t.Helper()
