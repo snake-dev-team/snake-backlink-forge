@@ -1,3 +1,9 @@
+## [1.0.0-beta.46](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.45...v1.0.0-beta.46) (2026-05-05)
+
+### 🚀 Features
+
+* **ai:** claude-first content generation + multi-provider fallback ([c7bf603](https://github.com/snake-dev-team/snake-backlink-forge/commit/c7bf603ac9f4cb1acaf924800189e994ad961f5a))
+
 ## [1.0.0-beta.45](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.44...v1.0.0-beta.45) (2026-05-05)
 
 ### 🐞 Bug Fixes
