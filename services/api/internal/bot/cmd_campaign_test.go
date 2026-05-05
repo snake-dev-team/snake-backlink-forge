@@ -33,12 +33,6 @@ func fakeUpdate(cmd, args string) tgbotapi.Update {
 	}
 }
 
-// ctxWithUser returns a context with a synthetic BotUser attached.
-func ctxWithUser(id uuid.UUID) context.Context {
-	u := BotUser{ID: id, Language: "vi"}
-	return context.WithValue(context.Background(), ctxKeyUser, u)
-}
-
 // testDeps returns a minimal Deps with logger and nil services.
 func testDeps() *Deps {
 	log, _ := zap.NewDevelopment()
