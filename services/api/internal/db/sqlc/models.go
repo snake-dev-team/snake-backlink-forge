@@ -418,6 +418,11 @@ type Campaign struct {
 	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
+type CampaignTargetSite struct {
+	CampaignID uuid.UUID `json:"campaign_id"`
+	WpSiteID   uuid.UUID `json:"wp_site_id"`
+}
+
 type DomainCooldown struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Domain   string    `json:"domain"`
