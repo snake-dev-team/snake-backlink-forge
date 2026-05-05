@@ -1,3 +1,9 @@
+## [1.0.0-beta.56](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.55...v1.0.0-beta.56) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **ai:** raise per-article cost cap to $0.15 for claude opus 4.7 ([99f22d4](https://github.com/snake-dev-team/snake-backlink-forge/commit/99f22d48f6b8d2b95d80e5ee013394e7e388082b))
+
 ## [1.0.0-beta.55](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.54...v1.0.0-beta.55) (2026-05-05)
 
 ### 🐞 Bug Fixes
