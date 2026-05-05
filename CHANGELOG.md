@@ -1,3 +1,9 @@
+## [1.0.0-beta.44](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.43...v1.0.0-beta.44) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **bot:** remove unused ctxWithUser helper from campaign smoke test ([99ed37e](https://github.com/snake-dev-team/snake-backlink-forge/commit/99ed37ee3a8b4e5f71834e8266d8f578ec32471f))
+
 ## [1.0.0-beta.43](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.42...v1.0.0-beta.43) (2026-05-05)
 
 ### 🚀 Features
