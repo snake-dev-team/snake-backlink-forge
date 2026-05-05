@@ -136,6 +136,8 @@ func main() {
 		q := sqlcdb.New(dbPool)
 		campaignSvc = service.NewCampaignService(dbPool, q, log.Named("campaign_svc"))
 		jobSvc = service.NewJobService(dbPool, q, log.Named("job_svc"))
+		// Phase 7.06: inject JobService into CampaignService for auto-enqueue on CreateWithSites.
+		campaignSvc.SetJobService(jobSvc)
 		executionSvc = service.NewExecutionService(dbPool, q, cfg.WorkerLeaseSec, cfg.WorkerRetryLimit, cfg.WorkerModel, log.Named("execution_svc"))
 		log.Info("campaign + job + execution services initialized")
 	}

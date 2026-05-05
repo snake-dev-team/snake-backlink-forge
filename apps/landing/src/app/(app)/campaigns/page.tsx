@@ -1,14 +1,17 @@
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   type Campaign,
   fetchCampaignJobsServer,
   fetchCampaignsServer,
+  fetchWpSitesServer,
 } from "@/lib/api/server-fetch";
 import { campaignStatusAction, enqueueCampaignAction } from "./actions";
 import { CampaignCreateForm } from "./campaign-create-form";
 
-export const dynamic = "force-dynamic";
+// force-dynamic removed: page uses ISR via revalidatePath in actions.
+// Campaign list data is always fresh after mutations; no stale SSR caching needed.
 
 type CampaignsPageProps = {
   searchParams?: Promise<{ status?: string; error?: string }>;
@@ -18,12 +21,15 @@ export default async function CampaignsPage({ searchParams }: CampaignsPageProps
   const params = await searchParams;
   const status = params?.status;
   const error = params?.error;
-  let items: Campaign[] | null = null;
-  try {
-    items = (await fetchCampaignsServer()).items;
-  } catch {
-    items = null;
-  }
+
+  // Fetch campaigns + wp-sites in parallel; both are non-critical (fall back to null/[]).
+  const [campaignResult, sitesResult] = await Promise.allSettled([
+    fetchCampaignsServer(),
+    fetchWpSitesServer(),
+  ]);
+  const items: Campaign[] | null =
+    campaignResult.status === "fulfilled" ? campaignResult.value.items : null;
+  const sites = sitesResult.status === "fulfilled" ? sitesResult.value.items : [];
 
   return (
     <div className="space-y-6">
@@ -36,7 +42,7 @@ export default async function CampaignsPage({ searchParams }: CampaignsPageProps
       </div>
 
       <CampaignStatusMessage error={error} status={status} />
-      <CampaignCreateForm />
+      <CampaignCreateForm sites={sites} />
 
       {items === null ? (
         <CampaignsUnavailableCard />
@@ -161,7 +167,11 @@ function CampaignCard({
     <Card className="overflow-hidden">
       <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
         <div>
-          <CardTitle className="text-xl">{campaign.name}</CardTitle>
+          <CardTitle className="text-xl">
+            <Link className="hover:underline" href={`/campaigns/${campaign.id}`}>
+              {campaign.name}
+            </Link>
+          </CardTitle>
           <CardDescription>{campaign.money_site_url}</CardDescription>
         </div>
         <span className="w-fit rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wide">

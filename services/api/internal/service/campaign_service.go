@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -89,16 +90,28 @@ type CampaignInput struct {
 	NicheFilter      bool
 	CreditsAllocated int32
 	StartNow         bool
+	// Quantity is used with StartNow to immediately enqueue N jobs after creation.
+	Quantity         int32
+	// TonePreference is passed to the content generator (AI prompt persona).
+	TonePreference   string
 }
 
 type CampaignService struct {
-	pool *pgxpool.Pool
-	q    *sqlcdb.Queries
-	log  *zap.Logger
+	pool   *pgxpool.Pool
+	q      *sqlcdb.Queries
+	log    *zap.Logger
+	jobSvc *JobService // optional: nil when job automation is disabled
 }
 
 func NewCampaignService(pool *pgxpool.Pool, q *sqlcdb.Queries, log *zap.Logger) *CampaignService {
 	return &CampaignService{pool: pool, q: q, log: log}
+}
+
+// SetJobService injects the JobService so CampaignService.CreateWithSites can
+// auto-enqueue when StartNow=true. Called by the DI wiring in v1_deps after
+// both services are constructed (breaks the circular init dependency).
+func (s *CampaignService) SetJobService(j *JobService) {
+	s.jobSvc = j
 }
 
 func (s *CampaignService) Create(ctx context.Context, userID uuid.UUID, in CampaignInput) (sqlcdb.Campaign, error) {
@@ -130,6 +143,93 @@ func (s *CampaignService) Create(ctx context.Context, userID uuid.UUID, in Campa
 		CreditsAllocated: in.CreditsAllocated,
 		Status:           status,
 	})
+}
+
+// CreateWithSites creates a campaign and associates it with the provided WP site IDs,
+// then optionally enqueues jobs — all in a single logical operation.
+// Atomicity: campaign row + site associations are inserted in one tx; if enqueue
+// fails after commit, the campaign exists in draft/running state but without jobs
+// (the caller can retry enqueue via POST /campaigns/:id/enqueue). This is
+// acceptable — partial state is visible and recoverable, a hard rollback would
+// silently discard the campaign row and confuse the frontend redirect.
+func (s *CampaignService) CreateWithSites(ctx context.Context, userID uuid.UUID, in CampaignInput, siteIDs []uuid.UUID) (sqlcdb.Campaign, error) {
+	if s == nil || s.q == nil {
+		return sqlcdb.Campaign{}, ErrCampaignUnavailable
+	}
+	if err := validateCampaignInput(in); err != nil {
+		return sqlcdb.Campaign{}, err
+	}
+	if len(siteIDs) == 0 {
+		return sqlcdb.Campaign{}, ErrCampaignInvalid
+	}
+
+	anchors, err := json.Marshal(in.AnchorTexts)
+	if err != nil {
+		return sqlcdb.Campaign{}, fmt.Errorf("campaign_service.CreateWithSites: marshal anchors: %w", err)
+	}
+	status := sqlcdb.CampaignStatusDraft
+	if in.StartNow {
+		status = sqlcdb.CampaignStatusRunning
+	}
+
+	// Transactional: campaign row + campaign_target_sites rows together.
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return sqlcdb.Campaign{}, fmt.Errorf("campaign_service.CreateWithSites: begin: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	qtx := s.q.WithTx(tx)
+
+	campaign, err := qtx.CreateCampaign(ctx, sqlcdb.CreateCampaignParams{
+		UserID:           userID,
+		Name:             strings.TrimSpace(in.Name),
+		MoneySiteUrl:     strings.TrimSpace(in.MoneySiteURL),
+		NicheKeywords:    compactStrings(in.NicheKeywords, 20),
+		AnchorTexts:      anchors,
+		Pool:             in.Pool,
+		SourceMode:       in.SourceMode,
+		DailyLimit:       in.DailyLimit,
+		EthicalMode:      in.EthicalMode,
+		NicheFilter:      in.NicheFilter,
+		CreditsAllocated: in.CreditsAllocated,
+		Status:           status,
+	})
+	if err != nil {
+		return sqlcdb.Campaign{}, fmt.Errorf("campaign_service.CreateWithSites: create campaign: %w", err)
+	}
+
+	for _, siteID := range siteIDs {
+		if err := qtx.InsertCampaignTargetSite(ctx, sqlcdb.InsertCampaignTargetSiteParams{
+			CampaignID: campaign.ID,
+			WpSiteID:   siteID,
+		}); err != nil {
+			return sqlcdb.Campaign{}, fmt.Errorf("campaign_service.CreateWithSites: insert site %s: %w", siteID, err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return sqlcdb.Campaign{}, fmt.Errorf("campaign_service.CreateWithSites: commit: %w", err)
+	}
+
+	// Auto-enqueue after commit: best-effort. Campaign already exists if this fails.
+	if in.StartNow && s.jobSvc != nil {
+		qty := in.Quantity
+		if qty <= 0 {
+			qty = in.DailyLimit
+		}
+		if _, enqErr := s.jobSvc.Enqueue(ctx, userID, campaign.ID, qty); enqErr != nil {
+			// Log but don't fail — campaign is created; user can retry enqueue manually.
+			if s.log != nil {
+				s.log.Warn("campaign_service.CreateWithSites: auto-enqueue failed (campaign created)",
+					zap.String("campaign_id", campaign.ID.String()),
+					zap.Error(enqErr),
+				)
+			}
+		}
+	}
+
+	return campaign, nil
 }
 
 func (s *CampaignService) List(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]sqlcdb.ListCampaignsByUserRow, error) {

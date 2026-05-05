@@ -26,16 +26,33 @@ const campaignSchema = z.object({
   daily_limit: z.coerce.number().int().min(5).max(50),
   credits_allocated: z.coerce.number().int().min(1).max(100000),
   start_now: z.coerce.boolean().default(false),
+  // Phase 7.06: multi-site targeting + auto-enqueue fields.
+  // site_ids is optional: empty means use legacy target-pool picker.
+  site_ids: z
+    .array(z.string().uuid("site_id phải là UUID hợp lệ"))
+    .min(1, "Chọn ít nhất 1 site.")
+    .optional(),
+  quantity: z.coerce.number().int().min(1).max(100).default(10),
+  tone_preference: z
+    .enum(["professional", "casual", "storytelling", "technical"])
+    .default("professional"),
 });
 
 export type CampaignActionState = {
   error?: string;
+  /** Per-field validation messages for client display. */
+  fieldErrors?: Record<string, string>;
+  /** True after first submit attempt — enables showing site-select validation error. */
+  attempted?: boolean;
 };
 
 export async function createCampaignAction(
   _prevState: CampaignActionState,
   formData: FormData,
 ): Promise<CampaignActionState> {
+  // site_ids submitted as multiple hidden inputs — getAll collects all values.
+  const rawSiteIds = formData.getAll("site_ids").map(String).filter(Boolean);
+
   const parsed = campaignSchema.safeParse({
     name: formData.get("name"),
     money_site_url: formData.get("money_site_url"),
@@ -46,9 +63,22 @@ export async function createCampaignAction(
     daily_limit: formData.get("daily_limit") || 5,
     credits_allocated: formData.get("credits_allocated") || 10,
     start_now: formData.get("start_now") === "on",
+    // Pass undefined when empty so the min(1) optional validation is skipped.
+    site_ids: rawSiteIds.length > 0 ? rawSiteIds : undefined,
+    quantity: formData.get("quantity") || 10,
+    tone_preference: formData.get("tone_preference") || "professional",
   });
   if (!parsed.success) {
-    return { error: "Nhập campaign hợp lệ: URL public, keyword/anchor cách nhau bằng dấu phẩy." };
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const key = issue.path[0]?.toString() ?? "form";
+      if (!fieldErrors[key]) fieldErrors[key] = issue.message;
+    }
+    return {
+      error: "Nhập campaign hợp lệ: URL public, keyword/anchor cách nhau bằng dấu phẩy.",
+      fieldErrors,
+      attempted: true,
+    };
   }
 
   const response = await postProxyServer("/campaigns", parsed.data);

@@ -27,6 +27,10 @@ type campaignCreateRequest struct {
 	NicheFilter      *bool                     `json:"niche_filter"`
 	CreditsAllocated int32                     `json:"credits_allocated"`
 	StartNow         bool                      `json:"start_now"`
+	// Phase 7.06: multi-site targeting + auto-enqueue fields.
+	SiteIDs        []uuid.UUID `json:"site_ids"`
+	Quantity       int32       `json:"quantity"`
+	TonePreference string      `json:"tone_preference"`
 }
 
 type targetCreateRequest struct {
@@ -92,7 +96,7 @@ func V1CampaignsCreate(deps *ApiHandlerDeps) fiber.Handler {
 		if body.NicheFilter != nil {
 			nicheFilter = *body.NicheFilter
 		}
-		item, err := deps.CampaignSvc.Create(c.Context(), apiUser.ID, service.CampaignInput{
+		in := service.CampaignInput{
 			Name:             body.Name,
 			MoneySiteURL:     body.MoneySiteURL,
 			NicheKeywords:    body.NicheKeywords,
@@ -104,11 +108,25 @@ func V1CampaignsCreate(deps *ApiHandlerDeps) fiber.Handler {
 			NicheFilter:      nicheFilter,
 			CreditsAllocated: body.CreditsAllocated,
 			StartNow:         body.StartNow,
-		})
+			Quantity:         body.Quantity,
+			TonePreference:   body.TonePreference,
+		}
+
+		// When site_ids provided, use CreateWithSites (atomic campaign + targets + optional enqueue).
+		// Legacy path (no site_ids) uses the original Create for backward compat.
+		var (
+			row sqlcdb.Campaign
+			err error
+		)
+		if len(body.SiteIDs) > 0 {
+			row, err = deps.CampaignSvc.CreateWithSites(c.Context(), apiUser.ID, in, body.SiteIDs)
+		} else {
+			row, err = deps.CampaignSvc.Create(c.Context(), apiUser.ID, in)
+		}
 		if err != nil {
 			return writeCampaignErr(c, deps, err)
 		}
-		return c.Status(fiber.StatusCreated).JSON(fiber.Map{"item": campaign(item)})
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{"item": campaign(row)})
 	}
 }
 

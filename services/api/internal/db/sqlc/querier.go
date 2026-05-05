@@ -59,6 +59,7 @@ type Querier interface {
 	// Queries for the jobs table.
 	CreateJob(ctx context.Context, arg CreateJobParams) (Job, error)
 	CreditsOutstanding(ctx context.Context) (CreditsOutstandingRow, error)
+	DeleteCampaignTargetSites(ctx context.Context, campaignID uuid.UUID) error
 	EnsureWallet(ctx context.Context, userID uuid.UUID) error
 	FailJob(ctx context.Context, arg FailJobParams) (Job, error)
 	// Queries for the api_keys table.
@@ -114,6 +115,10 @@ type Querier interface {
 	// ip_hash stores sha256(ip) — raw IP is never persisted.
 	// Phase 2 placeholder removed and replaced with real queries below.
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
+	// Queries for the campaign_target_sites join table.
+	// Maps which WP sites a campaign should post backlinks to.
+	// Normalized join table: campaign_id × wp_site_id (PK on both).
+	InsertCampaignTargetSite(ctx context.Context, arg InsertCampaignTargetSiteParams) error
 	InsertKey(ctx context.Context, arg InsertKeyParams) (ApiKey, error)
 	// Queries for the transactions table. Phase 05: pending intent + cancel.
 	// Phase 06 webhook will add MarkPaid / MarkRecovered queries.
@@ -123,10 +128,14 @@ type Querier interface {
 	InsertSupportTicket(ctx context.Context, arg InsertSupportTicketParams) (SupportTicket, error)
 	// Queries for connected WordPress sites.
 	InsertWpSite(ctx context.Context, arg InsertWpSiteParams) (WpSite, error)
+	ListCampaignTargetSites(ctx context.Context, campaignID uuid.UUID) ([]CampaignTargetSite, error)
 	ListCampaignsByUser(ctx context.Context, arg ListCampaignsByUserParams) ([]ListCampaignsByUserRow, error)
 	ListJobsByCampaign(ctx context.Context, arg ListJobsByCampaignParams) ([]Job, error)
 	ListTargetsForUser(ctx context.Context, arg ListTargetsForUserParams) ([]Target, error)
 	ListWpSitesByUser(ctx context.Context, userID uuid.UUID) ([]ListWpSitesByUserRow, error)
+	// Returns full WP site rows for a campaign's selected target sites.
+	// Used by JobService.Enqueue to resolve site URLs when building jobs.
+	ListWpSitesForCampaign(ctx context.Context, campaignID uuid.UUID) ([]ListWpSitesForCampaignRow, error)
 	MarkJobInProgress(ctx context.Context, arg MarkJobInProgressParams) (Job, error)
 	// Transitions a job to 'dlq' status after max retries exceeded.
 	// Sets completed_at so it appears as a terminal state in duration metrics.
