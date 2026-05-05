@@ -10,7 +10,7 @@ INSERT INTO campaigns (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
     $11, $12,
-    CASE WHEN $12 = 'running' THEN NOW() ELSE NULL END
+    CASE WHEN $12::campaign_status = 'running' THEN NOW() ELSE NULL END
 )
 RETURNING *;
 
@@ -38,8 +38,8 @@ WHERE user_id = $1 AND id = $2;
 -- name: UpdateCampaignStatus :one
 UPDATE campaigns
 SET status = $3,
-    started_at = CASE WHEN $3 = 'running' AND started_at IS NULL THEN NOW() ELSE started_at END,
-    completed_at = CASE WHEN $3 IN ('completed', 'archived') THEN NOW() ELSE completed_at END,
+    started_at = CASE WHEN $3::campaign_status = 'running' AND started_at IS NULL THEN NOW() ELSE started_at END,
+    completed_at = CASE WHEN $3::campaign_status IN ('completed', 'archived') THEN NOW() ELSE completed_at END,
     updated_at = NOW()
 WHERE user_id = $1 AND id = $2
 RETURNING *;
