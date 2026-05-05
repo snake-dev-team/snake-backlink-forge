@@ -1,3 +1,9 @@
+## [1.0.0-beta.55](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.54...v1.0.0-beta.55) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **ai:** tolerate sse trailer (data: [DONE]) appended by 9router proxy ([56bf552](https://github.com/snake-dev-team/snake-backlink-forge/commit/56bf5523da7dfd69608a2472030dd69af2f88d9e))
+
 ## [1.0.0-beta.54](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.53...v1.0.0-beta.54) (2026-05-05)
 
 ### 🐞 Bug Fixes
