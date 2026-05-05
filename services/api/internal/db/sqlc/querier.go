@@ -110,6 +110,9 @@ type Querier interface {
 	ListWpSitesByUser(ctx context.Context, userID uuid.UUID) ([]ListWpSitesByUserRow, error)
 	MarkJobInProgress(ctx context.Context, arg MarkJobInProgressParams) (Job, error)
 	PickTargetsForCampaign(ctx context.Context, arg PickTargetsForCampaignParams) ([]Target, error)
+	// Resolves a UUID prefix to up to 2 candidates for ambiguity check.
+	// Bot uses 4-8 char prefixes; LIMIT 2 lets us detect collisions cheaply.
+	ResolveCampaignIDPrefix(ctx context.Context, arg ResolveCampaignIDPrefixParams) ([]ResolveCampaignIDPrefixRow, error)
 	RevokeActiveKeysForUser(ctx context.Context, userID uuid.UUID) error
 	SetLanguage(ctx context.Context, arg SetLanguageParams) error
 	SetPhoneAndVerify(ctx context.Context, arg SetPhoneAndVerifyParams) (User, error)

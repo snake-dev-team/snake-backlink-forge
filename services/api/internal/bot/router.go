@@ -19,6 +19,7 @@ const helpText = `Snake Backlink Forge — lệnh khả dụng:
 /buy      — Mua gói credits
 /topup    — Nạp credits (gửi lại QR pending nếu có)
 /history  — Lịch sử giao dịch + ngân sách
+/campaign — Quản lý campaigns (list/new/pause/resume/archive/jobs/stats)
 /ref      — Chương trình giới thiệu (mã + link)
 /support  — Liên hệ hỗ trợ
 /download — Tải installer Windows
@@ -94,6 +95,9 @@ func dispatchCommand(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, upda
 		return HandleRef(ctx, deps, api, update)
 	case "language":
 		return HandleLanguage(ctx, deps, api, update)
+	// Phase 07.02 — campaign CRUD subcommands.
+	case "campaign":
+		return HandleCampaign(ctx, deps, api, update)
 	// Phase 08 — silent ignore for non-admin handled inside HandleAdmin (no info leak).
 	case "admin":
 		return HandleAdmin(ctx, deps, api, update)
@@ -147,6 +151,12 @@ func dispatchCallback(ctx context.Context, deps *Deps, api *tgbotapi.BotAPI, upd
 	// topup:cancel:<tx_id> — cancel pending transaction.
 	case strings.HasPrefix(data, "topup:cancel:"):
 		return handleTopupCancelCallback(ctx, deps, api, update)
+
+	// Phase 07.02: campaign list pagination and jobs pagination.
+	case strings.HasPrefix(data, "cmp:list:"):
+		return HandleCampaignListCallback(ctx, deps, api, update)
+	case strings.HasPrefix(data, "cmp:jobs:"):
+		return HandleCampaignJobsCallback(ctx, deps, api, update)
 
 	// Phase 07: history pagination, support FAQ, download guide, language switch.
 	case strings.HasPrefix(data, "hist:tx:"):

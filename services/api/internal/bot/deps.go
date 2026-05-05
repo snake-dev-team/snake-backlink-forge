@@ -66,4 +66,12 @@ type Deps struct {
 	// finishes wiring. The templateRender helper in cmd_helpers_template.go
 	// implements this guard centrally.
 	Templates *templates.Renderer
+
+	// CampaignService handles campaign CRUD (create, list, get, set-status).
+	// Phase 7.02: wired in main.go. Nil until DB is available.
+	CampaignService *service.CampaignService
+
+	// JobService handles job listing and KPI stats for campaign bot commands.
+	// Phase 7.02: wired in main.go. Nil until DB is available.
+	JobService *service.JobService
 }

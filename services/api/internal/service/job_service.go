@@ -430,3 +430,15 @@ func isInsufficientCredits(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.Is(err, ErrInsufficientCredits) || (errors.As(err, &pgErr) && pgErr.Code == "P0001" && pgErr.Message == "INSUFFICIENT_CREDITS")
 }
+
+// GetCampaignJobStats returns aggregated job status counts for a campaign.
+// Thin wrapper around the CampaignJobStats sqlc query for use by bot handlers.
+func (s *JobService) GetCampaignJobStats(ctx context.Context, userID, campaignID uuid.UUID) (sqlcdb.CampaignJobStatsRow, error) {
+	if s == nil || s.q == nil {
+		return sqlcdb.CampaignJobStatsRow{}, ErrJobUnavailable
+	}
+	return s.q.CampaignJobStats(ctx, sqlcdb.CampaignJobStatsParams{
+		UserID:     userID,
+		CampaignID: campaignID,
+	})
+}

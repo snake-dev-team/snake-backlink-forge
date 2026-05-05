@@ -247,6 +247,44 @@ func (q *Queries) ListCampaignsByUser(ctx context.Context, arg ListCampaignsByUs
 	return items, nil
 }
 
+const resolveCampaignIDPrefix = `-- name: ResolveCampaignIDPrefix :many
+SELECT id, name FROM campaigns
+WHERE user_id = $1 AND id::text LIKE $2::text || '%'
+LIMIT 2
+`
+
+type ResolveCampaignIDPrefixParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Prefix string    `json:"prefix"`
+}
+
+type ResolveCampaignIDPrefixRow struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+// Resolves a UUID prefix to up to 2 candidates for ambiguity check.
+// Bot uses 4-8 char prefixes; LIMIT 2 lets us detect collisions cheaply.
+func (q *Queries) ResolveCampaignIDPrefix(ctx context.Context, arg ResolveCampaignIDPrefixParams) ([]ResolveCampaignIDPrefixRow, error) {
+	rows, err := q.db.Query(ctx, resolveCampaignIDPrefix, arg.UserID, arg.Prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ResolveCampaignIDPrefixRow
+	for rows.Next() {
+		var i ResolveCampaignIDPrefixRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateCampaignStatus = `-- name: UpdateCampaignStatus :one
 UPDATE campaigns
 SET status = $3,

@@ -188,19 +188,21 @@ func main() {
 		log.Warn("bot disabled — TELEGRAM_BOT_TOKEN empty")
 	} else {
 		b, botErr := appbot.New(&appbot.Deps{
-			Pool:           dbPool,
-			Rdb:            rdb,
-			Log:            log.Named("bot"),
-			Cfg:            cfg,
-			UserService:    userSvc,
-			KeyService:     keySvc,
-			WalletService:  walletSvc,
-			TxService:      txSvc,
-			SupportService: supportSvc,
-			RefService:     refSvc,
-			AdminService:   adminSvc,
-			AuditService:   auditSvc,
-			Templates:      tmplRenderer,
+			Pool:            dbPool,
+			Rdb:             rdb,
+			Log:             log.Named("bot"),
+			Cfg:             cfg,
+			UserService:     userSvc,
+			KeyService:      keySvc,
+			WalletService:   walletSvc,
+			TxService:       txSvc,
+			SupportService:  supportSvc,
+			RefService:      refSvc,
+			AdminService:    adminSvc,
+			AuditService:    auditSvc,
+			Templates:       tmplRenderer,
+			CampaignService: campaignSvc,
+			JobService:      jobSvc,
 		})
 		if botErr != nil {
 			if errors.Is(botErr, appbot.ErrBotDisabled) {

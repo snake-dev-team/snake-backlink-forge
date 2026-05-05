@@ -212,6 +212,19 @@ func validateCampaignInput(in CampaignInput) error {
 	return nil
 }
 
+// ResolveIDPrefix returns at most 2 campaigns matching the given ID prefix for the user.
+// Bot handlers use this to resolve user-supplied short IDs (e.g. "ab12ef34") to full UUIDs.
+// 0 rows → not found; 2 rows → ambiguous prefix; 1 row → resolved.
+func (s *CampaignService) ResolveIDPrefix(ctx context.Context, userID uuid.UUID, prefix string) ([]sqlcdb.ResolveCampaignIDPrefixRow, error) {
+	if s == nil || s.q == nil {
+		return nil, ErrCampaignUnavailable
+	}
+	return s.q.ResolveCampaignIDPrefix(ctx, sqlcdb.ResolveCampaignIDPrefixParams{
+		UserID: userID,
+		Prefix: prefix,
+	})
+}
+
 func compactStrings(values []string, max int) []string {
 	out := make([]string, 0, len(values))
 	seen := map[string]struct{}{}

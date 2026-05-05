@@ -52,3 +52,10 @@ WHERE user_id = $1 AND id = $2;
 
 -- name: CountRunningCampaignsByUser :one
 SELECT COUNT(*) FROM campaigns WHERE user_id = $1 AND status = 'running';
+
+-- name: ResolveCampaignIDPrefix :many
+-- Resolves a UUID prefix to up to 2 candidates for ambiguity check.
+-- Bot uses 4-8 char prefixes; LIMIT 2 lets us detect collisions cheaply.
+SELECT id, name FROM campaigns
+WHERE user_id = $1 AND id::text LIKE sqlc.arg(prefix)::text || '%'
+LIMIT 2;
