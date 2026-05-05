@@ -1,3 +1,9 @@
+## [1.0.0-beta.54](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.53...v1.0.0-beta.54) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **deploy:** use CMD instead of ENTRYPOINT so fly release_command swaps binary ([85d75f3](https://github.com/snake-dev-team/snake-backlink-forge/commit/85d75f3f1fc543fb81dc4839016e1694e7ffc12d))
+
 ## [1.0.0-beta.53](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.52...v1.0.0-beta.53) (2026-05-05)
 
 ### 🚀 Features
