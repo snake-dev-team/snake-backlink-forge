@@ -28,7 +28,7 @@ type ExecutionLease struct {
 	JobID             uuid.UUID
 	UserID            uuid.UUID
 	CampaignID        uuid.UUID
-	TargetID          uuid.UUID
+	TargetID          *uuid.UUID // nullable: NULL for campaign_target_sites (wp_sites) path
 	TargetURLSnapshot string
 	AnchorText        string
 	AnchorType        string

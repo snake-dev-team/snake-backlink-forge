@@ -157,51 +157,104 @@ func (s *JobService) Enqueue(ctx context.Context, userID, campaignID uuid.UUID, 
 		count = remainingBudget
 	}
 
-	targets, err := qtx.PickTargetsForCampaign(ctx, sqlcdb.PickTargetsForCampaignParams{
-		OwnerUserID: &userID,
-		Pool:        campaign.Pool,
-		CampaignID:  campaign.ID,
-		Column4:     24,
-		Limit:       count,
-	})
+	// Decide path: if campaign has linked wp_sites, use them. Otherwise fall back to
+	// global targets pool (legacy campaigns created before campaign_target_sites table).
+	siteCount, err := qtx.CountCampaignTargetSites(ctx, campaign.ID)
 	if err != nil {
-		return nil, err
-	}
-	if len(targets) == 0 {
-		if err := tx.Commit(ctx); err != nil {
-			return nil, fmt.Errorf("job_service.Enqueue: commit empty: %w", err)
-		}
-		return []sqlcdb.Job{}, nil
+		return nil, fmt.Errorf("job_service.Enqueue: count sites: %w", err)
 	}
 
-	// F1 fix: INSERT jobs FIRST, then debit only the actual inserted count.
-	// The original code debited len(targets) before the insert loop, which caused
-	// silent overcharges when ON CONFLICT DO NOTHING skipped duplicates.
-	// Now: jobs slice accumulates successes → actual cost = len(jobs) → charge exactly that.
-	jobs := make([]sqlcdb.Job, 0, len(targets))
-	for i, target := range targets {
-		anchor := anchors[i%len(anchors)]
-		job, err := qtx.CreateJob(ctx, sqlcdb.CreateJobParams{
-			UserID:            userID,
-			CampaignID:        campaign.ID,
-			TargetID:          target.ID,
-			TargetUrlSnapshot: target.Url,
-			AnchorText:        anchor.Text,
-			AnchorType:        anchor.Type,
-			Pool:              campaign.Pool,
-			CreditsCost:       1,
+	var jobs []sqlcdb.Job
+
+	if siteCount > 0 {
+		// ── New path: jobs from user's own wp_sites via campaign_target_sites ──────
+		// One job per linked wp_site (deduplication: skip if job already exists for that base_url).
+		// No UpsertDomainCooldown: user owns the site so per-domain cooldown is irrelevant.
+		sites, err := qtx.PickWpSitesForCampaign(ctx, sqlcdb.PickWpSitesForCampaignParams{
+			CampaignID: campaign.ID,
+			UserID:     userID,
+			LimitCount: count,
 		})
-		if errors.Is(err, pgx.ErrNoRows) {
-			// ON CONFLICT DO NOTHING — duplicate target for this campaign; skip.
-			continue
+		if err != nil {
+			return nil, fmt.Errorf("job_service.Enqueue: pick wp sites: %w", err)
 		}
+		if len(sites) == 0 {
+			if err := tx.Commit(ctx); err != nil {
+				return nil, fmt.Errorf("job_service.Enqueue: commit empty sites: %w", err)
+			}
+			return []sqlcdb.Job{}, nil
+		}
+
+		jobs = make([]sqlcdb.Job, 0, len(sites))
+		for i, site := range sites {
+			anchor := anchors[i%len(anchors)]
+			job, err := qtx.CreateJobForSite(ctx, sqlcdb.CreateJobForSiteParams{
+				UserID:            userID,
+				CampaignID:        campaign.ID,
+				TargetUrlSnapshot: site.BaseUrl,
+				AnchorText:        anchor.Text,
+				AnchorType:        anchor.Type,
+				Pool:              campaign.Pool,
+				CreditsCost:       1,
+			})
+			if errors.Is(err, pgx.ErrNoRows) {
+				// ON CONFLICT DO NOTHING — site already has a job for this campaign; skip.
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("job_service.Enqueue: create job for site %s: %w", site.BaseUrl, err)
+			}
+			jobs = append(jobs, job)
+		}
+	} else {
+		// ── Legacy path: pick from global targets pool ────────────────────────────
+		targets, err := qtx.PickTargetsForCampaign(ctx, sqlcdb.PickTargetsForCampaignParams{
+			OwnerUserID: &userID,
+			Pool:        campaign.Pool,
+			CampaignID:  campaign.ID,
+			Column4:     24,
+			Limit:       count,
+		})
 		if err != nil {
 			return nil, err
 		}
-		if err := qtx.UpsertDomainCooldown(ctx, sqlcdb.UpsertDomainCooldownParams{UserID: userID, Domain: target.Domain}); err != nil {
-			return nil, err
+		if len(targets) == 0 {
+			if err := tx.Commit(ctx); err != nil {
+				return nil, fmt.Errorf("job_service.Enqueue: commit empty: %w", err)
+			}
+			return []sqlcdb.Job{}, nil
 		}
-		jobs = append(jobs, job)
+
+		// F1 fix: INSERT jobs FIRST, then debit only the actual inserted count.
+		// The original code debited len(targets) before the insert loop, which caused
+		// silent overcharges when ON CONFLICT DO NOTHING skipped duplicates.
+		// Now: jobs slice accumulates successes → actual cost = len(jobs) → charge exactly that.
+		jobs = make([]sqlcdb.Job, 0, len(targets))
+		for i, target := range targets {
+			anchor := anchors[i%len(anchors)]
+			tID := target.ID // copy for pointer
+			job, err := qtx.CreateJob(ctx, sqlcdb.CreateJobParams{
+				UserID:            userID,
+				CampaignID:        campaign.ID,
+				TargetID:          &tID,
+				TargetUrlSnapshot: target.Url,
+				AnchorText:        anchor.Text,
+				AnchorType:        anchor.Type,
+				Pool:              campaign.Pool,
+				CreditsCost:       1,
+			})
+			if errors.Is(err, pgx.ErrNoRows) {
+				// ON CONFLICT DO NOTHING — duplicate target for this campaign; skip.
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			if err := qtx.UpsertDomainCooldown(ctx, sqlcdb.UpsertDomainCooldownParams{UserID: userID, Domain: target.Domain}); err != nil {
+				return nil, err
+			}
+			jobs = append(jobs, job)
+		}
 	}
 
 	// If all targets were duplicates, roll back without charging anything.

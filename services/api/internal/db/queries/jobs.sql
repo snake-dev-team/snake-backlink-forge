@@ -8,7 +8,29 @@ INSERT INTO jobs (
     $1, $2, $3, $4, $5,
     $6, $7, 'queued', $8, $9
 )
-ON CONFLICT (campaign_id, target_id) DO NOTHING
+ON CONFLICT (campaign_id, target_id) WHERE target_id IS NOT NULL DO NOTHING
+RETURNING *;
+
+-- name: CreateJobForSite :one
+-- Inserts a job sourced from a user's own wp_site (campaign_target_sites path).
+-- target_id is NULL because wp_sites are not rows in the targets table.
+-- Deduplication is enforced by the jobs_campaign_url_unique partial index
+-- (campaign_id, target_url_snapshot) WHERE target_id IS NULL.
+INSERT INTO jobs (
+    user_id, campaign_id, target_id, target_url_snapshot, anchor_text,
+    anchor_type, status, pool, credits_cost
+) VALUES (
+    sqlc.arg(user_id)::uuid,
+    sqlc.arg(campaign_id)::uuid,
+    NULL,
+    sqlc.arg(target_url_snapshot)::text,
+    sqlc.arg(anchor_text)::text,
+    sqlc.arg(anchor_type)::text,
+    'queued',
+    sqlc.arg(pool)::text,
+    sqlc.arg(credits_cost)::int
+)
+ON CONFLICT (campaign_id, target_url_snapshot) WHERE target_id IS NULL DO NOTHING
 RETURNING *;
 
 -- name: CountCampaignQueuedWork :one

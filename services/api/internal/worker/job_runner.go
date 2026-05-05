@@ -118,6 +118,13 @@ func (w *Worker) runJob(ctx context.Context, job sqlcdb.Job) {
 		return
 	}
 
+	// --- Async post-publish verification (Phase 7.07) ---
+	// Non-blocking: Verify enqueues the job ID into a buffered channel.
+	// The Verifier goroutine processes it independently of the worker pool.
+	if w.deps.Verifier != nil {
+		w.deps.Verifier.Verify(job.ID)
+	}
+
 	log.Info("job completed successfully", zap.String("post_url", result.PostURL))
 }
 

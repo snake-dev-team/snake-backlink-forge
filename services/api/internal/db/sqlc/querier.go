@@ -35,6 +35,9 @@ type Querier interface {
 	CountAuditLogByEventSince(ctx context.Context, arg CountAuditLogByEventSinceParams) (int64, error)
 	CountCampaignCompletedWork(ctx context.Context, arg CountCampaignCompletedWorkParams) (int32, error)
 	CountCampaignQueuedWork(ctx context.Context, arg CountCampaignQueuedWorkParams) (int32, error)
+	// Returns the number of wp_sites linked to a campaign.
+	// Used by JobService.Enqueue to decide between the new wp_sites path and legacy targets path.
+	CountCampaignTargetSites(ctx context.Context, campaignID uuid.UUID) (int32, error)
 	// Uses Asia/Ho_Chi_Minh timezone for month boundary (VN-only user base).
 	// Avoids UTC drift where VN users see counter reset 7 hours early at month end.
 	CountCreditsConsumedThisMonth(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -58,6 +61,11 @@ type Querier interface {
 	CreateCustomTarget(ctx context.Context, arg CreateCustomTargetParams) (Target, error)
 	// Queries for the jobs table.
 	CreateJob(ctx context.Context, arg CreateJobParams) (Job, error)
+	// Inserts a job sourced from a user's own wp_site (campaign_target_sites path).
+	// target_id is NULL because wp_sites are not rows in the targets table.
+	// Deduplication is enforced by the jobs_campaign_url_unique partial index
+	// (campaign_id, target_url_snapshot) WHERE target_id IS NULL.
+	CreateJobForSite(ctx context.Context, arg CreateJobForSiteParams) (Job, error)
 	CreditsOutstanding(ctx context.Context) (CreditsOutstandingRow, error)
 	DeleteCampaignTargetSites(ctx context.Context, campaignID uuid.UUID) error
 	EnsureWallet(ctx context.Context, userID uuid.UUID) error
@@ -73,6 +81,8 @@ type Querier interface {
 	GetCampaignQueuedJobsForContent(ctx context.Context, arg GetCampaignQueuedJobsForContentParams) ([]GetCampaignQueuedJobsForContentRow, error)
 	GetJobByUser(ctx context.Context, arg GetJobByUserParams) (Job, error)
 	GetJobForReport(ctx context.Context, arg GetJobForReportParams) (Job, error)
+	// Fetches a single job's data needed by the verifier (result_url, money_site_url, anchor_text).
+	GetJobForVerification(ctx context.Context, jobID uuid.UUID) (GetJobForVerificationRow, error)
 	GetKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
 	GetLedgerConsumesByUserPage(ctx context.Context, arg GetLedgerConsumesByUserPageParams) ([]Ledger, error)
 	// Queries for the ledger table. Phase 04: paginated history + count.
@@ -88,6 +98,15 @@ type Querier interface {
 	// Webhook lookup: find a transaction by its SePay order code (provider_ref).
 	GetTxByProviderRef(ctx context.Context, providerRef *string) (Transaction, error)
 	GetTxByUserPage(ctx context.Context, arg GetTxByUserPageParams) ([]Transaction, error)
+	// Returns success jobs that need verification or re-verification.
+	// Conditions:
+	//   - status = 'success' (only completed jobs are verified)
+	//   - verified IS DISTINCT FROM TRUE (not yet successfully verified)
+	//   - verification_attempts < 3 (under retry limit)
+	//   - created_at < NOW() - INTERVAL '1 minute' (debounce: allow DNS propagation)
+	//   - last_verification_at IS NULL OR last_verification_at < NOW() - INTERVAL '15 minutes'
+	//     (cooldown: don't hammer the same URL repeatedly)
+	GetUnverifiedJobs(ctx context.Context, limitCount int32) ([]GetUnverifiedJobsRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByKeyPrefix(ctx context.Context, keyPrefix string) (User, error)
 	GetUserByPhone(ctx context.Context, phoneE164 *string) (User, error)
@@ -137,10 +156,20 @@ type Querier interface {
 	// Used by JobService.Enqueue to resolve site URLs when building jobs.
 	ListWpSitesForCampaign(ctx context.Context, campaignID uuid.UUID) ([]ListWpSitesForCampaignRow, error)
 	MarkJobInProgress(ctx context.Context, arg MarkJobInProgressParams) (Job, error)
+	// Verification queries for post-publish checking.
+	// These are separate from jobs.sql to keep file sizes manageable.
+	// All queries target jobs with status='success' that need link verification.
+	// Updates verification result columns after a verification attempt.
+	// Increments verification_attempts and sets verified/anchor_verified/verified_at.
+	MarkJobVerified(ctx context.Context, arg MarkJobVerifiedParams) error
 	// Transitions a job to 'dlq' status after max retries exceeded.
 	// Sets completed_at so it appears as a terminal state in duration metrics.
 	MoveJobToDLQ(ctx context.Context, jobID uuid.UUID) error
 	PickTargetsForCampaign(ctx context.Context, arg PickTargetsForCampaignParams) ([]Target, error)
+	// Returns connected wp_sites linked to a campaign that do NOT already have a job
+	// for this campaign (deduplication: one job per campaign×site URL pair).
+	// Uses FOR UPDATE OF w SKIP LOCKED so concurrent Enqueue calls don't double-pick.
+	PickWpSitesForCampaign(ctx context.Context, arg PickWpSitesForCampaignParams) ([]PickWpSitesForCampaignRow, error)
 	// Re-queues a transiently-failed job as content_ready with a backoff lease_until.
 	// The worker will not pick it up until lease_until has passed.
 	RescheduleJobRetry(ctx context.Context, arg RescheduleJobRetryParams) error

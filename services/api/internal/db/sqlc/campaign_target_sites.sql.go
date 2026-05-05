@@ -11,6 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const countCampaignTargetSites = `-- name: CountCampaignTargetSites :one
+SELECT COUNT(*)::int FROM campaign_target_sites
+WHERE campaign_id = $1::uuid
+`
+
+// Returns the number of wp_sites linked to a campaign.
+// Used by JobService.Enqueue to decide between the new wp_sites path and legacy targets path.
+func (q *Queries) CountCampaignTargetSites(ctx context.Context, campaignID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, countCampaignTargetSites, campaignID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteCampaignTargetSites = `-- name: DeleteCampaignTargetSites :exec
 DELETE FROM campaign_target_sites
 WHERE campaign_id = $1
@@ -104,6 +118,59 @@ func (q *Queries) ListWpSitesForCampaign(ctx context.Context, campaignID uuid.UU
 			&i.Label,
 			&i.Status,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pickWpSitesForCampaign = `-- name: PickWpSitesForCampaign :many
+SELECT w.id, w.base_url, w.app_username
+FROM campaign_target_sites cts
+JOIN wp_sites w ON w.id = cts.wp_site_id
+WHERE cts.campaign_id = $1::uuid
+  AND w.user_id = $2::uuid
+  AND w.deleted_at IS NULL
+  AND w.status = 'connected'
+  AND NOT EXISTS (
+      SELECT 1 FROM jobs j
+      WHERE j.campaign_id = $1::uuid
+        AND j.target_url_snapshot = w.base_url
+  )
+ORDER BY w.created_at ASC
+LIMIT $3::int
+FOR UPDATE OF w SKIP LOCKED
+`
+
+type PickWpSitesForCampaignParams struct {
+	CampaignID uuid.UUID `json:"campaign_id"`
+	UserID     uuid.UUID `json:"user_id"`
+	LimitCount int32     `json:"limit_count"`
+}
+
+type PickWpSitesForCampaignRow struct {
+	ID          uuid.UUID `json:"id"`
+	BaseUrl     string    `json:"base_url"`
+	AppUsername string    `json:"app_username"`
+}
+
+// Returns connected wp_sites linked to a campaign that do NOT already have a job
+// for this campaign (deduplication: one job per campaign×site URL pair).
+// Uses FOR UPDATE OF w SKIP LOCKED so concurrent Enqueue calls don't double-pick.
+func (q *Queries) PickWpSitesForCampaign(ctx context.Context, arg PickWpSitesForCampaignParams) ([]PickWpSitesForCampaignRow, error) {
+	rows, err := q.db.Query(ctx, pickWpSitesForCampaign, arg.CampaignID, arg.UserID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PickWpSitesForCampaignRow
+	for rows.Next() {
+		var i PickWpSitesForCampaignRow
+		if err := rows.Scan(&i.ID, &i.BaseUrl, &i.AppUsername); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

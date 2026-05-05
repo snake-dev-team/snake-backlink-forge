@@ -27,7 +27,7 @@ SET status      = 'in_progress',
     lease_holder = $2::text
 FROM claimed
 WHERE jobs.id = claimed.id
-RETURNING jobs.id, jobs.user_id, jobs.campaign_id, jobs.target_id, jobs.target_url_snapshot, jobs.anchor_text, jobs.anchor_type, jobs.content_body, jobs.status, jobs.pool, jobs.credits_cost, jobs.captcha_cost, jobs.error_code, jobs.error_message, jobs.result_url, jobs.dispatched_at, jobs.completed_at, jobs.created_at, jobs.content_title, jobs.content_meta, jobs.lease_until, jobs.lease_holder, jobs.retry_count, jobs.last_error_at
+RETURNING jobs.id, jobs.user_id, jobs.campaign_id, jobs.target_id, jobs.target_url_snapshot, jobs.anchor_text, jobs.anchor_type, jobs.content_body, jobs.status, jobs.pool, jobs.credits_cost, jobs.captcha_cost, jobs.error_code, jobs.error_message, jobs.result_url, jobs.dispatched_at, jobs.completed_at, jobs.created_at, jobs.content_title, jobs.content_meta, jobs.lease_until, jobs.lease_holder, jobs.retry_count, jobs.last_error_at, jobs.verified, jobs.anchor_verified, jobs.verification_attempts, jobs.verified_at, jobs.verification_error, jobs.last_verification_at
 `
 
 type ClaimContentReadyJobsParams struct {
@@ -76,6 +76,12 @@ func (q *Queries) ClaimContentReadyJobs(ctx context.Context, arg ClaimContentRea
 			&i.LeaseHolder,
 			&i.RetryCount,
 			&i.LastErrorAt,
+			&i.Verified,
+			&i.AnchorVerified,
+			&i.VerificationAttempts,
+			&i.VerifiedAt,
+			&i.VerificationError,
+			&i.LastVerificationAt,
 		); err != nil {
 			return nil, err
 		}

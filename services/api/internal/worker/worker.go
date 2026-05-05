@@ -14,6 +14,7 @@ import (
 
 	sqlcdb "github.com/kekuta/snake-backlink-forge/services/api/internal/db/sqlc"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/verification"
 	"go.uber.org/zap"
 )
 
@@ -52,6 +53,9 @@ type Deps struct {
 	JobSvc *service.JobService
 	// WpSiteSvc fetches decrypted WP credentials by domain.
 	WpSiteSvc *service.WpSiteService
+	// Verifier enqueues completed jobs for post-publish link verification.
+	// Optional: if nil, verification is skipped (graceful degradation).
+	Verifier *verification.Verifier
 }
 
 // Worker is the embedded background processor. Create via New; start via Start.
@@ -66,6 +70,9 @@ type Worker struct {
 // New constructs a Worker. workerID identifies this instance in DB lease_holder fields
 // and log entries. Use buildWorkerID() for the standard hostname-pid format.
 func New(cfg Config, deps Deps, log *zap.Logger) *Worker {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	return &Worker{
 		cfg:         cfg,
 		deps:        deps,

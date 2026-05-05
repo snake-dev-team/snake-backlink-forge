@@ -26,6 +26,7 @@ import (
 	appredis "github.com/kekuta/snake-backlink-forge/services/api/internal/redis"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/service"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/util"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/verification"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/worker"
 	"go.uber.org/zap"
 )
@@ -256,6 +257,17 @@ func main() {
 		log.Info("audit fail watcher started")
 	}
 
+	// --- Post-publish Verifier (Phase 7.07) ---
+	// Runs as a background goroutine alongside the worker. Receives job IDs via a
+	// buffered channel (non-blocking push from job_runner) and a 5-min retry ticker.
+	// Nil-safe: worker skips Verify() call when Verifier is nil.
+	var verifier *verification.Verifier
+	if dbPool != nil {
+		verifier = verification.New(sqlcdb.New(dbPool), log.Named("verifier"))
+		go verifier.Start(rootCtx)
+		log.Info("post-publish verifier started")
+	}
+
 	// --- Embedded Go Worker (Phase 7.05) ---
 	// Spawned as a detached goroutine so it never blocks API server startup.
 	// Controlled by WORKER_ENABLED env var; gracefully shut down via rootCtx cancellation.
@@ -272,6 +284,7 @@ func main() {
 			Q:         sqlcdb.New(dbPool),
 			JobSvc:    jobSvc,
 			WpSiteSvc: wpSiteSvc,
+			Verifier:  verifier, // nil-safe: skipped when verifier unavailable
 		}, log)
 		go embeddedWorker.Start(rootCtx)
 		log.Info("embedded worker started",
