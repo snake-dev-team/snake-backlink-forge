@@ -50,6 +50,16 @@ type Config struct {
 	// Empty string → /download replies "installer not yet published".
 	InstallerURL string `env:"INSTALLER_URL"`
 
+	// -- Phase 7.04: AI content generation --
+	// AnthropicAPIKey is the Anthropic API key for Claude content generation.
+	// Empty → AI content generation disabled (graceful degradation, no panic).
+	AnthropicAPIKey string `env:"ANTHROPIC_API_KEY"`
+	// OpenAIAPIKey is the OpenAI API key used as fallback when Claude fails.
+	// Empty → OpenAI fallback disabled.
+	OpenAIAPIKey string `env:"OPENAI_API_KEY"`
+	// AIModelPrimary overrides the default Claude model (claude-sonnet-4-6).
+	AIModelPrimary string `env:"AI_MODEL_PRIMARY" envDefault:"claude-sonnet-4-6"`
+
 	// -- External APIs (Phase 4-6) --
 	SerpapiKey          string  `env:"SERPAPI_KEY"`
 	MozAccessID         string  `env:"MOZ_ACCESS_ID"`
@@ -84,6 +94,9 @@ func Load() (*Config, error) {
 	cfg.SepayBankAccount = strings.TrimSpace(cfg.SepayBankAccount)
 	cfg.CORSOrigins = normalizeStringSlice(cfg.CORSOrigins)
 	cfg.TrustedProxyCIDRs = normalizeStringSlice(cfg.TrustedProxyCIDRs)
+	cfg.AnthropicAPIKey = strings.TrimSpace(cfg.AnthropicAPIKey)
+	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
+	cfg.AIModelPrimary = strings.TrimSpace(cfg.AIModelPrimary)
 
 	if err := validateCORSOrigins(cfg.CORSOrigins); err != nil {
 		return nil, fmt.Errorf("config: CORS_ORIGINS: %w", err)

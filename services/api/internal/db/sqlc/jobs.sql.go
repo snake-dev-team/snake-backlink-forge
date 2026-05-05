@@ -65,17 +65,18 @@ WITH claimed AS (
         FROM jobs j
         JOIN campaigns c ON c.id = j.campaign_id
         WHERE j.user_id = $1
-          AND j.status = 'queued'
+          AND j.status IN ('content_ready', 'queued')
           AND c.status = 'running'
-        ORDER BY j.created_at ASC
+        ORDER BY j.status DESC, j.created_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+    RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at, content_title, content_meta
 )
 SELECT claimed.id, claimed.user_id, claimed.campaign_id, claimed.target_id,
        claimed.target_url_snapshot, claimed.anchor_text, claimed.anchor_type,
-       claimed.content_body, claimed.status, claimed.pool, claimed.credits_cost,
+       claimed.content_body, claimed.content_title, claimed.content_meta,
+       claimed.status, claimed.pool, claimed.credits_cost,
        claimed.captcha_cost, claimed.error_code, claimed.error_message,
        claimed.result_url, claimed.dispatched_at, claimed.completed_at,
        claimed.created_at, c.money_site_url
@@ -92,6 +93,8 @@ type ClaimNextQueuedJobRow struct {
 	AnchorText        string             `json:"anchor_text"`
 	AnchorType        string             `json:"anchor_type"`
 	ContentBody       *string            `json:"content_body"`
+	ContentTitle      *string            `json:"content_title"`
+	ContentMeta       *string            `json:"content_meta"`
 	Status            JobStatus          `json:"status"`
 	Pool              string             `json:"pool"`
 	CreditsCost       int32              `json:"credits_cost"`
@@ -105,6 +108,9 @@ type ClaimNextQueuedJobRow struct {
 	MoneySiteUrl      string             `json:"money_site_url"`
 }
 
+// Phase 7.04: claims content_ready jobs first (AI content populated), falling
+// back to queued jobs (for backward compat when AI generation is disabled).
+// Extension receives content_title / content_meta alongside content_body.
 func (q *Queries) ClaimNextQueuedJob(ctx context.Context, userID uuid.UUID) (ClaimNextQueuedJobRow, error) {
 	row := q.db.QueryRow(ctx, claimNextQueuedJob, userID)
 	var i ClaimNextQueuedJobRow
@@ -117,6 +123,8 @@ func (q *Queries) ClaimNextQueuedJob(ctx context.Context, userID uuid.UUID) (Cla
 		&i.AnchorText,
 		&i.AnchorType,
 		&i.ContentBody,
+		&i.ContentTitle,
+		&i.ContentMeta,
 		&i.Status,
 		&i.Pool,
 		&i.CreditsCost,
@@ -136,7 +144,7 @@ const completeJob = `-- name: CompleteJob :one
 UPDATE jobs
 SET status = 'success', result_url = $3, completed_at = NOW(), error_code = NULL, error_message = NULL
 WHERE user_id = $1 AND id = $2 AND status IN ('dispatched', 'in_progress')
-RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at, content_title, content_meta
 `
 
 type CompleteJobParams struct {
@@ -167,6 +175,8 @@ func (q *Queries) CompleteJob(ctx context.Context, arg CompleteJobParams) (Job, 
 		&i.DispatchedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.ContentTitle,
+		&i.ContentMeta,
 	)
 	return i, err
 }
@@ -221,7 +231,7 @@ INSERT INTO jobs (
     $6, $7, 'queued', $8, $9
 )
 ON CONFLICT (campaign_id, target_id) DO NOTHING
-RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at, content_title, content_meta
 `
 
 type CreateJobParams struct {
@@ -269,6 +279,8 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 		&i.DispatchedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.ContentTitle,
+		&i.ContentMeta,
 	)
 	return i, err
 }
@@ -277,7 +289,7 @@ const failJob = `-- name: FailJob :one
 UPDATE jobs
 SET status = 'failed', error_code = $3, error_message = $4, completed_at = NOW()
 WHERE user_id = $1 AND id = $2 AND status IN ('queued', 'dispatched', 'in_progress')
-RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at, content_title, content_meta
 `
 
 type FailJobParams struct {
@@ -314,12 +326,14 @@ func (q *Queries) FailJob(ctx context.Context, arg FailJobParams) (Job, error) {
 		&i.DispatchedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.ContentTitle,
+		&i.ContentMeta,
 	)
 	return i, err
 }
 
 const getJobByUser = `-- name: GetJobByUser :one
-SELECT id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at FROM jobs
+SELECT id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at, content_title, content_meta FROM jobs
 WHERE user_id = $1 AND id = $2
 `
 
@@ -350,12 +364,14 @@ func (q *Queries) GetJobByUser(ctx context.Context, arg GetJobByUserParams) (Job
 		&i.DispatchedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.ContentTitle,
+		&i.ContentMeta,
 	)
 	return i, err
 }
 
 const getJobForReport = `-- name: GetJobForReport :one
-SELECT id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at FROM jobs
+SELECT id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at, content_title, content_meta FROM jobs
 WHERE user_id = $1
   AND id = $2
   AND status IN ('dispatched', 'in_progress')
@@ -389,12 +405,14 @@ func (q *Queries) GetJobForReport(ctx context.Context, arg GetJobForReportParams
 		&i.DispatchedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.ContentTitle,
+		&i.ContentMeta,
 	)
 	return i, err
 }
 
 const listJobsByCampaign = `-- name: ListJobsByCampaign :many
-SELECT id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at FROM jobs
+SELECT id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at, content_title, content_meta FROM jobs
 WHERE user_id = $1 AND campaign_id = $2
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $4
@@ -440,6 +458,8 @@ func (q *Queries) ListJobsByCampaign(ctx context.Context, arg ListJobsByCampaign
 			&i.DispatchedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.ContentTitle,
+			&i.ContentMeta,
 		); err != nil {
 			return nil, err
 		}
@@ -455,7 +475,7 @@ const markJobInProgress = `-- name: MarkJobInProgress :one
 UPDATE jobs
 SET status = 'in_progress'
 WHERE user_id = $1 AND id = $2 AND status IN ('queued', 'dispatched')
-RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at, content_title, content_meta
 `
 
 type MarkJobInProgressParams struct {
@@ -485,6 +505,8 @@ func (q *Queries) MarkJobInProgress(ctx context.Context, arg MarkJobInProgressPa
 		&i.DispatchedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.ContentTitle,
+		&i.ContentMeta,
 	)
 	return i, err
 }
@@ -493,7 +515,7 @@ const skipJob = `-- name: SkipJob :one
 UPDATE jobs
 SET status = 'skipped', error_code = $3, error_message = $4, completed_at = NOW()
 WHERE user_id = $1 AND id = $2 AND status IN ('queued', 'dispatched', 'in_progress')
-RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at
+RETURNING id, user_id, campaign_id, target_id, target_url_snapshot, anchor_text, anchor_type, content_body, status, pool, credits_cost, captcha_cost, error_code, error_message, result_url, dispatched_at, completed_at, created_at, content_title, content_meta
 `
 
 type SkipJobParams struct {
@@ -530,6 +552,8 @@ func (q *Queries) SkipJob(ctx context.Context, arg SkipJobParams) (Job, error) {
 		&i.DispatchedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.ContentTitle,
+		&i.ContentMeta,
 	)
 	return i, err
 }

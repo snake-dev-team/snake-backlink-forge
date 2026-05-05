@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/kekuta/snake-backlink-forge/services/api/internal/ai"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/api"
 	"github.com/kekuta/snake-backlink-forge/services/api/internal/api/handlers"
 	appbot "github.com/kekuta/snake-backlink-forge/services/api/internal/bot"
@@ -136,6 +137,22 @@ func main() {
 		log.Info("campaign + job services initialized")
 	}
 
+	// --- ContentService (Phase 7.04: AI content generation) ---
+	// Wires Claude primary + OpenAI fallback via Router. Graceful when keys unset.
+	var contentSvc *service.ContentService
+	if dbPool != nil {
+		aiRouter := ai.NewRouter(
+			ai.NewClaudeClient(cfg.AnthropicAPIKey, cfg.AIModelPrimary),
+			ai.NewOpenAIClient(cfg.OpenAIAPIKey, ""),
+		)
+		contentSvc = service.NewContentService(dbPool, sqlcdb.New(dbPool), aiRouter, log.Named("content_svc"))
+		if cfg.AnthropicAPIKey == "" && cfg.OpenAIAPIKey == "" {
+			log.Warn("content service: no AI keys configured — generate-content endpoint will return 503")
+		} else {
+			log.Info("content service initialized")
+		}
+	}
+
 	// --- WpSiteService (Phase 3 web SaaS) ---
 	var wpSiteSvc *service.WpSiteService
 	if dbPool != nil && cfg.WPEncKey != "" {
@@ -247,6 +264,7 @@ func main() {
 		WpSiteSvc:   wpSiteSvc,
 		CampaignSvc: campaignSvc,
 		JobSvc:      jobSvc,
+		ContentSvc:  contentSvc,
 		Log:         log.Named("api_v1"),
 	}
 	if dbPool != nil {

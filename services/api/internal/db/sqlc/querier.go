@@ -19,6 +19,9 @@ type Querier interface {
 	// idx_tx_provider_ref_active partial index, enabling late-payment recovery in Phase 06.
 	// Metadata is augmented (||) rather than replaced to preserve existing fields.
 	CancelPendingTransaction(ctx context.Context, arg CancelPendingTransactionParams) error
+	// Phase 7.04: claims content_ready jobs first (AI content populated), falling
+	// back to queued jobs (for backward compat when AI generation is disabled).
+	// Extension receives content_title / content_meta alongside content_body.
 	ClaimNextQueuedJob(ctx context.Context, userID uuid.UUID) (ClaimNextQueuedJobRow, error)
 	CompleteJob(ctx context.Context, arg CompleteJobParams) (Job, error)
 	CountActiveKeys(ctx context.Context) (int64, error)
@@ -57,6 +60,9 @@ type Querier interface {
 	GetActiveKeyByUser(ctx context.Context, userID uuid.UUID) (ApiKey, error)
 	GetAuditLogByEventSince(ctx context.Context, arg GetAuditLogByEventSinceParams) ([]AuditLog, error)
 	GetCampaignByUser(ctx context.Context, arg GetCampaignByUserParams) (Campaign, error)
+	// Returns queued jobs for a campaign that have no content yet.
+	// Used by ContentService to batch-generate articles.
+	GetCampaignQueuedJobsForContent(ctx context.Context, arg GetCampaignQueuedJobsForContentParams) ([]GetCampaignQueuedJobsForContentRow, error)
 	GetJobByUser(ctx context.Context, arg GetJobByUserParams) (Job, error)
 	GetJobForReport(ctx context.Context, arg GetJobForReportParams) (Job, error)
 	GetKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, error)
@@ -121,6 +127,11 @@ type Querier interface {
 	TxStats24h(ctx context.Context) (TxStats24hRow, error)
 	UnbanUser(ctx context.Context, telegramID int64) error
 	UpdateCampaignStatus(ctx context.Context, arg UpdateCampaignStatusParams) (Campaign, error)
+	// Queries for AI content generation on jobs.
+	// These queries are separate from jobs.sql to keep the file size manageable.
+	// Transitions a queued job to content_ready after AI generation.
+	// Idempotent: only updates jobs still in queued status (skips already-processed).
+	UpdateJobContent(ctx context.Context, arg UpdateJobContentParams) error
 	UpdateWpSiteStatus(ctx context.Context, arg UpdateWpSiteStatusParams) error
 	UpsertDomainCooldown(ctx context.Context, arg UpsertDomainCooldownParams) error
 	UpsertUserStub(ctx context.Context, arg UpsertUserStubParams) (User, error)

@@ -61,12 +61,13 @@ func (ns NullCampaignStatus) Value() (driver.Value, error) {
 type JobStatus string
 
 const (
-	JobStatusQueued     JobStatus = "queued"
-	JobStatusDispatched JobStatus = "dispatched"
-	JobStatusInProgress JobStatus = "in_progress"
-	JobStatusSuccess    JobStatus = "success"
-	JobStatusFailed     JobStatus = "failed"
-	JobStatusSkipped    JobStatus = "skipped"
+	JobStatusQueued       JobStatus = "queued"
+	JobStatusContentReady JobStatus = "content_ready"
+	JobStatusDispatched   JobStatus = "dispatched"
+	JobStatusInProgress   JobStatus = "in_progress"
+	JobStatusSuccess      JobStatus = "success"
+	JobStatusFailed       JobStatus = "failed"
+	JobStatusSkipped      JobStatus = "skipped"
 )
 
 func (e *JobStatus) Scan(src interface{}) error {
@@ -451,6 +452,8 @@ type Job struct {
 	DispatchedAt      pgtype.Timestamptz `json:"dispatched_at"`
 	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
 	CreatedAt         time.Time          `json:"created_at"`
+	ContentTitle      *string            `json:"content_title"`
+	ContentMeta       *string            `json:"content_meta"`
 }
 
 type Ledger struct {

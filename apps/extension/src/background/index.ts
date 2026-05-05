@@ -5,6 +5,7 @@ import type { WPSiteCredentials } from "../wp/types";
 
 // F14: server claimedJobMap does not include `type`; make optional to avoid strict TS error.
 // F17: target_url is non-optional; fallback to money_url removed.
+// Phase 7.04: content_body/title/meta populated by AI generation step before dispatch.
 type CampaignJob = {
   id: string;
   campaign_id: string;
@@ -16,6 +17,9 @@ type CampaignJob = {
   anchor_text?: string | null;
   status: string;
   metadata?: unknown;
+  content_body?: string | null;
+  content_title?: string | null;
+  content_meta?: string | null;
 };
 
 type ExtensionSettings = {
@@ -238,10 +242,20 @@ async function runJob(settings: ExtensionSettings, job: CampaignJob): Promise<vo
     return;
   }
 
-  const anchor = job.anchor_text || new URL(job.money_url).hostname;
+  // Phase 7.04: require AI-generated content; skip job if not yet populated.
+  // Jobs without content_body were enqueued before generate-content was called.
+  if (!job.content_body || !job.content_title) {
+    await reportResult(settings, job.id, {
+      status: "skipped",
+      error_code: "no_content",
+      error_message: "AI content not generated for this job",
+    });
+    return;
+  }
+
   const postResult = await postBacklink(creds, {
-    title: `${anchor} — sponsored review`,
-    content_html: `<p>Featured: <a href="${job.money_url}" rel="nofollow sponsored">${anchor}</a></p>`,
+    title: job.content_title,
+    content_html: job.content_body,
   });
 
   if (!postResult.ok) {

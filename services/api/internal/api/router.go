@@ -43,6 +43,7 @@ func RegisterV1(app *fiber.App, deps *handlers.ApiHandlerDeps) {
 	authed.Post("/campaigns/:id/archive", handlers.V1CampaignStatus(deps, sqlcdb.CampaignStatusArchived))
 	authed.Post("/campaigns/:id/enqueue", handlers.V1CampaignEnqueue(deps))
 	authed.Get("/campaigns/:id/jobs", handlers.V1CampaignJobs(deps))
+	authed.Post("/campaigns/:id/generate-content", handlers.V1GenerateCampaignContent(deps))
 	// Pass Redis client so nonce replay protection is multi-instance safe (F4).
 	// When deps.Rdb is nil (dev/test without Redis), falls back to in-process cache.
 	extensionAuthed := authed.Group("", middleware.ExtensionSignature(deps.Rdb))
