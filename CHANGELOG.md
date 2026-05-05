@@ -1,3 +1,9 @@
+## [1.0.0-beta.51](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.50...v1.0.0-beta.51) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **sqlc:** add missing CampaignTargetSite struct to models.go ([799c8f1](https://github.com/snake-dev-team/snake-backlink-forge/commit/799c8f1fef0f69c04023bc183c5005545297cdea))
+
 ## [1.0.0-beta.50](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.49...v1.0.0-beta.50) (2026-05-05)
 
 ### 🚀 Features
