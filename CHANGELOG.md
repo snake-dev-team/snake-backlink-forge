@@ -1,3 +1,13 @@
+## [1.0.0-beta.45](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.44...v1.0.0-beta.45) (2026-05-05)
+
+### 🐞 Bug Fixes
+
+* **test:** remove unused getPremiumCredits helper from service tests ([14c6387](https://github.com/snake-dev-team/snake-backlink-forge/commit/14c6387a9d2cda4e2559ebea3a9f8e733ed6d4c8))
+
+### ✅ Tests
+
+* **service:** campaign + job unit/integration tests with sql enum cast fix ([7523fbe](https://github.com/snake-dev-team/snake-backlink-forge/commit/7523fbea8927a0b2a4aa262565c88e42ae96426e))
+
 ## [1.0.0-beta.44](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.43...v1.0.0-beta.44) (2026-05-05)
 
 ### 🐞 Bug Fixes
