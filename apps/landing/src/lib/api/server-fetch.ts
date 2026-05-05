@@ -38,6 +38,59 @@ export type WpSitesPage = {
   items: WpSite[];
 };
 
+export type CampaignStats = {
+  total: number;
+  queued: number;
+  dispatched: number;
+  in_progress: number;
+  success: number;
+  failed: number;
+  skipped: number;
+};
+
+export type Campaign = {
+  id: string;
+  name: string;
+  money_site_url: string;
+  niche_keywords: string[];
+  anchor_texts: { text: string; type?: string; weight?: number }[];
+  pool: string;
+  source_mode: string;
+  daily_limit: number;
+  status: "draft" | "running" | "paused" | "completed" | "archived";
+  ethical_mode: boolean;
+  niche_filter: boolean;
+  credits_allocated: number;
+  credits_consumed: number;
+  created_at: string;
+  updated_at: string;
+  stats?: CampaignStats;
+};
+
+export type CampaignsPage = {
+  items: Campaign[];
+};
+
+export type CampaignJob = {
+  id: string;
+  campaign_id: string;
+  target_url: string;
+  anchor_text: string;
+  anchor_type: string;
+  status: string;
+  pool: string;
+  credits_cost: number;
+  error_code?: string | null;
+  error_message?: string | null;
+  result_url?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+};
+
+export type CampaignJobsPage = {
+  items: CampaignJob[];
+};
+
 async function proxyFetch(path: string, init?: RequestInit): Promise<Response> {
   const key = await getApiKeyCookie();
   if (!key) {
@@ -116,6 +169,59 @@ export async function fetchWpSitesServer(): Promise<WpSitesPage> {
   const response = await proxyFetch("/wp-sites");
   if (!response.ok) {
     throw new Error("fetch_wp_sites_failed");
+  }
+  return response.json();
+}
+
+export async function fetchCampaignsServer(): Promise<CampaignsPage> {
+  if (E2E_API_MOCK) {
+    return {
+      items: [
+        {
+          id: "00000000-0000-0000-0000-000000000101",
+          name: "Money site launch",
+          money_site_url: "https://example.com/seo-service",
+          niche_keywords: ["seo", "backlink"],
+          anchor_texts: [{ text: "dịch vụ seo", type: "partial", weight: 70 }],
+          pool: "standard",
+          source_mode: "custom",
+          daily_limit: 5,
+          status: "running",
+          ethical_mode: true,
+          niche_filter: true,
+          credits_allocated: 20,
+          credits_consumed: 4,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          stats: {
+            total: 8,
+            queued: 4,
+            dispatched: 0,
+            in_progress: 1,
+            success: 3,
+            failed: 0,
+            skipped: 0,
+          },
+        },
+      ],
+    };
+  }
+
+  const response = await proxyFetch("/campaigns");
+  if (!response.ok) {
+    throw new Error("fetch_campaigns_failed");
+  }
+  return response.json();
+}
+
+export async function fetchCampaignJobsServer(campaignId: string): Promise<CampaignJobsPage> {
+  if (E2E_API_MOCK) {
+    return { items: [] };
+  }
+
+  const response = await proxyFetch(`/campaigns/${campaignId}/jobs?limit=20`);
+  if (!response.ok) {
+    throw new Error("fetch_campaign_jobs_failed");
   }
   return response.json();
 }
