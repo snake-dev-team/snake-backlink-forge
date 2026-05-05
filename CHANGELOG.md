@@ -1,3 +1,10 @@
+## [1.0.0-beta.41](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.40...v1.0.0-beta.41) (2026-05-05)
+
+### 🚀 Features
+
+* **campaigns:** backend module (handlers + service + sqlc + HMAC + migration) ([838cf54](https://github.com/snake-dev-team/snake-backlink-forge/commit/838cf541a1a60d6bedcd7e77c4965821467af7d1))
+* **landing:** campaigns list + create UI ([d0028f7](https://github.com/snake-dev-team/snake-backlink-forge/commit/d0028f7bff596a102b72e47c383b9f60c50b2169))
+
 ## [1.0.0-beta.40](https://github.com/snake-dev-team/snake-backlink-forge/compare/v1.0.0-beta.39...v1.0.0-beta.40) (2026-05-04)
 
 ### 🐞 Bug Fixes
